@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Supabase Client Config
+// Supabase Single Client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://urgbcrkvlyfswpdsgyzp.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_9aHZdWEJ6TMseemR9mQFjQ_b0ZgJoiW';
 
@@ -41,7 +41,7 @@ export default function Home() {
   const [savingProfile, setSavingProfile] = useState(false);
 
   // File Input Ref for Avatar
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -72,7 +72,7 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Handle Avatar Change
+  // Handle Local Avatar Upload
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
@@ -97,7 +97,7 @@ export default function Home() {
           return;
         }
 
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
           email: authEmail.trim(),
           password: authPassword,
         });
@@ -110,7 +110,7 @@ export default function Home() {
           setActiveTab('dashboard');
         }
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
           email: authEmail.trim(),
           password: authPassword,
         });
@@ -167,7 +167,7 @@ export default function Home() {
       await supabase.auth.signOut();
       setUser(null);
       setActiveTab('resources');
-      alert('Signed out. Account record can be deleted via Supabase Dashboard.');
+      alert('Signed out successfully.');
     } catch (err: any) {
       alert('Error signing out: ' + err.message);
     }
@@ -185,7 +185,7 @@ export default function Home() {
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
       
-      {/* Header */}
+      {/* Header Navigation */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, position: 'relative', zIndex: 10, padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: '1.2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: theme.accent }}></div>
@@ -288,10 +288,10 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Content Areas */}
+      {/* Main Container */}
       <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem' }}>
         
-        {/* Resource Hub Tab */}
+        {/* Resource Hub */}
         {activeTab === 'resources' && (
           <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>Resource Hub</h2>
@@ -299,7 +299,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Study Lounges Tab */}
+        {/* Study Lounges */}
         {activeTab === 'lounges' && (
           <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>Study Lounges</h2>
@@ -307,7 +307,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Discussions Tab */}
+        {/* Discussions */}
         {activeTab === 'discussions' && (
           <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>Discussions</h2>
@@ -315,11 +315,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* Personal Dashboard Tab */}
+        {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
-            {/* Top Overview Header */}
+            {/* User Overview */}
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', display: 'flex', gap: '2rem', alignItems: 'center' }}>
               <div style={{
                 width: '90px',
@@ -347,14 +347,11 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Dashboard Stats & Activity Grid */}
+            {/* Grid Activity Panels */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
               
-              {/* Study Activity & Lounges History */}
               <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span>⏱️</span> Study Lounge Activity
-                </h3>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>⏱️ Study Lounge Activity</h3>
                 <div style={{ fontSize: '0.85rem', color: theme.textMuted, display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                   <div style={{ padding: '0.8rem', backgroundColor: theme.bg, borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
                     <span>Total Study Time</span>
@@ -367,19 +364,13 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* My Discussions & Posts */}
               <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span>💬</span> My Posts & Threads
-                </h3>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>💬 My Posts & Threads</h3>
                 <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>You haven't created any posts in Discussions yet.</p>
               </div>
 
-              {/* Study Peers / Friends */}
               <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span>👥</span> Study Peers
-                </h3>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>👥 Study Peers</h3>
                 <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>No added study friends yet.</p>
               </div>
 
@@ -409,9 +400,8 @@ export default function Home() {
                       backgroundColor: theme.bg,
                       border: `2px dashed ${theme.accent}`,
                       display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'center',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       cursor: 'pointer',
                       overflow: 'hidden',
                       backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none',
@@ -419,9 +409,7 @@ export default function Home() {
                       backgroundPosition: 'center',
                     }}
                   >
-                    {!avatarUrl && (
-                      <span style={{ fontSize: '1.2rem' }}>📷</span>
-                    )}
+                    {!avatarUrl && <span style={{ fontSize: '1.2rem' }}>📷</span>}
                   </div>
                   <div>
                     <button 
