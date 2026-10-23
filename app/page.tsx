@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// 单例模式：使用正确 Supabase 实例的 Project URL 和 Anon Key
+// Supabase Client Config
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://urgbcrkvlyfswpdsgyzp.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_9aHZdWEJ6TMseemR9mQFjQ_b0ZgJoiW';
 
@@ -25,32 +25,52 @@ export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   
-  // 认证表单状态
+  // Auth Form State
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // 个人信息编辑表单状态
-  const [fullName, setFullName] = useState('');
-  const [programGrade, setProgramGrade] = useState('');
+  // Profile Form State (Separated Fields)
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [username, setUsername] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [grade, setGrade] = useState('');
+  const [gender, setGender] = useState('');
   const [bio, setBio] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user);
+      if (user?.user_metadata) {
+        setAvatarUrl(user.user_metadata.avatar_url || '');
+        setUsername(user.user_metadata.username || '');
+        setNickname(user.user_metadata.nickname || '');
+        setGrade(user.user_metadata.grade || '');
+        setGender(user.user_metadata.gender || '');
+        setBio(user.user_metadata.bio || '');
+      }
     }).catch(() => {});
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser?.user_metadata) {
+        setAvatarUrl(currentUser.user_metadata.avatar_url || '');
+        setUsername(currentUser.user_metadata.username || '');
+        setNickname(currentUser.user_metadata.nickname || '');
+        setGrade(currentUser.user_metadata.grade || '');
+        setGender(currentUser.user_metadata.gender || '');
+        setBio(currentUser.user_metadata.bio || '');
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // 登录/注册逻辑
+  // Auth Submit Handler
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -73,7 +93,7 @@ export default function Home() {
         } else {
           alert('Registration successful! Please complete your profile information.');
           setShowAuthModal(false);
-          setShowProfileModal(true); // 注册成功后直接打开编辑个人信息界面
+          setShowProfileModal(true);
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -95,7 +115,7 @@ export default function Home() {
     }
   }
 
-  // 保存个人信息逻辑
+  // Profile Save Handler
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
     setSavingProfile(true);
@@ -103,8 +123,11 @@ export default function Home() {
     try {
       const { error } = await supabase.auth.updateUser({
         data: {
-          full_name: fullName,
-          program_grade: programGrade,
+          avatar_url: avatarUrl,
+          username: username,
+          nickname: nickname,
+          grade: grade,
+          gender: gender,
           bio: bio,
         }
       });
@@ -119,6 +142,22 @@ export default function Home() {
       alert('Error updating profile: ' + err.message);
     } finally {
       setSavingProfile(false);
+    }
+  }
+
+  // Account Deletion Handler
+  async function handleDeleteAccount() {
+    const confirmDelete = window.confirm('Are you sure you want to delete/deactivate your account? This will log you out.');
+    if (!confirmDelete) return;
+
+    try {
+      // Clear session locally
+      await supabase.auth.signOut();
+      setUser(null);
+      setShowProfileModal(false);
+      alert('Account signed out. If you wish to permanently delete record, remove it from Supabase Dashboard -> Auth -> Users.');
+    } catch (err: any) {
+      alert('Error during deletion request: ' + err.message);
     }
   }
 
@@ -178,7 +217,7 @@ export default function Home() {
           </button>
 
           {user ? (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               <button 
                 onClick={() => setShowProfileModal(true)}
                 style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer' }}
@@ -316,7 +355,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Edit Profile Modal */}
+      {/* Detailed Profile Modal */}
       {showProfileModal && (
         <div 
           style={{ 
@@ -332,41 +371,86 @@ export default function Home() {
             zIndex: 999999 
           }}
         >
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}`, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Complete Your Profile</h2>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Edit Profile</h2>
               <button onClick={() => setShowProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
             </div>
 
             <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              
+              {/* Avatar URL */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Full Name</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Avatar Image URL (Optional)</label>
                 <input 
-                  type="text" 
-                  required 
-                  placeholder="e.g. Alex Smith" 
-                  value={fullName} 
-                  onChange={(e) => setFullName(e.target.value)} 
+                  type="url" 
+                  placeholder="https://example.com/avatar.jpg" 
+                  value={avatarUrl} 
+                  onChange={(e) => setAvatarUrl(e.target.value)} 
                   style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
                 />
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Program / Grade</label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="e.g. Grade 11 / Computer Science" 
-                  value={programGrade} 
-                  onChange={(e) => setProgramGrade(e.target.value)} 
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
-                />
+              {/* Username & Nickname */}
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="alex_smith" 
+                    value={username} 
+                    onChange={(e) => setUsername(e.target.value)} 
+                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="Alex" 
+                    value={nickname} 
+                    onChange={(e) => setNickname(e.target.value)} 
+                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
+                  />
+                </div>
               </div>
 
+              {/* Grade & Gender */}
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="Grade 11" 
+                    value={grade} 
+                    onChange={(e) => setGrade(e.target.value)} 
+                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (Optional)</label>
+                  <select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="non-binary">Non-binary</option>
+                    <option value="prefer_not_to_say">Prefer not to say</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Bio */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio (Optional)</label>
                 <textarea 
-                  placeholder="Tell us a bit about your academic interests..." 
+                  placeholder="Tell us a bit about yourself..." 
                   value={bio} 
                   onChange={(e) => setBio(e.target.value)} 
                   rows={3}
@@ -379,9 +463,22 @@ export default function Home() {
                 disabled={savingProfile}
                 style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', opacity: savingProfile ? 0.6 : 1, marginTop: '0.5rem' }}
               >
-                {savingProfile ? 'Saving...' : 'Save Profile'}
+                {savingProfile ? 'Saving Profile...' : 'Save Profile'}
               </button>
             </form>
+
+            {/* Danger Zone: Account Deletion */}
+            <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: `1px dashed ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', color: '#EF4444' }}>Account Management</span>
+              <button 
+                type="button" 
+                onClick={handleDeleteAccount}
+                style={{ background: 'none', border: '1px solid #EF4444', color: '#EF4444', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
+              >
+                Delete Account
+              </button>
+            </div>
+
           </div>
         </div>
       )}
