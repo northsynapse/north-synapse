@@ -3,13 +3,21 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// 直接填入你的真实 Supabase Key 与 URL，彻底解决环境变量找不到的问题
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rxnlrcfe.supabase.co'; // 如果你的 URL 格式不同，可在引号中更改
+// Supabase 初始化
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rxnlrcfe.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_9aHZdWEJ6TMseemR9mQFjQ_b0ZgJoiW';
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-type NavTab = 'resources' | 'lounges' | 'discussions';
+type NavTab = 'resources' | 'lounges' | 'discussions' | 'profile';
+
+interface Profile {
+  id: string;
+  username: string;
+  nickname: string;
+  grade_level: string;
+  gender?: string;
+}
 
 interface ResourceItem {
   id: string;
@@ -24,13 +32,11 @@ interface DiscussionPost {
   id: string;
   title: string;
   category: string;
-  content: string;
   author: string;
-  replies_count: number;
-  is_solved: boolean;
   created_at: string;
 }
 
+// 神经网络 Logo Icon
 const SynapseLogo = ({ color = '#8B5CF6', size = 38 }: { color?: string; size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
@@ -60,87 +66,134 @@ const SynapseLogo = ({ color = '#8B5CF6', size = 38 }: { color?: string; size?: 
   </svg>
 );
 
-const SearchIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="8"></circle>
-    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-  </svg>
-);
-
-const FolderEmptyIcon = () => (
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-    <line x1="9" y1="14" x2="15" y2="14"></line>
-  </svg>
-);
-
-const MessageEmptyIcon = () => (
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-  </svg>
-);
-
 export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [activeTab, setActiveTab] = useState<NavTab>('resources');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCourse, setSelectedCourse] = useState<string>('ALL');
 
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [discussions, setDiscussions] = useState<DiscussionPost[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  // Auth & Profile States
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showProfileSetup, setShowProfileSetup] = useState(false);
+  
+  // Auth Form State
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
+
+  // Profile Setup Form State
+  const [formUsername, setFormUsername] = useState('');
+  const [formNickname, setFormNickname] = useState('');
+  const [formGrade, setFormGrade] = useState('Grade 12');
+  const [formGender, setFormGender] = useState('Prefer not to say');
 
   useEffect(() => {
     fetchData();
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+      if (user) fetchUserProfile(user.id);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        fetchUserProfile(currentUser.id);
+      } else {
+        setProfile(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   async function fetchData() {
-    setLoading(true);
     const { data: resData } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
     const { data: discData } = await supabase.from('discussions').select('*').order('created_at', { ascending: false });
-    
     if (resData) setResources(resData);
     if (discData) setDiscussions(discData);
-    setLoading(false);
   }
 
-  async function handleAddResource() {
-    const title = prompt('Enter resource title (e.g. Grade 12 Calculus Chapter 1 Notes):');
-    if (!title) return;
-    const course = prompt('Enter course code (e.g. MCV4U, ICS4U, SPH4U):', 'MCV4U') || 'MCV4U';
-
-    const { error } = await supabase.from('resources').insert([
-      { title, course_code: course.toUpperCase(), resource_type: 'Class Notes', author: 'NT Student' }
-    ]);
-
-    if (error) {
-      alert('Failed to upload: ' + error.message);
-    } else {
-      fetchData();
+  async function fetchUserProfile(userId: string) {
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (data) {
+      setProfile(data);
+      setFormUsername(data.username || '');
+      setFormNickname(data.nickname || '');
+      setFormGrade(data.grade_level || 'Grade 12');
+      setFormGender(data.gender || 'Prefer not to say');
+    } else if (error && error.code === 'PGRST116') {
+      setShowProfileSetup(true);
     }
   }
 
-  async function handleAddDiscussion() {
-    const title = prompt('Enter topic title (e.g. Tips for Euclid Contest preparation?):');
-    if (!title) return;
-    const category = prompt('Enter category (Course Advice / Contest / OUAC / General):', 'Course Advice') || 'General';
+  // 注册或登录提交
+  async function handleAuthSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (isSignUp) {
+      if (!isStudentConfirmed) {
+        alert('Please confirm that you are an NTCI student or alumni to register.');
+        return;
+      }
 
-    const { error } = await supabase.from('discussions').insert([
-      { title, category, content: '', author: 'NT Student' }
-    ]);
-
-    if (error) {
-      alert('Failed to post: ' + error.message);
+      const { error } = await supabase.auth.signUp({
+        email: authEmail,
+        password: authPassword,
+      });
+      if (error) {
+        alert('SignUp Failed: ' + error.message);
+      } else {
+        alert('注册成功！验证邮件已发送到你的邮箱，请前往邮箱点击验证链接后再登录！');
+        setShowAuthModal(false);
+      }
     } else {
-      fetchData();
+      const { error } = await supabase.auth.signInWithPassword({
+        email: authEmail,
+        password: authPassword,
+      });
+      if (error) {
+        alert('SignIn Failed: ' + error.message);
+      } else {
+        setShowAuthModal(false);
+        setAuthPassword('');
+      }
     }
   }
 
-  const filteredResources = resources.filter(item => {
-    const matchesCourse = selectedCourse === 'ALL' || item.course_code === selectedCourse;
-    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) || item.course_code.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCourse && matchesSearch;
-  });
+  // 保存 Profile 个人信息
+  async function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) return;
+
+    const newProfile = {
+      id: user.id,
+      username: formUsername.trim().toLowerCase(),
+      nickname: formNickname.trim(),
+      grade_level: formGrade,
+      gender: formGender,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('profiles').upsert(newProfile);
+
+    if (error) {
+      alert('Save Profile Failed: ' + error.message);
+    } else {
+      setProfile(newProfile as Profile);
+      setShowProfileSetup(false);
+      alert('Profile successfully saved!');
+    }
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    setActiveTab('resources');
+  }
 
   const theme = {
     bg: isDarkMode ? '#12151A' : '#F8FAFC',
@@ -152,70 +205,48 @@ export default function Home() {
   };
 
   return (
-    <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif', transition: 'all 0.25s ease' }}>
+    <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       
-      {/* Header */}
-      <header style={{ borderBottom: `1px solid ${theme.border}`, position: 'sticky', top: 0, backgroundColor: theme.bg, zIndex: 10, backdropFilter: 'blur(8px)' }}>
+      {/* Header 导航栏 */}
+      <header style={{ borderBottom: `1px solid ${theme.border}`, position: 'sticky', top: 0, backgroundColor: theme.bg, zIndex: 10 }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '0.75rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }} onClick={() => setActiveTab('resources')}>
             <SynapseLogo color={theme.accent} size={38} />
-            <span style={{ fontSize: '1.05rem', fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1 }}>
-              North Synapse
-            </span>
+            <span style={{ fontSize: '1.05rem', fontWeight: 600 }}>North Synapse</span>
           </div>
 
           <nav style={{ display: 'flex', gap: '2rem', fontSize: '0.95rem', fontWeight: 500 }}>
-            {[
-              { key: 'resources', label: 'Resource Hub' },
-              { key: 'lounges', label: 'Study Lounge' },
-              { key: 'discussions', label: 'Discussions' },
-            ].map((tab) => (
-              <span
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key as NavTab)}
-                style={{
-                  cursor: 'pointer',
-                  color: activeTab === tab.key ? theme.accent : theme.textMuted,
-                  borderBottom: activeTab === tab.key ? `2px solid ${theme.accent}` : '2px solid transparent',
-                  paddingBottom: '0.25rem',
-                  transition: 'all 0.2s',
-                }}
-              >
-                {tab.label}
-              </span>
-            ))}
+            <span onClick={() => setActiveTab('resources')} style={{ cursor: 'pointer', color: activeTab === 'resources' ? theme.accent : theme.textMuted }}>Resource Hub</span>
+            <span onClick={() => setActiveTab('lounges')} style={{ cursor: 'pointer', color: activeTab === 'lounges' ? theme.accent : theme.textMuted }}>Study Lounge</span>
+            <span onClick={() => setActiveTab('discussions')} style={{ cursor: 'pointer', color: activeTab === 'discussions' ? theme.accent : theme.textMuted }}>Discussions</span>
           </nav>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              style={{
-                backgroundColor: theme.cardBg,
-                color: theme.textMain,
-                border: `1px solid ${theme.border}`,
-                padding: '0.4rem 0.8rem',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-              }}
-            >
-              {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+            <button onClick={() => setIsDarkMode(!isDarkMode)} style={{ backgroundColor: theme.cardBg, color: theme.textMain, border: `1px solid ${theme.border}`, padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+              {isDarkMode ? 'Light' : 'Dark'}
             </button>
-            <button
-              style={{
-                backgroundColor: theme.accent,
-                color: '#FFFFFF',
-                border: 'none',
-                padding: '0.45rem 1rem',
-                borderRadius: '6px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-              }}
-            >
-              Sign In
-            </button>
+
+            {user ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span
+                  onClick={() => setActiveTab('profile')}
+                  style={{ fontSize: '0.85rem', fontWeight: 600, color: theme.accent, cursor: 'pointer', borderBottom: activeTab === 'profile' ? `2px solid ${theme.accent}` : 'none' }}
+                >
+                  @{profile?.nickname || profile?.username || user.email?.split('@')[0]}
+                </span>
+                <button onClick={handleSignOut} style={{ backgroundColor: 'transparent', color: theme.textMuted, border: `1px solid ${theme.border}`, padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setShowAuthModal(true)} 
+                style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.45rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}
+              >
+                Sign In
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -238,171 +269,222 @@ export default function Home() {
       {/* Main Container */}
       <main style={{ maxWidth: '1100px', margin: '2.5rem auto', padding: '0 1.5rem' }}>
         
-        {/* RESOURCE HUB TAB */}
+        {/* RESOURCE HUB */}
         {activeTab === 'resources' && (
           <div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-              <div style={{ position: 'relative', flex: 1, minWidth: '280px' }}>
-                <input
-                  type="text"
-                  placeholder="Search notes, exam prep, course codes (e.g. ICS4U, SPH4U)..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    width: '100%',
-                    backgroundColor: theme.cardBg,
-                    color: theme.textMain,
-                    border: `1px solid ${theme.border}`,
-                    padding: '0.75rem 1rem 0.75rem 2.5rem',
-                    borderRadius: '8px',
-                    outline: 'none',
-                  }}
-                />
-                <div style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}>
-                  <SearchIcon />
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1rem' }}>Resource Hub</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {resources.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: theme.cardBg, borderRadius: '8px', border: `1px solid ${theme.border}` }}>
+                  <p style={{ color: theme.textMuted }}>No resources available yet.</p>
                 </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                {['ALL', 'ICS4U', 'SPH4U', 'MCV4U', 'SCH4U'].map((code) => (
-                  <button
-                    key={code}
-                    onClick={() => setSelectedCourse(code)}
-                    style={{
-                      backgroundColor: selectedCourse === code ? theme.accent : theme.cardBg,
-                      color: selectedCourse === code ? '#FFF' : theme.textMuted,
-                      border: `1px solid ${selectedCourse === code ? theme.accent : theme.border}`,
-                      padding: '0.5rem 0.9rem',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      fontWeight: 500,
-                    }}
-                  >
-                    {code}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* List or Empty State */}
-            {filteredResources.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '4rem 2rem', backgroundColor: theme.cardBg, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                <div style={{ color: theme.textMuted, marginBottom: '1rem', display: 'flex', justifyContent: 'center' }}>
-                  <FolderEmptyIcon />
-                </div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.5rem' }}>No Resources Available</h3>
-                <p style={{ color: theme.textMuted, fontSize: '0.9rem', maxWidth: '400px', margin: '0 auto 1.5rem auto' }}>
-                  Be the first to share course notes or study guides for this course.
-                </p>
-                <button
-                  onClick={handleAddResource}
-                  style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.65rem 1.4rem', borderRadius: '6px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}
-                >
-                  Upload Resource
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {filteredResources.map((res) => (
-                  <div key={res.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '8px', padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.accent, backgroundColor: `${theme.accent}15`, padding: '0.15rem 0.5rem', borderRadius: '4px', marginRight: '0.5rem' }}>
-                        {res.course_code}
-                      </span>
-                      <h3 style={{ fontSize: '1rem', fontWeight: 600, display: 'inline' }}>{res.title}</h3>
-                      <p style={{ fontSize: '0.8rem', color: theme.textMuted, marginTop: '0.3rem' }}>Shared by @{res.author}</p>
-                    </div>
+              ) : (
+                resources.map((res) => (
+                  <div key={res.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '8px', padding: '1.25rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.accent }}>{res.course_code}</span>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 600, marginTop: '0.2rem' }}>{res.title}</h3>
+                    <p style={{ fontSize: '0.8rem', color: theme.textMuted, marginTop: '0.4rem' }}>Uploaded by @{res.author}</p>
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
           </div>
         )}
 
         {/* STUDY LOUNGE TAB */}
         {activeTab === 'lounges' && (
-          <div>
-            <div style={{ marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 700 }}>Study Lounge</h2>
-              <p style={{ color: theme.textMuted, fontSize: '0.9rem' }}>The central virtual study room for the NTCI community.</p>
-            </div>
-
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#10B981', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span style={{ width: '8px', height: '8px', backgroundColor: '#10B981', borderRadius: '50%' }}></span> ONLINE ROOM
-                </span>
-                <span style={{ fontSize: '0.85rem', color: theme.textMuted }}>Open Focus</span>
-              </div>
-
-              <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>NTCI General Study Lounge</h3>
-              <p style={{ fontSize: '0.95rem', color: theme.textMuted, marginBottom: '2rem', lineHeight: '1.5' }}>Open collaborative focus space for all subjects and grade levels.</p>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${theme.border}`, paddingTop: '1.25rem' }}>
-                <span style={{ fontSize: '0.9rem', fontWeight: 500, color: theme.textMuted }}>
-                  0 / 100 Active Students
-                </span>
-                <button
-                  onClick={() => alert('Connecting to General Study Lounge...')}
-                  style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.4rem', borderRadius: '6px', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}
-                >
-                  Enter Lounge
-                </button>
-              </div>
-            </div>
+          <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem' }}>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>NTCI General Study Lounge</h3>
+            <p style={{ fontSize: '0.95rem', color: theme.textMuted, marginBottom: '1.5rem' }}>Open focus room for study sessions.</p>
+            <button onClick={() => alert('Entering room...')} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.4rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>
+              Enter Lounge
+            </button>
           </div>
         )}
 
         {/* DISCUSSIONS TAB */}
         {activeTab === 'discussions' && (
           <div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1rem' }}>Academic Discussions</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {discussions.map((post) => (
+                <div key={post.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '8px', padding: '1.25rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.accent }}>{post.category}</span>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, marginTop: '0.3rem' }}>{post.title}</h3>
+                  <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Asked by @{post.author}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* PROFILE TAB (个人资料页面) */}
+        {activeTab === 'profile' && user && (
+          <div style={{ maxWidth: '600px', margin: '0 auto', backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <div>
-                <h2 style={{ fontSize: '1.4rem', fontWeight: 700 }}>Academic Forum</h2>
-                <p style={{ color: theme.textMuted, fontSize: '0.9rem' }}>Discuss courses, contest preparation, and university applications.</p>
-              </div>
-              <button
-                onClick={handleAddDiscussion}
-                style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.65rem 1.2rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                + New Topic
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>My Student Profile</h2>
+              <button onClick={() => setShowProfileSetup(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.4rem 0.9rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer' }}>
+                Edit Profile
               </button>
             </div>
 
-            {discussions.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '4rem 2rem', backgroundColor: theme.cardBg, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                <div style={{ color: theme.textMuted, marginBottom: '1rem', display: 'flex', justifyContent: 'center' }}>
-                  <MessageEmptyIcon />
-                </div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.5rem' }}>No Discussion Topics Yet</h3>
-                <p style={{ color: theme.textMuted, fontSize: '0.9rem', maxWidth: '400px', margin: '0 auto 1.5rem auto' }}>
-                  Start the first academic topic or ask a course question.
-                </p>
-                <button
-                  onClick={handleAddDiscussion}
-                  style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.65rem 1.4rem', borderRadius: '6px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}
-                >
-                  Start Discussion
-                </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', fontSize: '0.95rem' }}>
+              <div style={{ borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.8rem' }}>
+                <span style={{ color: theme.textMuted, fontSize: '0.85rem', display: 'block' }}>Email Address</span>
+                <strong>{user.email}</strong>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {discussions.map((post) => (
-                  <div key={post.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '8px', padding: '1.25rem' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.accent, backgroundColor: `${theme.accent}15`, padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                      {post.category}
-                    </span>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 600, marginTop: '0.5rem', marginBottom: '0.3rem' }}>{post.title}</h3>
-                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Asked by @{post.author}</span>
-                  </div>
-                ))}
+              <div style={{ borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.8rem' }}>
+                <span style={{ color: theme.textMuted, fontSize: '0.85rem', display: 'block' }}>Username</span>
+                <strong>@{profile?.username || 'Not set'}</strong>
               </div>
-            )}
+              <div style={{ borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.8rem' }}>
+                <span style={{ color: theme.textMuted, fontSize: '0.85rem', display: 'block' }}>Display Nickname</span>
+                <strong>{profile?.nickname || 'Not set'}</strong>
+              </div>
+              <div style={{ borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.8rem' }}>
+                <span style={{ color: theme.textMuted, fontSize: '0.85rem', display: 'block' }}>Grade / Status</span>
+                <strong>{profile?.grade_level || 'Not set'}</strong>
+              </div>
+              <div>
+                <span style={{ color: theme.textMuted, fontSize: '0.85rem', display: 'block' }}>Gender</span>
+                <strong>{profile?.gender || 'Prefer not to say'}</strong>
+              </div>
+            </div>
           </div>
         )}
 
       </main>
+
+      {/* Auth Modal (登录/注册弹窗) */}
+      {showAuthModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', width: '90%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{isSignUp ? 'Sign Up' : 'Sign In'}</h2>
+              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: theme.textMuted, fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+            
+            <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Email</label>
+                <input 
+                  type="email" 
+                  required 
+                  placeholder="your.email@example.com" 
+                  value={authEmail} 
+                  onChange={(e) => setAuthEmail(e.target.value)} 
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  placeholder="••••••••" 
+                  value={authPassword} 
+                  onChange={(e) => setAuthPassword(e.target.value)} 
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              {/* 仅在注册模式下显示的身份承诺勾选框 */}
+              {isSignUp && (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginTop: '0.2rem' }}>
+                  <input
+                    type="checkbox"
+                    id="studentConfirm"
+                    required
+                    checked={isStudentConfirmed}
+                    onChange={(e) => setIsStudentConfirmed(e.target.checked)}
+                    style={{ marginTop: '0.2rem', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="studentConfirm" style={{ fontSize: '0.8rem', color: theme.textMuted, lineHeight: '1.4', cursor: 'pointer' }}>
+                    I confirm that I am a current student or alumni of NTCI, and I agree to uphold academic integrity.
+                  </label>
+                </div>
+              )}
+
+              <button 
+                type="submit" 
+                disabled={isSignUp && !isStudentConfirmed}
+                style={{ 
+                  backgroundColor: (isSignUp && !isStudentConfirmed) ? '#4B5563' : theme.accent, 
+                  color: '#FFF', 
+                  border: 'none', 
+                  padding: '0.75rem', 
+                  borderRadius: '6px', 
+                  fontWeight: 600, 
+                  cursor: (isSignUp && !isStudentConfirmed) ? 'not-allowed' : 'pointer', 
+                  marginTop: '0.5rem',
+                  opacity: (isSignUp && !isStudentConfirmed) ? 0.6 : 1
+                }}
+              >
+                {isSignUp ? 'Create Account' : 'Sign In'}
+              </button>
+            </form>
+
+            <p onClick={() => { setIsSignUp(!isSignUp); setIsStudentConfirmed(false); }} style={{ color: theme.accent, marginTop: '1rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}>
+              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Setup Modal (个人档案设置弹窗) */}
+      {(showProfileSetup || (user && !profile && activeTab === 'profile')) && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999, backdropFilter: 'blur(4px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', width: '90%', maxWidth: '450px' }}>
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '0.5rem' }}>Setup Your Student Profile</h2>
+            <p style={{ fontSize: '0.85rem', color: theme.textMuted, marginBottom: '1.5rem' }}>Set up your public identity for North Synapse.</p>
+
+            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username (Unique Handle)</label>
+                <input type="text" required placeholder="e.g. alex_nt" value={formUsername} onChange={(e) => setFormUsername(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Display Nickname</label>
+                <input type="text" required placeholder="e.g. Alex" value={formNickname} onChange={(e) => setFormNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade / Status</label>
+                <select value={formGrade} onChange={(e) => setFormGrade(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
+                  <option value="Grade 9">Grade 9</option>
+                  <option value="Grade 10">Grade 10</option>
+                  <option value="Grade 11">Grade 11</option>
+                  <option value="Grade 12">Grade 12</option>
+                  <option value="Alumni">Alumni (毕业生)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (Optional)</label>
+                <select value={formGender} onChange={(e) => setFormGender(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
+                  <option value="Prefer not to say">Prefer not to say (保密)</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Non-binary">Non-binary</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+                {profile && (
+                  <button type="button" onClick={() => setShowProfileSetup(false)} style={{ flex: 1, backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMain, padding: '0.7rem', borderRadius: '6px', cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                )}
+                <button type="submit" style={{ flex: 1, backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>
+                  Save Profile
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
