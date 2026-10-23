@@ -3,11 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// 单例模式：防止 Next.js 频繁重新创建 supabase 客户端实例导致 network fetch 丢失
+// 去掉 export 关键字，解决 Next.js 页面导出类型的报错
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rxnlrcfe.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_9aHZdWEJ6TMseemR9mQFjQ_b0ZgJoiW';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
@@ -97,14 +97,13 @@ export default function Home() {
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
       
-      {/* 顶部导航栏 Header */}
+      {/* Header */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, position: 'relative', zIndex: 10, padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: '1.2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: theme.accent }}></div>
           North Synapse
         </div>
 
-        {/* 标签切换组件 */}
         <nav style={{ display: 'flex', gap: '1.5rem' }}>
           {(['resources', 'lounges', 'discussions'] as NavTab[]).map((tab) => (
             <button
@@ -160,13 +159,13 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero Header 部分 */}
+      {/* Hero */}
       <div style={{ padding: '3rem 2rem 1rem 2rem', textAlign: 'center' }}>
         <h1 style={{ fontSize: '2.2rem', fontWeight: 'bold' }}>North Synapse</h1>
         <p style={{ color: theme.textMuted, marginTop: '0.5rem' }}>A centralized workspace for verified course resources, virtual study rooms, and academic peer discussions.</p>
       </div>
 
-      {/* 主体内容根据 Active Tab 显示 */}
+      {/* Main Content */}
       <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem' }}>
         {activeTab === 'resources' && (
           <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
@@ -190,7 +189,7 @@ export default function Home() {
         )}
       </main>
 
-      {/* 登录/注册 Modal */}
+      {/* Auth Modal */}
       {showAuthModal && (
         <div 
           style={{ 
