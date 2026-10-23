@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// 去掉 export 关键字，解决 Next.js 页面导出类型的报错
+// 单例模式：使用正确 Supabase 实例的 Project URL 和 Anon Key
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://urgbcrkvlyfswpdsgyzp.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_9aHZdWEJ6TMseemR9mQFjQ_b0ZgJoiW';
 
@@ -23,12 +23,20 @@ export default function Home() {
 
   const [user, setUser] = useState<any>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   
+  // 认证表单状态
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // 个人信息编辑表单状态
+  const [fullName, setFullName] = useState('');
+  const [programGrade, setProgramGrade] = useState('');
+  const [bio, setBio] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -42,6 +50,7 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // 登录/注册逻辑
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -62,8 +71,9 @@ export default function Home() {
         if (error) {
           alert('SignUp Failed: ' + error.message);
         } else {
-          alert('注册成功！');
+          alert('Registration successful! Please complete your profile information.');
           setShowAuthModal(false);
+          setShowProfileModal(true); // 注册成功后直接打开编辑个人信息界面
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -79,9 +89,36 @@ export default function Home() {
         }
       }
     } catch (err: any) {
-      alert('Network/Cors Error: ' + (err.message || 'Failed to fetch'));
+      alert('Network/CORS Error: ' + (err.message || 'Failed to fetch'));
     } finally {
       setLoading(false);
+    }
+  }
+
+  // 保存个人信息逻辑
+  async function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingProfile(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          full_name: fullName,
+          program_grade: programGrade,
+          bio: bio,
+        }
+      });
+
+      if (error) {
+        alert('Failed to update profile: ' + error.message);
+      } else {
+        alert('Profile updated successfully!');
+        setShowProfileModal(false);
+      }
+    } catch (err: any) {
+      alert('Error updating profile: ' + err.message);
+    } finally {
+      setSavingProfile(false);
     }
   }
 
@@ -141,12 +178,20 @@ export default function Home() {
           </button>
 
           {user ? (
-            <button 
-              onClick={() => supabase.auth.signOut()} 
-              style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer' }}
-            >
-              Sign Out
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button 
+                onClick={() => setShowProfileModal(true)}
+                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer' }}
+              >
+                Edit Profile
+              </button>
+              <button 
+                onClick={() => supabase.auth.signOut()} 
+                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer' }}
+              >
+                Sign Out
+              </button>
+            </div>
           ) : (
             <button 
               type="button"
@@ -267,6 +312,76 @@ export default function Home() {
             >
               {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Profile Modal */}
+      {showProfileModal && (
+        <div 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            width: '100vw', 
+            height: '100vh', 
+            backgroundColor: 'rgba(0,0,0,0.8)', 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            zIndex: 999999 
+          }}
+        >
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Complete Your Profile</h2>
+              <button onClick={() => setShowProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Full Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="e.g. Alex Smith" 
+                  value={fullName} 
+                  onChange={(e) => setFullName(e.target.value)} 
+                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Program / Grade</label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="e.g. Grade 11 / Computer Science" 
+                  value={programGrade} 
+                  onChange={(e) => setProgramGrade(e.target.value)} 
+                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio (Optional)</label>
+                <textarea 
+                  placeholder="Tell us a bit about your academic interests..." 
+                  value={bio} 
+                  onChange={(e) => setBio(e.target.value)} 
+                  rows={3}
+                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', fontFamily: 'inherit' }} 
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={savingProfile}
+                style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', opacity: savingProfile ? 0.6 : 1, marginTop: '0.5rem' }}
+              >
+                {savingProfile ? 'Saving...' : 'Save Profile'}
+              </button>
+            </form>
           </div>
         </div>
       )}
