@@ -365,8 +365,8 @@ export default function Home() {
               </div>
 
               <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>💬 My Posts & Threads</h3>
-                <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>You haven't created any posts in Discussions yet.</p>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>💬 My Posts &amp; Threads</h3>
+                <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>You haven&apos;t created any posts in Discussions yet.</p>
               </div>
 
               <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem' }}>
