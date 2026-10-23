@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase Client Config
@@ -15,7 +15,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
-type NavTab = 'resources' | 'lounges' | 'discussions' | 'profile';
+type NavTab = 'resources' | 'lounges' | 'discussions' | 'dashboard';
 
 export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -23,7 +23,6 @@ export default function Home() {
 
   const [user, setUser] = useState<any>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
   
   // Auth Form State
   const [authEmail, setAuthEmail] = useState('');
@@ -32,7 +31,7 @@ export default function Home() {
   const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Profile Form State (Separated Fields)
+  // Profile Form State
   const [avatarUrl, setAvatarUrl] = useState('');
   const [username, setUsername] = useState('');
   const [nickname, setNickname] = useState('');
@@ -40,6 +39,9 @@ export default function Home() {
   const [gender, setGender] = useState('');
   const [bio, setBio] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // File Input Ref for Avatar
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -70,7 +72,19 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Auth Submit Handler
+  // Handle Avatar Change
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  // Auth Handler
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -91,9 +105,9 @@ export default function Home() {
         if (error) {
           alert('SignUp Failed: ' + error.message);
         } else {
-          alert('Registration successful! Please complete your profile information.');
+          alert('Registration successful! Redirecting to your Dashboard.');
           setShowAuthModal(false);
-          setShowProfileModal(true);
+          setActiveTab('dashboard');
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -109,7 +123,7 @@ export default function Home() {
         }
       }
     } catch (err: any) {
-      alert('Network/CORS Error: ' + (err.message || 'Failed to fetch'));
+      alert('Network Error: ' + (err.message || 'Failed to fetch'));
     } finally {
       setLoading(false);
     }
@@ -135,8 +149,7 @@ export default function Home() {
       if (error) {
         alert('Failed to update profile: ' + error.message);
       } else {
-        alert('Profile updated successfully!');
-        setShowProfileModal(false);
+        alert('Profile saved successfully!');
       }
     } catch (err: any) {
       alert('Error updating profile: ' + err.message);
@@ -147,17 +160,16 @@ export default function Home() {
 
   // Account Deletion Handler
   async function handleDeleteAccount() {
-    const confirmDelete = window.confirm('Are you sure you want to delete/deactivate your account? This will log you out.');
+    const confirmDelete = window.confirm('Are you sure you want to delete/deactivate your account?');
     if (!confirmDelete) return;
 
     try {
-      // Clear session locally
       await supabase.auth.signOut();
       setUser(null);
-      setShowProfileModal(false);
-      alert('Account signed out. If you wish to permanently delete record, remove it from Supabase Dashboard -> Auth -> Users.');
+      setActiveTab('resources');
+      alert('Signed out. Account record can be deleted via Supabase Dashboard.');
     } catch (err: any) {
-      alert('Error during deletion request: ' + err.message);
+      alert('Error signing out: ' + err.message);
     }
   }
 
@@ -180,6 +192,7 @@ export default function Home() {
           North Synapse
         </div>
 
+        {/* Navigation Tabs */}
         <nav style={{ display: 'flex', gap: '1.5rem' }}>
           {(['resources', 'lounges', 'discussions'] as NavTab[]).map((tab) => (
             <button
@@ -199,6 +212,22 @@ export default function Home() {
               {tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounges' : 'Discussions'}
             </button>
           ))}
+          {user && (
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: activeTab === 'dashboard' ? theme.accent : theme.textMuted,
+                fontWeight: activeTab === 'dashboard' ? 'bold' : 'normal',
+                cursor: 'pointer',
+                paddingBottom: '0.2rem',
+                borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : 'none'
+              }}
+            >
+              Dashboard
+            </button>
+          )}
         </nav>
 
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -217,16 +246,32 @@ export default function Home() {
           </button>
 
           {user ? (
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <button 
-                onClick={() => setShowProfileModal(true)}
-                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer' }}
+            <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+              <div 
+                onClick={() => setActiveTab('dashboard')} 
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
               >
-                Edit Profile
-              </button>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: theme.accent,
+                  backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none',
+                  backgroundSize: 'cover',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 'bold',
+                  fontSize: '0.8rem',
+                  color: '#FFF'
+                }}>
+                  {!avatarUrl && (nickname ? nickname[0].toUpperCase() : 'U')}
+                </div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{nickname || 'User'}</span>
+              </div>
               <button 
                 onClick={() => supabase.auth.signOut()} 
-                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer' }}
+                style={{ padding: '0.3rem 0.6rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}
               >
                 Sign Out
               </button>
@@ -243,14 +288,10 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero */}
-      <div style={{ padding: '3rem 2rem 1rem 2rem', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '2.2rem', fontWeight: 'bold' }}>North Synapse</h1>
-        <p style={{ color: theme.textMuted, marginTop: '0.5rem' }}>A centralized workspace for verified course resources, virtual study rooms, and academic peer discussions.</p>
-      </div>
-
-      {/* Main Content */}
+      {/* Main Content Areas */}
       <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem' }}>
+        
+        {/* Resource Hub Tab */}
         {activeTab === 'resources' && (
           <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>Resource Hub</h2>
@@ -258,6 +299,7 @@ export default function Home() {
           </div>
         )}
 
+        {/* Study Lounges Tab */}
         {activeTab === 'lounges' && (
           <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>Study Lounges</h2>
@@ -265,12 +307,230 @@ export default function Home() {
           </div>
         )}
 
+        {/* Discussions Tab */}
         {activeTab === 'discussions' && (
           <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>Discussions</h2>
             <p style={{ color: theme.textMuted }}>Academic discussion board coming soon.</p>
           </div>
         )}
+
+        {/* Personal Dashboard Tab */}
+        {activeTab === 'dashboard' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            
+            {/* Top Overview Header */}
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', display: 'flex', gap: '2rem', alignItems: 'center' }}>
+              <div style={{
+                width: '90px',
+                height: '90px',
+                borderRadius: '50%',
+                backgroundColor: theme.bg,
+                border: `2px solid ${theme.accent}`,
+                backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '2rem',
+                fontWeight: 'bold',
+                color: theme.accent
+              }}>
+                {!avatarUrl && (nickname ? nickname[0].toUpperCase() : 'U')}
+              </div>
+
+              <div>
+                <h1 style={{ fontSize: '1.6rem', fontWeight: 'bold' }}>{nickname || 'Anonymous Student'}</h1>
+                <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginTop: '0.2rem' }}>@{username || 'username'} • {grade || 'Grade Not Set'}</p>
+                <p style={{ marginTop: '0.6rem', fontSize: '0.85rem' }}>{bio || 'No bio written yet.'}</p>
+              </div>
+            </div>
+
+            {/* Dashboard Stats & Activity Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+              
+              {/* Study Activity & Lounges History */}
+              <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>⏱️</span> Study Lounge Activity
+                </h3>
+                <div style={{ fontSize: '0.85rem', color: theme.textMuted, display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                  <div style={{ padding: '0.8rem', backgroundColor: theme.bg, borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Total Study Time</span>
+                    <strong style={{ color: theme.accent }}>0 hrs 0 mins</strong>
+                  </div>
+                  <div style={{ padding: '0.8rem', backgroundColor: theme.bg, borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Rooms Joined</span>
+                    <strong>0 Lounges</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* My Discussions & Posts */}
+              <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>💬</span> My Posts & Threads
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>You haven't created any posts in Discussions yet.</p>
+              </div>
+
+              {/* Study Peers / Friends */}
+              <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>👥</span> Study Peers
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>No added study friends yet.</p>
+              </div>
+
+            </div>
+
+            {/* Bottom Embedded Edit Profile Section */}
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', marginTop: '1rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Edit Profile Settings</h2>
+
+              <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+                
+                {/* Circular Avatar Upload */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    accept="image/*" 
+                    onChange={handleAvatarChange} 
+                    style={{ display: 'none' }} 
+                  />
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      width: '75px',
+                      height: '75px',
+                      borderRadius: '50%',
+                      backgroundColor: theme.bg,
+                      border: `2px dashed ${theme.accent}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      overflow: 'hidden',
+                      backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                    }}
+                  >
+                    {!avatarUrl && (
+                      <span style={{ fontSize: '1.2rem' }}>📷</span>
+                    )}
+                  </div>
+                  <div>
+                    <button 
+                      type="button" 
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}
+                    >
+                      Change Avatar
+                    </button>
+                    <p style={{ fontSize: '0.75rem', color: theme.textMuted, marginTop: '0.3rem' }}>Click to upload image file from computer or phone</p>
+                  </div>
+                </div>
+
+                {/* Username & Nickname */}
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="alex_smith" 
+                      value={username} 
+                      onChange={(e) => setUsername(e.target.value)} 
+                      style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="Alex" 
+                      value={nickname} 
+                      onChange={(e) => setNickname(e.target.value)} 
+                      style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
+                    />
+                  </div>
+                </div>
+
+                {/* Grade & Gender */}
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
+                    <select
+                      required
+                      value={grade}
+                      onChange={(e) => setGrade(e.target.value)}
+                      style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}
+                    >
+                      <option value="">Select Grade</option>
+                      <option value="Grade 9">Grade 9</option>
+                      <option value="Grade 10">Grade 10</option>
+                      <option value="Grade 11">Grade 11</option>
+                      <option value="Grade 12">Grade 12</option>
+                      <option value="Alumni">Alumni</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (Optional)</label>
+                    <select
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="non-binary">Non-binary</option>
+                      <option value="prefer_not_to_say">Prefer not to say</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Bio */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio (Optional)</label>
+                  <textarea 
+                    placeholder="Tell us a bit about yourself..." 
+                    value={bio} 
+                    onChange={(e) => setBio(e.target.value)} 
+                    rows={3}
+                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', fontFamily: 'inherit' }} 
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+                  <button 
+                    type="submit" 
+                    disabled={savingProfile}
+                    style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', opacity: savingProfile ? 0.6 : 1 }}
+                  >
+                    {savingProfile ? 'Saving Changes...' : 'Save Profile Changes'}
+                  </button>
+
+                  <button 
+                    type="button" 
+                    onClick={handleDeleteAccount}
+                    style={{ background: 'none', border: '1px solid #EF4444', color: '#EF4444', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer' }}
+                  >
+                    Delete Account
+                  </button>
+                </div>
+
+              </form>
+            </div>
+
+          </div>
+        )}
+
       </main>
 
       {/* Auth Modal */}
@@ -351,134 +611,6 @@ export default function Home() {
             >
               {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
             </p>
-          </div>
-        </div>
-      )}
-
-      {/* Detailed Profile Modal */}
-      {showProfileModal && (
-        <div 
-          style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            width: '100vw', 
-            height: '100vh', 
-            backgroundColor: 'rgba(0,0,0,0.8)', 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            zIndex: 999999 
-          }}
-        >
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}`, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Edit Profile</h2>
-              <button onClick={() => setShowProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
-            </div>
-
-            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              
-              {/* Avatar URL */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Avatar Image URL (Optional)</label>
-                <input 
-                  type="url" 
-                  placeholder="https://example.com/avatar.jpg" 
-                  value={avatarUrl} 
-                  onChange={(e) => setAvatarUrl(e.target.value)} 
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
-                />
-              </div>
-
-              {/* Username & Nickname */}
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username</label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="alex_smith" 
-                    value={username} 
-                    onChange={(e) => setUsername(e.target.value)} 
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="Alex" 
-                    value={nickname} 
-                    onChange={(e) => setNickname(e.target.value)} 
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
-                  />
-                </div>
-              </div>
-
-              {/* Grade & Gender */}
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="Grade 11" 
-                    value={grade} 
-                    onChange={(e) => setGrade(e.target.value)} 
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (Optional)</label>
-                  <select
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}
-                  >
-                    <option value="">Select Gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="non-binary">Non-binary</option>
-                    <option value="prefer_not_to_say">Prefer not to say</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Bio */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio (Optional)</label>
-                <textarea 
-                  placeholder="Tell us a bit about yourself..." 
-                  value={bio} 
-                  onChange={(e) => setBio(e.target.value)} 
-                  rows={3}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', fontFamily: 'inherit' }} 
-                />
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={savingProfile}
-                style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', opacity: savingProfile ? 0.6 : 1, marginTop: '0.5rem' }}
-              >
-                {savingProfile ? 'Saving Profile...' : 'Save Profile'}
-              </button>
-            </form>
-
-            {/* Danger Zone: Account Deletion */}
-            <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: `1px dashed ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.8rem', color: '#EF4444' }}>Account Management</span>
-              <button 
-                type="button" 
-                onClick={handleDeleteAccount}
-                style={{ background: 'none', border: '1px solid #EF4444', color: '#EF4444', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
-              >
-                Delete Account
-              </button>
-            </div>
-
           </div>
         </div>
       )}
