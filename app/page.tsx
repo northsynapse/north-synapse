@@ -293,13 +293,19 @@ export default function Home() {
   // REAL DATA FETCH FOR ADMIN
   useEffect(() => {
     if (isAdmin) {
-      supabase.rpc('get_user_count').then(({ data, error }) => {
-        if (!error && data) {
-          setRealUserCount(data);
-        } else {
+      const fetchUserCount = async () => {
+        try {
+          const { data, error } = await supabase.rpc('get_user_count');
+          if (!error && data) {
+            setRealUserCount(data);
+          } else {
+            setRealUserCount(1);
+          }
+        } catch {
           setRealUserCount(1);
         }
-      }).catch(() => setRealUserCount(1));
+      };
+      fetchUserCount();
     }
   }, [isAdmin]);
 
@@ -1467,7 +1473,7 @@ export default function Home() {
 
             <form onSubmit={handleUpdateNewPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Enter Your New Password</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color theme.textMuted, marginBottom: '0.3rem' }}>Enter Your New Password</label>
                 <input 
                   type="password" 
                   required 
