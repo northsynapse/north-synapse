@@ -26,6 +26,7 @@ interface CommentItem {
   text: string;
   date: string;
   likes: number;
+  likedByMe?: boolean;
 }
 
 interface ResourceItem {
@@ -40,6 +41,8 @@ interface ResourceItem {
   date: string;
   likes: number;
   bookmarks: number;
+  likedByMe?: boolean;
+  bookmarkedByMe?: boolean;
   comments: CommentItem[];
 }
 
@@ -126,8 +129,10 @@ export default function Home() {
       date: 'Oct 24, 2026',
       likes: 12,
       bookmarks: 8,
+      likedByMe: false,
+      bookmarkedByMe: false,
       comments: [
-        { id: 'c1', authorName: 'Jordan Lee', authorAvatar: '', text: 'This saved my midterm review! Thanks!', date: 'Oct 24, 2026', likes: 3 }
+        { id: 'c1', authorName: 'Jordan Lee', authorAvatar: '', text: 'This saved my midterm review! Thanks!', date: 'Oct 24, 2026', likes: 3, likedByMe: false }
       ]
     },
     {
@@ -142,6 +147,8 @@ export default function Home() {
       date: 'Oct 23, 2026',
       likes: 19,
       bookmarks: 14,
+      likedByMe: false,
+      bookmarkedByMe: false,
       comments: []
     }
   ]);
@@ -246,14 +253,14 @@ export default function Home() {
   }, [announcements]);
 
   /* ==========================================================================
-     4. HANDLERS & USERNAME/NICKNAME VALIDATION
+     4. HANDLERS & AUTO SIGN-IN AFTER SIGN-UP
      ========================================================================== */
   function toggleSubjectFilter(sub: string) {
     setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
   }
 
   function toggleGradeFilter(grd: string) {
-    setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, g]);
+    setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, grd]);
   }
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -265,7 +272,7 @@ export default function Home() {
     }
   }
 
-  // AUTO-UNLOCK SIGN-UP & RESTORE LOGIC
+  // SIGN UP WITH AUTOMATIC AUTO SIGN IN & METADATA INIT
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -288,36 +295,55 @@ export default function Home() {
           password: authPassword,
         });
 
-        if (signUpError) {
-          if (signUpError.message.toLowerCase().includes('already registered')) {
-            const { error: signInErr } = await supabase.auth.signInWithPassword({
-              email: authEmail.trim(),
-              password: authPassword,
-            });
+        if (signUpError && signUpError.message.toLowerCase().includes('already registered')) {
+          // Trigger unblock & auto sign in
+          const { error: signInErr } = await supabase.auth.signInWithPassword({
+            email: authEmail.trim(),
+            password: authPassword,
+          });
 
-            if (signInErr) {
-              alert('Account exists! If you forgot your password, please use Forgot Password to reset it.');
-            } else {
-              const defaultName = authEmail.split('@')[0].slice(0, 20);
-              await supabase.auth.updateUser({
-                data: {
-                  avatar_url: '',
-                  username: defaultName,
-                  nickname: defaultName,
-                  grade: 'Grade 12',
-                  gender: '',
-                  bio: ''
-                }
-              });
-              alert('Account unlocked and re-registered successfully!');
-              setShowAuthModal(false);
-              setActiveTab('dashboard');
-            }
+          if (signInErr) {
+            alert('Account exists! Please check password or click Forgot Password.');
           } else {
-            alert('SignUp Error: ' + signUpError.message);
+            const defaultName = authEmail.split('@')[0].slice(0, 20);
+            await supabase.auth.updateUser({
+              data: {
+                avatar_url: '',
+                username: defaultName,
+                nickname: defaultName,
+                grade: 'Grade 12',
+                gender: '',
+                bio: ''
+              }
+            });
+            alert('Signed up and logged in successfully!');
+            setShowAuthModal(false);
+            setActiveTab('dashboard');
           }
+        } else if (signUpError) {
+          alert('SignUp Error: ' + signUpError.message);
         } else {
-          alert('Registration successful! Directing to Dashboard.');
+          // Standard fresh signup -> Immediate login
+          const { error: autoSignInErr } = await supabase.auth.signInWithPassword({
+            email: authEmail.trim(),
+            password: authPassword,
+          });
+
+          if (!autoSignInErr) {
+            const defaultName = authEmail.split('@')[0].slice(0, 20);
+            await supabase.auth.updateUser({
+              data: {
+                avatar_url: '',
+                username: defaultName,
+                nickname: defaultName,
+                grade: 'Grade 12',
+                gender: '',
+                bio: ''
+              }
+            });
+          }
+
+          alert('Registration successful! You are now logged in.');
           setShowAuthModal(false);
           setActiveTab('dashboard');
         }
@@ -385,7 +411,6 @@ export default function Home() {
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
 
-    // Check No Spaces at Start or End
     if (username.startsWith(' ') || username.endsWith(' ')) {
       alert('Username cannot start or end with spaces.');
       return;
@@ -395,7 +420,6 @@ export default function Home() {
       return;
     }
 
-    // Length Check
     if (username.length < 3 || username.length > 20) {
       alert('Username length must be between 3 and 20 characters.');
       return;
@@ -465,24 +489,56 @@ export default function Home() {
     }
   }
 
-  // Like & Bookmark
+  // TOGGLE LIKE & TOGGLE BOOKMARK (CAN UN-LIKE & UN-BOOKMARK)
   function handleLikeResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
-    setResources(prev => prev.map(res => res.id === id ? { ...res, likes: res.likes + 1 } : res));
+    setResources(prev => prev.map(res => {
+      if (res.id === id) {
+        const isLiked = res.likedByMe;
+        return {
+          ...res,
+          likes: isLiked ? res.likes - 1 : res.likes + 1,
+          likedByMe: !isLiked
+        };
+      }
+      return res;
+    }));
+
     if (previewResource && previewResource.id === id) {
-      setPreviewResource(prev => prev ? { ...prev, likes: prev.likes + 1 } : null);
+      const isLiked = previewResource.likedByMe;
+      setPreviewResource(prev => prev ? {
+        ...prev,
+        likes: isLiked ? prev.likes - 1 : prev.likes + 1,
+        likedByMe: !isLiked
+      } : null);
     }
   }
 
   function handleBookmarkResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
-    setResources(prev => prev.map(res => res.id === id ? { ...res, bookmarks: res.bookmarks + 1 } : res));
+    setResources(prev => prev.map(res => {
+      if (res.id === id) {
+        const isBookmarked = res.bookmarkedByMe;
+        return {
+          ...res,
+          bookmarks: isBookmarked ? res.bookmarks - 1 : res.bookmarks + 1,
+          bookmarkedByMe: !isBookmarked
+        };
+      }
+      return res;
+    }));
+
     if (previewResource && previewResource.id === id) {
-      setPreviewResource(prev => prev ? { ...prev, bookmarks: prev.bookmarks + 1 } : null);
+      const isBookmarked = previewResource.bookmarkedByMe;
+      setPreviewResource(prev => prev ? {
+        ...prev,
+        bookmarks: isBookmarked ? prev.bookmarks - 1 : prev.bookmarks + 1,
+        bookmarkedByMe: !isBookmarked
+      } : null);
     }
   }
 
-  // Comment Handler
+  // Comment Handler with Toggle Like
   function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
     if (!user) {
@@ -498,7 +554,8 @@ export default function Home() {
       authorAvatar: avatarUrl,
       text: newCommentText,
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      likes: 0
+      likes: 0,
+      likedByMe: false
     };
 
     const updatedResource = {
@@ -513,7 +570,14 @@ export default function Home() {
 
   function handleLikeComment(commentId: string) {
     if (!previewResource) return;
-    const updatedComments = previewResource.comments.map(c => c.id === commentId ? { ...c, likes: c.likes + 1 } : c);
+    const updatedComments = previewResource.comments.map(c => {
+      if (c.id === commentId) {
+        const isLiked = c.likedByMe;
+        return { ...c, likes: isLiked ? c.likes - 1 : c.likes + 1, likedByMe: !isLiked };
+      }
+      return c;
+    });
+
     const updatedResource = { ...previewResource, comments: updatedComments };
     setPreviewResource(updatedResource);
     setResources(prev => prev.map(r => r.id === previewResource.id ? updatedResource : r));
@@ -639,6 +703,7 @@ export default function Home() {
     return matchesSubject && matchesGrade && matchesSearch;
   });
 
+  const bookmarkedResources = resources.filter(r => r.bookmarkedByMe);
   const pendingReports = reports.filter(r => r.status === 'pending');
 
   return (
@@ -848,11 +913,11 @@ export default function Home() {
                     </div>
 
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                      <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>
-                        Likes: {res.likes}
+                      <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, fontWeight: res.likedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.85rem' }}>
+                        {res.likedByMe ? 'Liked' : 'Like'} ({res.likes})
                       </button>
-                      <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>
-                        Saved: {res.bookmarks}
+                      <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.bookmarkedByMe ? theme.accent : theme.textMuted, fontWeight: res.bookmarkedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.85rem' }}>
+                        {res.bookmarkedByMe ? 'Saved' : 'Save'} ({res.bookmarks})
                       </button>
                       <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold' }}>
                         Preview
@@ -888,26 +953,43 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- FEEDBACK TAB --- */}
+        {/* --- FEEDBACK TAB (WITH REPORT ISSUE CATEGORY) --- */}
         {activeTab === 'feedback' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Reviews</h1>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Issue Reporting</h1>
             <form onSubmit={handleAddFeedback} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>Leave Your Rating</h3>
-              <div style={{ display: 'flex', gap: '0.6rem' }}>
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <button key={s} type="button" onClick={() => setFeedbackRating(s)} style={{ padding: '0.3rem 0.8rem', borderRadius: '6px', border: `1px solid ${s <= feedbackRating ? theme.accent : theme.border}`, backgroundColor: s <= feedbackRating ? theme.accent : theme.bg, color: s <= feedbackRating ? '#FFF' : theme.textMain, fontWeight: 'bold', cursor: 'pointer' }}>
-                    {s} Star
-                  </button>
-                ))}
+              
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Type of Feedback</label>
+                <select value={feedbackCategory} onChange={(e) => setFeedbackCategory(e.target.value)} style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}>
+                  <option value="General Suggestion">General Suggestion</option>
+                  <option value="Report Issue / Bug">Report Issue / Bug</option>
+                  <option value="Content Request">Content Request</option>
+                </select>
               </div>
-              <textarea required rows={4} placeholder="Your feedback..." value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>Submit Review</button>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Overall Experience Rating</label>
+                <div style={{ display: 'flex', gap: '0.6rem' }}>
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <button key={s} type="button" onClick={() => setFeedbackRating(s)} style={{ padding: '0.3rem 0.8rem', borderRadius: '6px', border: `1px solid ${s <= feedbackRating ? theme.accent : theme.border}`, backgroundColor: s <= feedbackRating ? theme.accent : theme.bg, color: s <= feedbackRating ? '#FFF' : theme.textMain, fontWeight: 'bold', cursor: 'pointer' }}>
+                      {s} Star
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Details / Problem Description</label>
+                <textarea required rows={4} placeholder="Describe your bug report or suggestion here..." value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>Submit Feedback / Bug Report</button>
             </form>
           </div>
         )}
 
-        {/* --- DASHBOARD TAB --- */}
+        {/* --- DASHBOARD TAB (WITH SAVED BOOKMARKS LIST) --- */}
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
@@ -917,6 +999,28 @@ export default function Home() {
                 <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginTop: '0.2rem' }}>@{username || 'username'} • {grade || 'Grade Not Set'}</p>
               </div>
               <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.8rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Edit Profile</button>
+            </div>
+
+            {/* MY BOOKMARKED RESOURCES LIST */}
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>My Bookmarked Resources ({bookmarkedResources.length})</h2>
+
+              {bookmarkedResources.length > 0 ? (
+                bookmarkedResources.map((bm) => (
+                  <div key={bm.id} onClick={() => setPreviewResource(bm)} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: theme.accent, fontWeight: 'bold' }}>{bm.subject} • {bm.grade}</span>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 'bold', marginTop: '0.2rem' }}>{bm.title}</h4>
+                      <p style={{ fontSize: '0.8rem', color: theme.textMuted }}>Shared by {bm.authorName} on {bm.date}</p>
+                    </div>
+                    <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                      Open Note
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven't bookmarked any notes yet. Click "Save" on any resource card to view it here!</p>
+              )}
             </div>
 
             {isAdmin && (
@@ -1017,8 +1121,8 @@ export default function Home() {
                         </div>
                         <p style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>{c.text}</p>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <button onClick={() => handleLikeComment(c.id)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '0.75rem' }}>
-                            Like ({c.likes})
+                          <button onClick={() => handleLikeComment(c.id)} style={{ background: 'none', border: 'none', color: c.likedByMe ? theme.accent : theme.textMuted, fontWeight: c.likedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.75rem' }}>
+                            {c.likedByMe ? 'Liked' : 'Like'} ({c.likes})
                           </button>
                           <button onClick={(e) => triggerReportModal('comment', c.id, c.text, c.authorName, e)} style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '0.75rem', cursor: 'pointer' }}>
                             Report
@@ -1071,7 +1175,7 @@ export default function Home() {
       )}
 
       {/* ===================================================================
-          10. EDIT PROFILE MODAL (WITH LENGTH & SPACE VALIDATION)
+          10. EDIT PROFILE MODAL
           =================================================================== */}
       {showEditProfileModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
@@ -1227,7 +1331,7 @@ export default function Home() {
 
             <form onSubmit={handleUpdateNewPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color theme.textMuted, marginBottom: '0.3rem' }}>Enter Your New Password</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Enter Your New Password</label>
                 <input 
                   type="password" 
                   required 
