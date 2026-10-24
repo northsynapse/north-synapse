@@ -3,7 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Supabase Single Client
+/* ==========================================================================
+   1. SUPABASE CLIENT & CONFIGURATION
+   ========================================================================== */
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://urgbcrkvlyfswpdsgyzp.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_9aHZdWEJ6TMseemR9mQFjQ_b0ZgJoiW';
 
@@ -18,6 +20,9 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 type NavTab = 'resources' | 'lounges' | 'discussions' | 'dashboard';
 
 export default function Home() {
+  /* ==========================================================================
+     2. GLOBAL & COMPONENT STATES
+     ========================================================================== */
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [activeTab, setActiveTab] = useState<NavTab>('resources');
 
@@ -41,9 +46,12 @@ export default function Home() {
   const [bio, setBio] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // File Input Ref
+  // File Input Ref for Avatar Upload
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  /* ==========================================================================
+     3. AUTHENTICATION & SESSION EFFECT
+     ========================================================================== */
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user);
@@ -73,6 +81,9 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
+  /* ==========================================================================
+     4. HANDLERS (AVATAR, AUTH, PROFILE, ACCOUNT DELETION)
+     ========================================================================== */
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
@@ -172,6 +183,9 @@ export default function Home() {
     }
   }
 
+  /* ==========================================================================
+     5. THEME DEFINITION
+     ========================================================================== */
   const theme = {
     bg: isDarkMode ? '#12151A' : '#F8FAFC',
     cardBg: isDarkMode ? '#1C2029' : '#FFFFFF',
@@ -184,21 +198,36 @@ export default function Home() {
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
       
-      {/* Header Navigation */}
+      {/* ===================================================================
+          6. HEADER & NAVIGATION (LOGO LOCATION HERE)
+          =================================================================== */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, position: 'relative', zIndex: 10, padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
-        {/* Custom Logo with Double Dots */}
+        {/* --- BRAND LOGO --- */}
         <div 
           onClick={() => setActiveTab('resources')} 
-          style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', letterSpacing: '-0.02em' }}
+          style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.7rem', cursor: 'pointer', letterSpacing: '-0.02em' }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: theme.accent }}></div>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: theme.accent, opacity: 0.6 }}></div>
+          {/* Square NS Icon Badge */}
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            backgroundColor: theme.accent,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#FFF',
+            fontSize: '1rem',
+            fontWeight: '900',
+            boxShadow: '0 2px 8px rgba(139, 92, 246, 0.4)'
+          }}>
+            NS
           </div>
           <span style={{ color: theme.textMain }}>North<span style={{ color: theme.accent }}>Synapse</span></span>
         </div>
 
+        {/* --- NAVIGATION TABS --- */}
         <nav style={{ display: 'flex', gap: '1.5rem' }}>
           {(['resources', 'lounges', 'discussions'] as NavTab[]).map((tab) => (
             <button
@@ -236,6 +265,7 @@ export default function Home() {
           )}
         </nav>
 
+        {/* --- USER / AUTH ACTIONS --- */}
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <button 
             onClick={() => setIsDarkMode(!isDarkMode)} 
@@ -294,10 +324,12 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Container */}
+      {/* ===================================================================
+          7. MAIN CONTENT AREA (TABS ROUTING)
+          =================================================================== */}
       <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem' }}>
         
-        {/* Resource Hub */}
+        {/* --- RESOURCE HUB TAB --- */}
         {activeTab === 'resources' && (
           <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>Resource Hub</h2>
@@ -305,7 +337,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Study Lounges */}
+        {/* --- STUDY LOUNGES TAB --- */}
         {activeTab === 'lounges' && (
           <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>Study Lounges</h2>
@@ -313,7 +345,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Discussions */}
+        {/* --- DISCUSSIONS TAB --- */}
         {activeTab === 'discussions' && (
           <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>Discussions</h2>
@@ -321,11 +353,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* Read-Only Dashboard Tab */}
+        {/* --- USER DASHBOARD TAB (READ ONLY) --- */}
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
-            {/* User Overview */}
+            {/* User Overview Profile Card */}
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', display: 'flex', gap: '2rem', alignItems: 'center' }}>
               <div style={{
                 width: '90px',
@@ -353,7 +385,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Grid Activity Panels */}
+            {/* User Activity Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
               
               <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem' }}>
@@ -382,7 +414,7 @@ export default function Home() {
 
             </div>
 
-            {/* Bottom Button to Trigger Edit Modal */}
+            {/* Dashboard Edit Profile Trigger Button */}
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
               <button 
                 onClick={() => setShowEditProfileModal(true)}
@@ -397,7 +429,9 @@ export default function Home() {
 
       </main>
 
-      {/* Edit Profile Modal */}
+      {/* ===================================================================
+          8. EDIT PROFILE MODAL
+          =================================================================== */}
       {showEditProfileModal && (
         <div 
           style={{ 
@@ -421,7 +455,7 @@ export default function Home() {
 
             <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               
-              {/* Circular Avatar Upload */}
+              {/* Avatar Upload Field */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
                 <input 
                   type="file" 
@@ -462,7 +496,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Username & Nickname */}
+              {/* Username & Nickname Fields */}
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username</label>
@@ -488,7 +522,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Grade & Gender */}
+              {/* Grade Dropdown & Gender Select */}
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
@@ -522,7 +556,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Bio */}
+              {/* Bio Field */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio (Optional)</label>
                 <textarea 
@@ -557,7 +591,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* Auth Modal */}
+      {/* ===================================================================
+          9. AUTHENTICATION MODAL (SIGN IN / SIGN UP)
+          =================================================================== */}
       {showAuthModal && (
         <div 
           style={{ 
@@ -606,39 +642,3 @@ export default function Home() {
 
               {isSignUp && (
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                  <input
-                    type="checkbox"
-                    id="studentConfirm"
-                    required
-                    checked={isStudentConfirmed}
-                    onChange={(e) => setIsStudentConfirmed(e.target.checked)}
-                    style={{ marginTop: '0.2rem' }}
-                  />
-                  <label htmlFor="studentConfirm" style={{ fontSize: '0.8rem', color: theme.textMuted, lineHeight: '1.3' }}>
-                    I confirm that I am a current student or alumni of NTCI, and I agree to uphold academic integrity.
-                  </label>
-                </div>
-              )}
-
-              <button 
-                type="submit" 
-                disabled={loading}
-                style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', opacity: loading ? 0.6 : 1, marginTop: '0.5rem' }}
-              >
-                {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
-              </button>
-            </form>
-
-            <p 
-              onClick={() => { setIsSignUp(!isSignUp); setIsStudentConfirmed(false); }} 
-              style={{ color: theme.accent, marginTop: '1.2rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}
-            >
-              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-            </p>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-}
