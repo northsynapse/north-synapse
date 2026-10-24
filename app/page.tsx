@@ -57,6 +57,7 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [showResetNewPasswordModal, setShowResetNewPasswordModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   
@@ -64,6 +65,7 @@ export default function Home() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [resetEmail, setResetEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
   const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
@@ -127,9 +129,17 @@ export default function Home() {
   const isAdmin = user?.email?.toLowerCase().includes('northsynapse');
 
   /* ==========================================================================
-     3. AUTHENTICATION & CAROUSEL EFFECTS
+     3. RECOVERY DETECTOR & SESSION EFFECT
      ========================================================================== */
   useEffect(() => {
+    // Detect if user landed on website via Password Reset Email Token
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash;
+      if (hash && (hash.includes('type=recovery') || hash.includes('access_token'))) {
+        setShowResetNewPasswordModal(true);
+      }
+    }
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user);
       if (user) {
@@ -145,7 +155,10 @@ export default function Home() {
       }
     }).catch(() => {});
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setShowResetNewPasswordModal(true);
+      }
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
@@ -227,7 +240,11 @@ export default function Home() {
         });
 
         if (error) {
-          alert('SignUp Failed: ' + error.message);
+          if (error.message.includes('already registered')) {
+            alert('This email is already registered. If you previously deleted this account, please use Sign In or Reset Password, or contact admin to clear backend history.');
+          } else {
+            alert('SignUp Failed: ' + error.message);
+          }
         } else {
           alert('Registration successful! Redirecting to Dashboard.');
           setShowAuthModal(false);
@@ -259,18 +276,40 @@ export default function Home() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
-        redirectTo: window.location.origin,
+        redirectTo: `${window.location.origin}/#type=recovery`,
       });
 
       if (error) {
         alert('Reset Password Error: ' + error.message);
       } else {
-        alert('A password reset link/verification has been sent to your email address!');
+        alert('A password reset link has been sent to your email address! Please check your inbox.');
         setShowForgotPasswordModal(false);
         setResetEmail('');
       }
     } catch (err: any) {
       alert('Error sending reset email: ' + err.message);
+    }
+  }
+
+  async function handleUpdateNewPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newPassword.trim()) return;
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        alert('Failed to update password: ' + error.message);
+      } else {
+        alert('Your password has been reset successfully! You are now logged in.');
+        setShowResetNewPasswordModal(false);
+        setNewPassword('');
+        setActiveTab('dashboard');
+      }
+    } catch (err: any) {
+      alert('Error updating password: ' + err.message);
     }
   }
 
@@ -336,8 +375,15 @@ export default function Home() {
     }
   }
 
+  // Require Login for Feedback
   function handleAddFeedback(e: React.FormEvent) {
     e.preventDefault();
+    if (!user) {
+      alert('Please sign in first before submitting feedback or reviews.');
+      setShowAuthModal(true);
+      return;
+    }
+
     if (!feedbackComment.trim()) return;
 
     const newFb: FeedbackItem = {
@@ -351,11 +397,16 @@ export default function Home() {
 
     setFeedbacks([newFb, ...feedbacks]);
     setFeedbackComment('');
-    alert('Thank you for your feedback! Submitted directly to the admin team.');
+
+    // Trigger Direct Email to Admin Mailbox
+    const mailtoUrl = `mailto:northsynapse@gmail.com?subject=[North Synapse Feedback] ${feedbackCategory} - ${feedbackRating} Stars&body=User: ${user.email}%0D%0ARating: ${feedbackRating} Stars%0D%0ACategory: ${feedbackCategory}%0D%0A%0D%0AComment:%0D%0A${encodeURIComponent(feedbackComment)}`;
+    window.open(mailtoUrl, '_blank');
+
+    alert('Thank you for your feedback! It has been submitted and sent to northsynapse@gmail.com.');
   }
 
   /* ==========================================================================
-     5. THEME & FILTER LIST DEFINITION (POPULARITY RANKED)
+     5. THEME & FILTER LIST DEFINITION
      ========================================================================== */
   const theme = {
     bg: isDarkMode ? '#0E1117' : '#F8FAFC',
@@ -366,7 +417,6 @@ export default function Home() {
     accent: '#8B5CF6',
   };
 
-  // Subjects Sorted by Popularity
   const subjectsList = [
     'Mathematics',
     'Science',
@@ -379,7 +429,6 @@ export default function Home() {
     'Computer Science & Tech'
   ];
 
-  // Grade & Academic Track Options
   const gradesList = [
     'Grade 9',
     'Grade 10',
@@ -389,7 +438,6 @@ export default function Home() {
     'Academic Competitions'
   ];
 
-  // Filtering Logic
   const filteredResources = resources.filter(res => {
     const matchesSubject = selectedSubjects.length === 0 || selectedSubjects.includes(res.subject);
     const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(res.grade);
@@ -403,8 +451,31 @@ export default function Home() {
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
+      {/* Mobile Responsive Global CSS Injection */}
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          header {
+            padding: 1rem !important;
+            flex-direction: column !important;
+            gap: 1rem !important;
+          }
+          nav {
+            flex-wrap: wrap !important;
+            justify-content: center !important;
+            gap: 0.8rem !important;
+          }
+          main {
+            padding: 1rem !important;
+          }
+          .responsive-flex-col {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+        }
+      `}</style>
+
       {/* ===================================================================
-          6. HEADER & NAVIGATION
+          6. HEADER & NAVIGATION (RESPONSIVE)
           =================================================================== */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, position: 'relative', zIndex: 10, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
@@ -535,12 +606,12 @@ export default function Home() {
           =================================================================== */}
       <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
         
-        {/* --- VERTICAL ROLLING BANNER --- */}
+        {/* --- FIXED VERTICAL ROLLING BANNER (STRICTLY CENTERED ALIGNMENT) --- */}
         <div style={{ 
           backgroundColor: 'rgba(139, 92, 246, 0.08)', 
           border: `1px solid ${theme.accent}`, 
           borderRadius: '12px', 
-          padding: '0.8rem 1.5rem', 
+          padding: '0 1.5rem', 
           marginBottom: '2rem',
           display: 'flex',
           alignItems: 'center',
@@ -550,7 +621,7 @@ export default function Home() {
           height: '48px',
           boxSizing: 'border-box'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, overflow: 'hidden', height: '100%' }}>
             <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
               NOTICE ({currentBannerIndex + 1}/{topThreeAnnouncements.length})
             </span>
@@ -563,10 +634,10 @@ export default function Home() {
             }}>
               {topThreeAnnouncements.map((item) => (
                 <div key={item.id} style={{ height: '48px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <span style={{ fontSize: '0.9rem', color: theme.textMain, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <span style={{ fontSize: '0.9rem', color: theme.textMain, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: '48px' }}>
                     {item.title}
                   </span>
-                  <span style={{ fontSize: '0.8rem', color: theme.textMuted, flexShrink: 0 }}>
+                  <span style={{ fontSize: '0.8rem', color: theme.textMuted, flexShrink: 0, lineHeight: '48px' }}>
                     • {item.date}
                   </span>
                 </div>
@@ -582,7 +653,7 @@ export default function Home() {
           </button>
         </div>
 
-        {/* --- RESOURCE HUB TAB (WITH POPULARITY CATEGORY & TRACK FILTERS) --- */}
+        {/* --- RESOURCE HUB TAB --- */}
         {activeTab === 'resources' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
@@ -608,10 +679,9 @@ export default function Home() {
               />
             </div>
 
-            {/* Multi-Select Tags Panel (Streaming / Category Style) */}
+            {/* Multi-Select Tags Panel */}
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               
-              {/* Category 1: Grade Level & Academic Track */}
               <div>
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>LEVEL &amp; ACADEMIC TRACK:</span>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
@@ -639,7 +709,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Category 2: Subjects Sorted by Popularity */}
               <div>
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
@@ -673,7 +742,7 @@ export default function Home() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {filteredResources.length > 0 ? (
                 filteredResources.map((res) => (
-                  <div key={res.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div key={res.id} className="responsive-flex-col" style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                     <div>
                       <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.5rem' }}>
                         <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px' }}>{res.subject}</span>
@@ -684,7 +753,7 @@ export default function Home() {
                       <span style={{ fontSize: '0.75rem', color: theme.textMuted, marginTop: '0.5rem', display: 'block' }}>Shared by: {res.author}</span>
                     </div>
 
-                    <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>
+                    <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', flexShrink: 0 }}>
                       Download
                     </button>
                   </div>
@@ -726,12 +795,12 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- FEEDBACK & REVIEWS TAB --- */}
+        {/* --- FEEDBACK & REVIEWS TAB (LOGIN GUARANTEED) --- */}
         {activeTab === 'feedback' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ borderBottom: `1px solid ${theme.border}`, paddingBottom: '1rem' }}>
               <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Reviews</h1>
-              <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginTop: '0.3rem' }}>Submit star ratings and reviews directly to the North Synapse administration team.</p>
+              <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginTop: '0.3rem' }}>Submit star ratings and reviews directly to northsynapse@gmail.com.</p>
             </div>
 
             <form onSubmit={handleAddFeedback} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
@@ -797,7 +866,7 @@ export default function Home() {
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2.5rem', display: 'flex', gap: '2rem', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="responsive-flex-col" style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2.5rem', display: 'flex', gap: '2rem', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
                 <div style={{
                   width: '90px',
@@ -813,7 +882,8 @@ export default function Home() {
                   justifyContent: 'center',
                   fontSize: '2rem',
                   fontWeight: 'bold',
-                  color: theme.accent
+                  color: theme.accent,
+                  flexShrink: 0
                 }}>
                   {!avatarUrl && (nickname ? nickname[0].toUpperCase() : 'U')}
                 </div>
@@ -1012,6 +1082,36 @@ export default function Home() {
 
               <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
                 Send Reset Link
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reset NEW Password Modal (Triggered via Email Token Link) */}
+      {showResetNewPasswordModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.accent }}>Set New Password</h2>
+              <button onClick={() => setShowResetNewPasswordModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleUpdateNewPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Enter Your New Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  placeholder="••••••••" 
+                  value={newPassword} 
+                  onChange={(e) => setNewPassword(e.target.value)} 
+                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                Update Password
               </button>
             </form>
           </div>
