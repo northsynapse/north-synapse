@@ -491,7 +491,7 @@ export default function Home() {
               {/* Grade & Gender */}
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
                   <select
                     required
                     value={grade}
