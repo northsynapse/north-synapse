@@ -246,14 +246,14 @@ export default function Home() {
   }, [announcements]);
 
   /* ==========================================================================
-     4. HANDLERS
+     4. HANDLERS & USERNAME/NICKNAME VALIDATION
      ========================================================================== */
   function toggleSubjectFilter(sub: string) {
     setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
   }
 
   function toggleGradeFilter(grd: string) {
-    setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, grd]);
+    setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, g]);
   }
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -265,7 +265,7 @@ export default function Home() {
     }
   }
 
-  // FORCE RESOLVE EMAIL ALREADY REGISTERED ERROR
+  // AUTO-UNLOCK SIGN-UP & RESTORE LOGIC
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -298,11 +298,12 @@ export default function Home() {
             if (signInErr) {
               alert('Account exists! If you forgot your password, please use Forgot Password to reset it.');
             } else {
+              const defaultName = authEmail.split('@')[0].slice(0, 20);
               await supabase.auth.updateUser({
                 data: {
                   avatar_url: '',
-                  username: authEmail.split('@')[0],
-                  nickname: authEmail.split('@')[0],
+                  username: defaultName,
+                  nickname: defaultName,
                   grade: 'Grade 12',
                   gender: '',
                   bio: ''
@@ -380,16 +381,38 @@ export default function Home() {
     }
   }
 
+  // Profile Save with Strict Username / Nickname Validation
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
+
+    // Check No Spaces at Start or End
+    if (username.startsWith(' ') || username.endsWith(' ')) {
+      alert('Username cannot start or end with spaces.');
+      return;
+    }
+    if (nickname.startsWith(' ') || nickname.endsWith(' ')) {
+      alert('Nickname cannot start or end with spaces.');
+      return;
+    }
+
+    // Length Check
+    if (username.length < 3 || username.length > 20) {
+      alert('Username length must be between 3 and 20 characters.');
+      return;
+    }
+    if (nickname.length < 2 || nickname.length > 30) {
+      alert('Nickname length must be between 2 and 30 characters.');
+      return;
+    }
+
     setSavingProfile(true);
 
     try {
       const { error } = await supabase.auth.updateUser({
         data: {
           avatar_url: avatarUrl,
-          username: username,
-          nickname: nickname,
+          username: username.trim(),
+          nickname: nickname.trim(),
           grade: grade,
           gender: gender,
           bio: bio,
@@ -1048,7 +1071,7 @@ export default function Home() {
       )}
 
       {/* ===================================================================
-          10. EDIT PROFILE MODAL
+          10. EDIT PROFILE MODAL (WITH LENGTH & SPACE VALIDATION)
           =================================================================== */}
       {showEditProfileModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
@@ -1069,12 +1092,12 @@ export default function Home() {
 
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username</label>
-                  <input type="text" required value={username} onChange={(e) => setUsername(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username (3-20 chars, no leading/trailing space)</label>
+                  <input type="text" required minLength={3} maxLength={20} value={username} onChange={(e) => setUsername(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
-                  <input type="text" required value={nickname} onChange={(e) => setNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname (2-30 chars, no leading/trailing space)</label>
+                  <input type="text" required minLength={2} maxLength={30} value={nickname} onChange={(e) => setNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
                 </div>
               </div>
 
@@ -1204,7 +1227,7 @@ export default function Home() {
 
             <form onSubmit={handleUpdateNewPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Enter Your New Password</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color theme.textMuted, marginBottom: '0.3rem' }}>Enter Your New Password</label>
                 <input 
                   type="password" 
                   required 
