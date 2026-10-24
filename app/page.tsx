@@ -168,18 +168,25 @@ export default function Home() {
     }
   }
 
+  // Improved Account Deletion & Clean Sign Out
   async function handleDeleteAccount() {
-    const confirmDelete = window.confirm('Are you sure you want to delete your profile and sign out? This action cannot be undone.');
+    const confirmDelete = window.confirm('Are you sure you want to delete your profile session and sign out? This action will end your session on this device.');
     if (!confirmDelete) return;
 
     try {
       await supabase.auth.signOut();
       setUser(null);
+      setAvatarUrl('');
+      setUsername('');
+      setNickname('');
+      setGrade('');
+      setGender('');
+      setBio('');
       setShowEditProfileModal(false);
       setActiveTab('resources');
-      alert('Account signed out successfully.');
+      alert('Your account session has been signed out and cleared successfully.');
     } catch (err: any) {
-      alert('Error during sign out: ' + err.message);
+      alert('Error during account action: ' + err.message);
     }
   }
 
@@ -199,30 +206,18 @@ export default function Home() {
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
       
       {/* ===================================================================
-          6. HEADER & NAVIGATION (LOGO LOCATION HERE)
+          6. HEADER & NAVIGATION (RESTORED DUAL-DOT LOGO)
           =================================================================== */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, position: 'relative', zIndex: 10, padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
         {/* --- BRAND LOGO --- */}
         <div 
           onClick={() => setActiveTab('resources')} 
-          style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.7rem', cursor: 'pointer', letterSpacing: '-0.02em' }}
+          style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', letterSpacing: '-0.02em' }}
         >
-          {/* Square NS Icon Badge */}
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            backgroundColor: theme.accent,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#FFF',
-            fontSize: '1rem',
-            fontWeight: '900',
-            boxShadow: '0 2px 8px rgba(139, 92, 246, 0.4)'
-          }}>
-            NS
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: theme.accent }}></div>
+            <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: theme.accent, opacity: 0.6 }}></div>
           </div>
           <span style={{ color: theme.textMain }}>North<span style={{ color: theme.accent }}>Synapse</span></span>
         </div>
@@ -510,21 +505,17 @@ export default function Home() {
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
-                 <select
-                   required
-                   value={grade}
-                   onChange={(e) => setGrade(e.target.value)}
-                   style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}
-                 >
-                   <option value="">Select Grade</option>
-                   <option value="Grade 9">Grade 9</option>
-                   <option value="Grade 10">Grade 10</option>
-                   <option value="Grade 11">Grade 11</option>
-                   <option value="Grade 12">Grade 12</option>
-                   <option value="Alumni">Alumni</option>
-                 </select>
-               </div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="Alex" 
+                    value={nickname} 
+                    onChange={(e) => setNickname(e.target.value)} 
+                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
+                  />
+                </div>
+              </div>
 
               {/* Grade Dropdown & Gender Select */}
               <div style={{ display: 'flex', gap: '1rem' }}>
@@ -646,3 +637,39 @@ export default function Home() {
 
               {isSignUp && (
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                  <input
+                    type="checkbox"
+                    id="studentConfirm"
+                    required
+                    checked={isStudentConfirmed}
+                    onChange={(e) => setIsStudentConfirmed(e.target.checked)}
+                    style={{ marginTop: '0.2rem' }}
+                  />
+                  <label htmlFor="studentConfirm" style={{ fontSize: '0.8rem', color: theme.textMuted, lineHeight: '1.3' }}>
+                    I confirm that I am a current student or alumni of NTCI, and I agree to uphold academic integrity.
+                  </label>
+                </div>
+              )}
+
+              <button 
+                type="submit" 
+                disabled={loading}
+                style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', opacity: loading ? 0.6 : 1, marginTop: '0.5rem' }}
+              >
+                {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
+              </button>
+            </form>
+
+            <p 
+              onClick={() => { setIsSignUp(!isSignUp); setIsStudentConfirmed(false); }} 
+              style={{ color: theme.accent, marginTop: '1.2rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}
+            >
+              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+            </p>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
