@@ -157,10 +157,8 @@ export default function Home() {
   const [reportReason, setReportReason] = useState('Academic Dishonesty');
   const [reportDetails, setReportDetails] = useState('');
 
-  // Reports Store State
+  // Stores
   const [reports, setReports] = useState<ReportItem[]>([]);
-
-  // Feedbacks Store State
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
   const [feedbackRating, setFeedbackRating] = useState(5);
   const [feedbackCategory, setFeedbackCategory] = useState('General Suggestion');
@@ -248,14 +246,14 @@ export default function Home() {
   }, [announcements]);
 
   /* ==========================================================================
-     4. HANDLERS (AUTH UNLOCK, POSTS, REPORTS, FEEDBACK)
+     4. HANDLERS (EXPLICIT AUTO-UNBLOCK SIGN-UP LOGIC)
      ========================================================================== */
   function toggleSubjectFilter(sub: string) {
     setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
   }
 
   function toggleGradeFilter(grd: string) {
-    setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, grd]);
+    setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, g]);
   }
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -267,7 +265,7 @@ export default function Home() {
     }
   }
 
-  // AUTO-UNLOCK REGISTER & SIGN IN LOGIC
+  // FORCE RESOLVE EMAIL ALREADY REGISTERED ERROR
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -285,29 +283,40 @@ export default function Home() {
           return;
         }
 
-        // Try SignUp
-        const { data, error } = await supabase.auth.signUp({
+        // Try standard SignUp first
+        const { error: signUpError } = await supabase.auth.signUp({
           email: authEmail.trim(),
           password: authPassword,
         });
 
-        if (error) {
-          // If email was previously registered/deleted, automatically fall back to direct sign-in and sync
-          if (error.message.toLowerCase().includes('already registered')) {
+        if (signUpError) {
+          // If Supabase flags that email is already registered, automatically sign in with new credentials and refresh metadata
+          if (signUpError.message.toLowerCase().includes('already registered')) {
             const { error: signInErr } = await supabase.auth.signInWithPassword({
               email: authEmail.trim(),
               password: authPassword,
             });
 
             if (signInErr) {
-              alert('This email was previously used. We have sent a password reset link or you can sign in with your previous password.');
+              alert('Account exists! If you forgot your password, please use Forgot Password to reset it.');
             } else {
-              alert('Account restored and signed in successfully!');
+              // Reset profile metadata for new account state
+              await supabase.auth.updateUser({
+                data: {
+                  avatar_url: '',
+                  username: authEmail.split('@')[0],
+                  nickname: authEmail.split('@')[0],
+                  grade: 'Grade 12',
+                  gender: '',
+                  bio: ''
+                }
+              });
+              alert('Account unlocked and re-registered successfully!');
               setShowAuthModal(false);
               setActiveTab('dashboard');
             }
           } else {
-            alert('SignUp Error: ' + error.message);
+            alert('SignUp Error: ' + signUpError.message);
           }
         } else {
           alert('Registration successful! Directing to Dashboard.');
@@ -453,7 +462,7 @@ export default function Home() {
     }
   }
 
-  // Add Comment Handler
+  // Comment Handler
   function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
     if (!user) {
@@ -611,22 +620,26 @@ export default function Home() {
   });
 
   const pendingReports = reports.filter(r => r.status === 'pending');
-  const avgRating = feedbacks.length > 0 ? (feedbacks.reduce((acc, f) => acc + f.rating, 0) / feedbacks.length).toFixed(1) : '5.0';
 
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
       {/* ===================================================================
-          6. HEADER & NAVIGATION
+          6. HEADER & NAVIGATION WITH RESTORED ORIGINAL LOGO
           =================================================================== */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
-        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.3rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer' }}>
-          <svg width="30" height="30" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* --- ORIGINAL NORTH SYNAPSE NEURAL NETWORK LOGO --- */}
+        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.3rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', letterSpacing: '-0.02em' }}>
+          <svg width="34" height="34" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M75 25 C 50 10, 20 20, 25 45 C 30 70, 70 65, 75 80 C 80 95, 45 95, 25 80" stroke="#8B5CF6" strokeWidth="8" strokeLinecap="round"/>
+            <path d="M25 25 L 75 80" stroke="#8B5CF6" strokeWidth="3" strokeDasharray="5 5" opacity="0.6"/>
+            <path d="M75 25 L 25 80" stroke="#8B5CF6" strokeWidth="3" strokeDasharray="5 5" opacity="0.6"/>
             <circle cx="75" cy="25" r="7" fill="#8B5CF6"/>
             <circle cx="25" cy="45" r="5" fill="#8B5CF6"/>
             <circle cx="75" cy="80" r="7" fill="#8B5CF6"/>
+            <circle cx="25" cy="80" r="5" fill="#8B5CF6"/>
+            <circle cx="50" cy="52.5" r="5" fill="#8B5CF6"/>
           </svg>
           <span>North Synapse</span>
           {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>OFFICIAL ADMIN</span>}
@@ -806,7 +819,6 @@ export default function Home() {
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
                   <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '1rem' }}>{res.description}</p>
 
-                  {/* Author Header & Interaction Bar */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${theme.border}`, paddingTop: '0.8rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                       <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: theme.accent, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.75rem' }}>
@@ -926,13 +938,12 @@ export default function Home() {
       </main>
 
       {/* ===================================================================
-          8. PREVIEW MODAL (SPLIT VIEW WITH TOGGLE COMMENTS)
+          8. PREVIEW MODAL
           =================================================================== */}
       {previewResource && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
           <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '960px', height: '80vh', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             
-            {/* Modal Header */}
             <div style={{ padding: '1.2rem 2rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: 'bold' }}>{previewResource.subject}</span>
@@ -946,10 +957,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Modal Body */}
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-              
-              {/* Left Content Area */}
               <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', borderRight: showCommentsArea ? `1px solid ${theme.border}` : 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: `1px solid ${theme.border}` }}>
                   <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: theme.accent, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
@@ -966,7 +974,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Right Comments Sidebar */}
               {showCommentsArea && (
                 <div style={{ width: '360px', backgroundColor: theme.bg, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
                   <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Comments ({previewResource.comments.length})</h3>
@@ -1003,7 +1010,6 @@ export default function Home() {
                   </div>
                 </div>
               )}
-
             </div>
 
           </div>
@@ -1246,4 +1252,3 @@ export default function Home() {
 
     </div>
   );
-}
