@@ -129,9 +129,8 @@ export default function Home() {
   const [createdAt, setCreatedAt] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Platform Analytics State
-  const [totalUsersCount] = useState(128);
-  const [onlineUsersCount] = useState(14);
+  // REAL Platform Analytics State (Admin Only)
+  const [realUserCount, setRealUserCount] = useState<number>(0);
 
   // Filter State
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
@@ -243,9 +242,10 @@ export default function Home() {
   const isAdmin = user?.email?.toLowerCase().includes('northsynapse');
 
   /* ==========================================================================
-     3. AUTHENTICATION & SESSION EFFECT
+     3. AUTHENTICATION & RECOVERY HASH DETECTION
      ========================================================================== */
   useEffect(() => {
+    // 拦截重置密码邮件跳转回来的 Hash URL
     if (typeof window !== 'undefined') {
       const hash = window.location.hash;
       if (hash && (hash.includes('type=recovery') || hash.includes('access_token'))) {
@@ -290,6 +290,20 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // REAL DATA FETCH FOR ADMIN
+  useEffect(() => {
+    if (isAdmin) {
+      // 实时获取数据库真实的注册用户数
+      supabase.rpc('get_user_count').then(({ data, error }) => {
+        if (!error && data) {
+          setRealUserCount(data);
+        } else {
+          setRealUserCount(1); // 当前管理员账号本身至少为 1
+        }
+      }).catch(() => setRealUserCount(1));
+    }
+  }, [isAdmin]);
+
   // Banner Timer
   useEffect(() => {
     if (announcements.length <= 1) return;
@@ -300,7 +314,7 @@ export default function Home() {
   }, [announcements]);
 
   /* ==========================================================================
-     4. HANDLERS
+     4. HANDLERS & AUTH REFIX
      ========================================================================== */
   function toggleSubjectFilter(sub: string) {
     setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
@@ -319,7 +333,7 @@ export default function Home() {
     }
   }
 
-  // STRICT SUPABASE AUTHENTICATION
+  // STRICT SUPABASE AUTHENTICATION FIX
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -356,21 +370,22 @@ export default function Home() {
         if (signUpError) {
           const errMsg = signUpError.message.toLowerCase();
           if (errMsg.includes('already registered') || errMsg.includes('already exists') || errMsg.includes('user_already_exists')) {
-            alert('This email is already registered! Please switch to "Sign In" or click "Forgot Password".');
+            alert('该邮箱已被注册！请直接在登录页面输入密码登录，或点击“Forgot Password”重置密码。');
           } else {
-            alert('SignUp Error: ' + signUpError.message);
+            alert('注册失败: ' + signUpError.message);
           }
         } else {
+          // 判断 Supabase 是否要求邮箱确认
           if (signUpData.user && signUpData.session) {
             setUser(signUpData.user);
             setUsername(defaultName);
             setNickname(defaultName);
             setGrade('');
-            alert('Account registered and logged in successfully!');
+            alert('账号注册并登录成功！');
             setShowAuthModal(false);
             setActiveTab('dashboard');
           } else if (signUpData.user && !signUpData.session) {
-            alert('Registration email sent! Please check your inbox and confirm your email address before signing in.');
+            alert(`注册确认邮件已发送至 ${cleanEmail}！\n请前往您的邮箱点击验证链接，完成后即可登录。`);
             setIsSignUp(false);
           }
         }
@@ -383,11 +398,11 @@ export default function Home() {
         if (signInErr) {
           const errMsg = signInErr.message.toLowerCase();
           if (errMsg.includes('email not confirmed')) {
-            alert('Your email has not been confirmed yet. Please check your inbox for the confirmation link.');
+            alert('您的账号尚未完成邮箱验证！\n请前往您的邮箱找到验证链接点击激活后，再尝试登录。');
           } else if (errMsg.includes('invalid login credentials')) {
-            alert('Invalid email or password. Please double check your credentials.');
+            alert('登录失败：邮箱或密码错误，或者该账号尚未完成邮箱验证。');
           } else {
-            alert('SignIn Error: ' + signInErr.message);
+            alert('登录错误: ' + signInErr.message);
           }
         } else {
           setUser(signInData.user);
@@ -397,7 +412,7 @@ export default function Home() {
         }
       }
     } catch (err: any) {
-      alert('Network Error: ' + (err.message || 'Failed to authenticate'));
+      alert('网络连接错误: ' + (err.message || '无法连接至认证服务器'));
     } finally {
       setLoading(false);
     }
@@ -413,14 +428,14 @@ export default function Home() {
       });
 
       if (error) {
-        alert('Reset Password Error: ' + error.message);
+        alert('发送重置邮件失败: ' + error.message);
       } else {
-        alert('A password reset link has been sent to your email address!');
+        alert('密码重置链接已成功发送至您的邮箱，请检查收件箱（或垃圾邮件箱）！');
         setShowForgotPasswordModal(false);
         setResetEmail('');
       }
     } catch (err: any) {
-      alert('Error sending reset email: ' + err.message);
+      alert('发送重置邮件错误: ' + err.message);
     }
   }
 
@@ -431,15 +446,15 @@ export default function Home() {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword.trim() });
       if (error) {
-        alert('Failed to update password: ' + error.message);
+        alert('更新密码失败: ' + error.message);
       } else {
-        alert('Your password has been reset successfully!');
+        alert('您的密码已成功修改！请使用新密码进行登录。');
         setShowResetNewPasswordModal(false);
         setNewPassword('');
         setActiveTab('dashboard');
       }
     } catch (err: any) {
-      alert('Error: ' + err.message);
+      alert('错误: ' + err.message);
     }
   }
 
@@ -937,588 +952,4 @@ export default function Home() {
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
                   <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '1rem' }}>{res.description}</p>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${theme.border}`, paddingTop: '0.8rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: theme.accent, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.75rem' }}>
-                        {res.authorName[0].toUpperCase()}
-                      </div>
-                      <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by {res.authorName}</span>
-                      <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>• {res.date}</span>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                      <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, fontWeight: res.likedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.85rem' }}>
-                        {res.likedByMe ? 'Liked' : 'Like'} ({res.likes})
-                      </button>
-
-                      <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.bookmarkedByMe ? theme.accent : theme.textMuted, fontWeight: res.bookmarkedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.85rem' }}>
-                        {res.bookmarkedByMe ? 'Saved' : 'Save'} ({res.bookmarks})
-                      </button>
-
-                      <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                        Preview
-                      </button>
-                    </div>
-                  </div>
-
-                </div>
-              ))}
-            </div>
-
-          </div>
-        )}
-
-        {/* OTHER TABS */}
-        {activeTab === 'lounges' && <div style={{ textAlign: 'center', padding: '4rem 2rem' }}><h2>Study Lounge</h2><p style={{ color: theme.textMuted }}>Virtual study rooms coming soon.</p></div>}
-        {activeTab === 'discussions' && <div style={{ textAlign: 'center', padding: '4rem 2rem' }}><h2>Discussions</h2><p style={{ color: theme.textMuted }}>Academic discussion board coming soon.</p></div>}
-
-        {/* ANNOUNCEMENTS TAB */}
-        {activeTab === 'announcements' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Official Announcements</h1>
-            {announcements.map((item) => (
-              <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
-                  <strong style={{ color: theme.accent }}>{item.authorName}</strong>
-                  <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
-                </div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{item.title}</h3>
-                <p style={{ marginTop: '0.5rem', color: theme.textMain }}>{item.content}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* FEEDBACK TAB */}
-        {activeTab === 'feedback' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Issue Reporting</h1>
-            <form onSubmit={handleAddFeedback} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Type of Feedback</label>
-                <select value={feedbackCategory} onChange={(e) => setFeedbackCategory(e.target.value)} style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}>
-                  <option value="General Suggestion">General Suggestion</option>
-                  <option value="Report Issue / Bug">Report Issue / Bug</option>
-                  <option value="Content Request">Content Request</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Overall Experience Rating</label>
-                <div style={{ display: 'flex', gap: '0.6rem' }}>
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <button key={s} type="button" onClick={() => setFeedbackRating(s)} style={{ padding: '0.3rem 0.8rem', borderRadius: '6px', border: `1px solid ${s <= feedbackRating ? theme.accent : theme.border}`, backgroundColor: s <= feedbackRating ? theme.accent : theme.bg, color: s <= feedbackRating ? '#FFF' : theme.textMain, fontWeight: 'bold', cursor: 'pointer' }}>
-                      {s} Star
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Details / Problem Description</label>
-                <textarea required rows={4} placeholder="Describe your bug report or suggestion here..." value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>Submit Feedback / Bug Report</button>
-            </form>
-          </div>
-        )}
-
-        {/* DASHBOARD TAB WITH ADMIN STATS & USER SEPARATION */}
-        {activeTab === 'dashboard' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            
-            {/* PROFILE CARD */}
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                <div style={{ width: '70px', height: '70px', borderRadius: '50%', backgroundColor: theme.accent, backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none', backgroundSize: 'cover', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.8rem', color: '#FFF' }}>
-                  {!avatarUrl && (nickname ? nickname[0].toUpperCase() : 'U')}
-                </div>
-                <div>
-                  <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{nickname || 'Student Profile'}</h1>
-                  <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem' }}>
-                    @{username || 'username'} • <span style={{ color: theme.accent, fontWeight: '600' }}>{grade || 'Grade Not Set'}</span> • Gender: {gender || 'Not Set'}
-                  </p>
-                  <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem' }}>
-                    Member since: <strong>{createdAt}</strong>
-                  </p>
-                  {bio && <p style={{ fontSize: '0.85rem', marginTop: '0.6rem', color: theme.textMain, fontStyle: 'italic' }}>&quot;{bio}&quot;</p>}
-                </div>
-              </div>
-              <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.6rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Edit Profile</button>
-            </div>
-
-            {/* IF REGULAR USER (NON-ADMIN) */}
-            {!isAdmin ? (
-              <>
-                {/* FRIENDS LIST */}
-                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Study Friends ({friends.length})</h2>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
-                    {friends.map((f) => (
-                      <div key={f.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: theme.accent, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                          {f.name[0]}
-                        </div>
-                        <div>
-                          <strong style={{ display: 'block', fontSize: '0.9rem' }}>{f.name}</strong>
-                          <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{f.grade} • {f.status}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* MY PUBLISHED RESOURCES */}
-                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>My Published Resources ({myResources.length})</h2>
-                  {myResources.length > 0 ? (
-                    myResources.map((res) => (
-                      <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-                        <div>
-                          <span style={{ fontSize: '0.75rem', color: theme.accent, fontWeight: 'bold' }}>{res.subject}</span>
-                          <h4 style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>{res.title}</h4>
-                        </div>
-                        <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{res.likes} Likes • {res.bookmarks} Saves</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t shared any resources yet.</p>
-                  )}
-                </div>
-
-                {/* MY DISCUSSIONS */}
-                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>My Discussion Topics ({myDiscussions.length})</h2>
-                  {myDiscussions.length > 0 ? (
-                    myDiscussions.map((d) => (
-                      <div key={d.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <h4 style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>{d.title}</h4>
-                          <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted on {d.date}</span>
-                        </div>
-                        <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{d.repliesCount} Replies</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>No active discussions started yet.</p>
-                  )}
-                </div>
-
-                {/* MY BOOKMARKED RESOURCES LIST */}
-                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>My Saved Bookmarks ({bookmarkedResources.length})</h2>
-                  {bookmarkedResources.length > 0 ? (
-                    bookmarkedResources.map((bm) => (
-                      <div key={bm.id} onClick={() => setPreviewResource(bm)} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-                        <div>
-                          <span style={{ fontSize: '0.75rem', color: theme.accent, fontWeight: 'bold' }}>{bm.subject} • {bm.grade}</span>
-                          <h4 style={{ fontSize: '0.95rem', fontWeight: 'bold', marginTop: '0.2rem' }}>{bm.title}</h4>
-                          <p style={{ fontSize: '0.8rem', color: theme.textMuted }}>Shared by {bm.authorName} on {bm.date}</p>
-                        </div>
-                        <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                          Open Note
-                        </button>
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t bookmarked any notes yet.</p>
-                  )}
-                </div>
-              </>
-            ) : (
-              /* ADMIN DASHBOARD: ANALYTICS CARDS + MODERATION PANEL */
-              <>
-                {/* PLATFORM ANALYTICS STATS */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.2rem' }}>
-                  
-                  <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.85rem', color: theme.textMuted, fontWeight: '600' }}>TOTAL REGISTERED USERS</span>
-                    <div style={{ fontSize: '2rem', fontWeight: '900', color: theme.accent }}>{totalUsersCount}</div>
-                    <span style={{ fontSize: '0.75rem', color: '#10B981', fontWeight: 'bold' }}>+12% this week</span>
-                  </div>
-
-                  <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.85rem', color: theme.textMuted, fontWeight: '600' }}>ONLINE ACTIVE USERS</span>
-                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }}></span>
-                    </div>
-                    <div style={{ fontSize: '2rem', fontWeight: '900', color: '#10B981' }}>{onlineUsersCount}</div>
-                    <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Active in Realtime</span>
-                  </div>
-
-                  <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.85rem', color: theme.textMuted, fontWeight: '600' }}>SHARED RESOURCES</span>
-                    <div style={{ fontSize: '2rem', fontWeight: '900', color: theme.textMain }}>{resources.length}</div>
-                    <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Across 9 Subject Categories</span>
-                  </div>
-
-                  <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.85rem', color: theme.textMuted, fontWeight: '600' }}>COMMUNITY DISCUSSIONS</span>
-                    <div style={{ fontSize: '2rem', fontWeight: '900', color: theme.textMain }}>{discussions.length}</div>
-                    <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Active Peer Topics</span>
-                  </div>
-
-                </div>
-
-                {/* MODERATION PANEL */}
-                <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.05)', border: '1px solid #EF4444', borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#EF4444' }}>Admin Moderation Panel ({pendingReports.length} Pending Reports)</h2>
-                  </div>
-
-                  {pendingReports.length > 0 ? (
-                    pendingReports.map((rep) => (
-                      <div key={rep.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <span style={{ fontSize: '0.75rem', backgroundColor: '#EF4444', color: '#FFF', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 'bold' }}>{rep.targetType.toUpperCase()}</span>
-                          <h4 style={{ fontSize: '1rem', fontWeight: 'bold', marginTop: '0.4rem' }}>Target: {rep.targetTitle}</h4>
-                          <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>Reason: <strong>{rep.reason}</strong> | Details: {rep.details || 'None provided'}</p>
-                          <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Reported by: {rep.reporterEmail} • {rep.date}</span>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '0.8rem' }}>
-                          <button onClick={() => handleAdminResolveReport(rep.id, 'delete')} style={{ backgroundColor: '#EF4444', color: '#FFF', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>
-                            Confirm &amp; Delete
-                          </button>
-                          <button onClick={() => handleAdminResolveReport(rep.id, 'dismiss')} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                            Dismiss
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{ color: theme.textMuted, fontSize: '0.9rem' }}>No pending reports to review.</p>
-                  )}
-                </div>
-              </>
-            )}
-
-          </div>
-        )}
-
-      </main>
-
-      {/* PREVIEW MODAL */}
-      {previewResource && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '960px', height: '80vh', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
-            <div style={{ padding: '1.2rem 2rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: 'bold' }}>{previewResource.subject}</span>
-                <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', marginTop: '0.2rem' }}>{previewResource.title}</h2>
-              </div>
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                <button onClick={() => setShowCommentsArea(!showCommentsArea)} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}>
-                  {showCommentsArea ? 'Hide Comments' : 'Show Comments'}
-                </button>
-                <button onClick={() => setPreviewResource(null)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.4rem' }}>X</button>
-              </div>
-            </div>
-
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-              <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', borderRight: showCommentsArea ? `1px solid ${theme.border}` : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: `1px solid ${theme.border}` }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: theme.accent, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                    {previewResource.authorName[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <strong style={{ display: 'block', fontSize: '0.95rem' }}>{previewResource.authorName}</strong>
-                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Posted on {previewResource.date}</span>
-                  </div>
-                </div>
-
-                <div style={{ fontSize: '0.95rem', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}>
-                  {previewResource.content}
-                </div>
-              </div>
-
-              {showCommentsArea && (
-                <div style={{ width: '360px', backgroundColor: theme.bg, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Comments ({previewResource.comments.length})</h3>
-
-                  <form onSubmit={handleAddComment} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                    <textarea 
-                      rows={3} 
-                      placeholder="Write a comment..." 
-                      value={newCommentText}
-                      onChange={(e) => setNewCommentText(e.target.value)}
-                      style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box' }}
-                    />
-                    <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end', fontSize: '0.85rem' }}>Post Comment</button>
-                  </form>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
-                    {previewResource.comments.map((c) => (
-                      <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                          <strong style={{ fontSize: '0.85rem' }}>{c.authorName}</strong>
-                          <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{c.date}</span>
-                        </div>
-                        <p style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>{c.text}</p>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <button onClick={() => handleLikeComment(c.id)} style={{ background: 'none', border: 'none', color: c.likedByMe ? theme.accent : theme.textMuted, fontWeight: c.likedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.75rem' }}>
-                            {c.likedByMe ? 'Liked' : 'Like'} ({c.likes})
-                          </button>
-                          <button onClick={(e) => triggerReportModal('comment', c.id, c.text, c.authorName, e)} style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '0.75rem', cursor: 'pointer' }}>
-                            Report
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* REPORT MODAL */}
-      {showReportModal && reportTarget && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#EF4444' }}>Report Content</h2>
-              <button onClick={() => setShowReportModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
-            </div>
-
-            <form onSubmit={handleSubmitReport} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Report Reason</label>
-                <select value={reportReason} onChange={(e) => setReportReason(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}>
-                  <option value="Academic Dishonesty">Academic Dishonesty / Unreleased Exam</option>
-                  <option value="Insulting / Harassment">Insulting Language / Harassment</option>
-                  <option value="Spam / Inappropriate">Spam / Inappropriate Content</option>
-                  <option value="Other">Other Issues</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Additional Details (Optional)</label>
-                <textarea rows={3} placeholder="Provide specific context if needed..." value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              <button type="submit" style={{ backgroundColor: '#EF4444', color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                Submit Report
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT PROFILE MODAL */}
-      {showEditProfileModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}`, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Edit Profile Settings</h2>
-              <button onClick={() => setShowEditProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
-            </div>
-
-            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                <input type="file" ref={fileInputRef} accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
-                <div onClick={() => fileInputRef.current?.click()} style={{ width: '75px', height: '75px', borderRadius: '50%', backgroundColor: theme.bg, border: `2px dashed ${theme.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none', backgroundSize: 'cover' }}>
-                  {!avatarUrl && <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Upload</span>}
-                </div>
-                <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}>Change Image</button>
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username (3-20 chars)</label>
-                  <input type="text" required minLength={3} maxLength={20} value={username} onChange={(e) => setUsername(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname (2-30 chars)</label>
-                  <input type="text" required minLength={2} maxLength={30} value={nickname} onChange={(e) => setNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
-                  <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
-                    <option value="">Select Grade (Optional)</option>
-                    <option value="Grade 9">Grade 9</option>
-                    <option value="Grade 10">Grade 10</option>
-                    <option value="Grade 11">Grade 11</option>
-                    <option value="Grade 12">Grade 12</option>
-                    <option value="Alumni">Alumni</option>
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (Optional)</label>
-                  <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
-                    <option value="">Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Non-binary">Non-binary</option>
-                    <option value="Prefer not to say">Prefer not to say</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio</label>
-                <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', fontFamily: 'inherit' }} />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-                <button type="submit" disabled={savingProfile} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>{savingProfile ? 'Saving...' : 'Save Profile Changes'}</button>
-                <button type="button" onClick={handleDeleteAccount} style={{ background: 'none', border: '1px solid #EF4444', color: '#EF4444', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer' }}>Delete Account</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* AUTHENTICATION & RESET MODALS */}
-      {showAuthModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{isSignUp ? 'Sign Up' : 'Sign In'}</h2>
-              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
-            </div>
-
-            <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Email</label>
-                <input type="email" required placeholder="350403596@tdsb.ca" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                  <label style={{ fontSize: '0.85rem', color: theme.textMuted }}>Password</label>
-                  {!isSignUp && (
-                    <span onClick={() => { setShowAuthModal(false); setShowForgotPasswordModal(true); }} style={{ fontSize: '0.8rem', color: theme.accent, cursor: 'pointer' }}>Forgot Password?</span>
-                  )}
-                </div>
-                <input type="password" required placeholder="••••••••" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              {isSignUp && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '0.2rem' }}>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                    <input type="checkbox" id="studentConfirm" required checked={isStudentConfirmed} onChange={(e) => setIsStudentConfirmed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
-                    <label htmlFor="studentConfirm" style={{ fontSize: '0.8rem', color: theme.textMuted, lineHeight: '1.3' }}>I confirm that I am a current student or alumni.</label>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                    <input type="checkbox" id="termsConfirm" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} style={{ marginTop: '0.2rem' }} />
-                    <label htmlFor="termsConfirm" style={{ fontSize: '0.8rem', color: theme.textMuted, lineHeight: '1.3' }}>
-                      I agree to the <span onClick={() => setShowTermsModal(true)} style={{ color: theme.accent, textDecoration: 'underline', cursor: 'pointer', fontWeight: 'bold' }}>Terms of Service</span>.
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              <button type="submit" disabled={loading} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', opacity: loading ? 0.6 : 1, marginTop: '0.5rem' }}>
-                {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
-              </button>
-            </form>
-
-            <p onClick={() => { setIsSignUp(!isSignUp); setIsStudentConfirmed(false); setHasAgreedTerms(false); }} style={{ color: theme.accent, marginTop: '1.2rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}>
-              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Forgot Password Modal */}
-      {showForgotPasswordModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Reset Password</h2>
-              <button onClick={() => setShowForgotPasswordModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
-            </div>
-
-            <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Enter your email address</label>
-                <input type="email" required placeholder="your_email@tdsb.ca" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                Send Reset Link
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Set New Password Modal */}
-      {showResetNewPasswordModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.accent }}>Set New Password</h2>
-              <button onClick={() => setShowResetNewPasswordModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
-            </div>
-
-            <form onSubmit={handleUpdateNewPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Enter Your New Password</label>
-                <input 
-                  type="password" 
-                  required 
-                  placeholder="••••••••" 
-                  value={newPassword} 
-                  onChange={(e) => setNewPassword(e.target.value)} 
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
-                />
-              </div>
-
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                Update Password
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ORIGINAL FULL TERMS OF SERVICE MODAL */}
-      {showTermsModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '16px', width: '90%', maxWidth: '580px', border: `1px solid ${theme.border}`, maxHeight: '80vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.8rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.accent }}>Terms of Service &amp; Community Guidelines</h2>
-              <button onClick={() => setShowTermsModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
-            </div>
-
-            <div style={{ fontSize: '0.85rem', color: theme.textMuted, lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <p>Welcome to <strong>North Synapse</strong>, an academic peer-to-peer resource platform dedicated to verified high school students and alumni.</p>
-              
-              <div>
-                <strong style={{ color: theme.textMain, display: 'block', marginBottom: '0.2rem' }}>1. Academic Integrity Standard</strong>
-                <p>Users must not upload unreleased exam materials, live test papers, or materials that violate institutional academic integrity policies. Shared resources should be study notes, guides, and practice materials created for educational collaboration.</p>
-              </div>
-
-              <div>
-                <strong style={{ color: theme.textMain, display: 'block', marginBottom: '0.2rem' }}>2. Respectful Communication</strong>
-                <p>Harassment, abusive language, discrimination, and spam within comments or discussions are strictly forbidden. Users flagging inappropriate content can submit direct moderation tickets to system administrators.</p>
-              </div>
-
-              <div>
-                <strong style={{ color: theme.textMain, display: 'block', marginBottom: '0.2rem' }}>3. User Account Accountability</strong>
-                <p>You are responsible for maintaining the confidentiality of your credentials and all activities occurring under your registered user profile.</p>
-              </div>
-            </div>
-
-            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => { setHasAgreedTerms(true); setShowTermsModal(false); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.5rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>
-                I Accept &amp; Agree
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${theme.border}`, paddingTop: '0
