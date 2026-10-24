@@ -107,7 +107,6 @@ export default function Home() {
   const [grade, setGrade] = useState('');
   const [gender, setGender] = useState('');
   const [bio, setBio] = useState('');
-  const [createdAt, setCreatedAt] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Filter State
@@ -209,7 +208,6 @@ export default function Home() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user);
       if (user) {
-        setCreatedAt(user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown');
         if (user.user_metadata) {
           setAvatarUrl(user.user_metadata.avatar_url || '');
           setUsername(user.user_metadata.username || '');
@@ -228,7 +226,6 @@ export default function Home() {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
-        setCreatedAt(currentUser.created_at ? new Date(currentUser.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown');
         if (currentUser.user_metadata) {
           setAvatarUrl(currentUser.user_metadata.avatar_url || '');
           setUsername(currentUser.user_metadata.username || '');
@@ -253,7 +250,7 @@ export default function Home() {
   }, [announcements]);
 
   /* ==========================================================================
-     4. HANDLERS & AUTO SIGN-IN AFTER SIGN-UP
+     4. HANDLERS
      ========================================================================== */
   function toggleSubjectFilter(sub: string) {
     setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
@@ -289,60 +286,56 @@ export default function Home() {
           return;
         }
 
-        const { error: signUpError } = await supabase.auth.signUp({
+        const defaultName = authEmail.split('@')[0].slice(0, 20);
+
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: authEmail.trim(),
           password: authPassword,
+          options: {
+            data: {
+              username: defaultName,
+              nickname: defaultName,
+              grade: 'Grade 12'
+            }
+          }
         });
 
-        if (signUpError && signUpError.message.toLowerCase().includes('already registered')) {
-          const { error: signInErr } = await supabase.auth.signInWithPassword({
-            email: authEmail.trim(),
-            password: authPassword,
-          });
-
-          if (signInErr) {
-            alert('Account exists! Please check password or click Forgot Password.');
-          } else {
-            const defaultName = authEmail.split('@')[0].slice(0, 20);
-            await supabase.auth.updateUser({
-              data: {
-                avatar_url: '',
-                username: defaultName,
-                nickname: defaultName,
-                grade: 'Grade 12',
-                gender: '',
-                bio: ''
-              }
+        if (signUpError) {
+          if (signUpError.message.toLowerCase().includes('already registered')) {
+            const { error: signInErr } = await supabase.auth.signInWithPassword({
+              email: authEmail.trim(),
+              password: authPassword,
             });
-            alert('Signed up and logged in successfully!');
+
+            if (signInErr) {
+              alert('Account exists! If you forgot your password, click Forgot Password to reset.');
+            } else {
+              alert('Account unlocked and logged in successfully!');
+              setShowAuthModal(false);
+              setActiveTab('dashboard');
+            }
+          } else {
+            alert('SignUp Error: ' + signUpError.message);
+          }
+        } else {
+          if (signUpData.session) {
+            alert('Registration successful! Directing to Dashboard.');
             setShowAuthModal(false);
             setActiveTab('dashboard');
-          }
-        } else if (signUpError) {
-          alert('SignUp Error: ' + signUpError.message);
-        } else {
-          const { error: autoSignInErr } = await supabase.auth.signInWithPassword({
-            email: authEmail.trim(),
-            password: authPassword,
-          });
-
-          if (!autoSignInErr) {
-            const defaultName = authEmail.split('@')[0].slice(0, 20);
-            await supabase.auth.updateUser({
-              data: {
-                avatar_url: '',
-                username: defaultName,
-                nickname: defaultName,
-                grade: 'Grade 12',
-                gender: '',
-                bio: ''
-              }
+          } else {
+            const { error: signInErr } = await supabase.auth.signInWithPassword({
+              email: authEmail.trim(),
+              password: authPassword,
             });
-          }
 
-          alert('Registration successful! You are now logged in.');
-          setShowAuthModal(false);
-          setActiveTab('dashboard');
+            if (signInErr) {
+              alert('Account created! Please check your email inbox if confirmation is required.');
+            } else {
+              alert('Registration successful! Directing to Dashboard.');
+              setShowAuthModal(false);
+              setActiveTab('dashboard');
+            }
+          }
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -485,6 +478,7 @@ export default function Home() {
     }
   }
 
+  // LIKE (ALLOWED EVEN IF NOT SIGNED IN)
   function handleLikeResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
     setResources(prev => prev.map(res => {
@@ -509,8 +503,15 @@ export default function Home() {
     }
   }
 
+  // BOOKMARK (REQUIRES SIGN IN)
   function handleBookmarkResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
+    if (!user) {
+      alert('Please sign in first to save notes to your profile.');
+      setShowAuthModal(true);
+      return;
+    }
+
     setResources(prev => prev.map(res => {
       if (res.id === id) {
         const isBookmarked = res.bookmarkedByMe;
@@ -701,21 +702,17 @@ export default function Home() {
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
-      {/* ===================================================================
-          6. HEADER & NAVIGATION
-          =================================================================== */}
+      {/* HEADER & NAVIGATION */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
-        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.3rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', letterSpacing: '-0.02em' }}>
-          <svg width="34" height="34" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M75 25 C 50 10, 20 20, 25 45 C 30 70, 70 65, 75 80 C 80 95, 45 95, 25 80" stroke="#8B5CF6" strokeWidth="8" strokeLinecap="round"/>
-            <path d="M25 25 L 75 80" stroke="#8B5CF6" strokeWidth="3" strokeDasharray="5 5" opacity="0.6"/>
-            <path d="M75 25 L 25 80" stroke="#8B5CF6" strokeWidth="3" strokeDasharray="5 5" opacity="0.6"/>
-            <circle cx="75" cy="25" r="7" fill="#8B5CF6"/>
-            <circle cx="25" cy="45" r="5" fill="#8B5CF6"/>
-            <circle cx="75" cy="80" r="7" fill="#8B5CF6"/>
-            <circle cx="25" cy="80" r="5" fill="#8B5CF6"/>
-            <circle cx="50" cy="52.5" r="5" fill="#8B5CF6"/>
+        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.35rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', letterSpacing: '-0.02em' }}>
+          <svg width="32" height="38" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 80,25 C 80,10 20,10 20,35 C 20,60 80,60 80,85 C 80,110 20,110 20,95" stroke="#8B5CF6" strokeWidth="9" strokeLinecap="round" fill="none" />
+            <path d="M 20,25 C 20,10 80,10 80,35 C 80,60 20,60 20,85 C 20,110 80,110 80,95" stroke="#8B5CF6" strokeWidth="9" strokeLinecap="round" strokeDasharray="3 14" fill="none" />
+            <circle cx="80" cy="25" r="5" fill="#8B5CF6" />
+            <circle cx="20" cy="35" r="5" fill="#8B5CF6" />
+            <circle cx="80" cy="85" r="5" fill="#8B5CF6" />
+            <circle cx="20" cy="95" r="5" fill="#8B5CF6" />
           </svg>
           <span>North Synapse</span>
           {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>OFFICIAL ADMIN</span>}
@@ -776,12 +773,10 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ===================================================================
-          7. MAIN CONTENT AREA
-          =================================================================== */}
+      {/* MAIN CONTENT AREA */}
       <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
         
-        {/* --- PERFECTLY CENTERED BANNER --- */}
+        {/* Banner */}
         <div style={{ 
           backgroundColor: 'rgba(139, 92, 246, 0.08)', 
           border: `1px solid ${theme.accent}`, 
@@ -830,7 +825,7 @@ export default function Home() {
           </button>
         </div>
 
-        {/* --- RESOURCE HUB TAB --- */}
+        {/* RESOURCE HUB TAB */}
         {activeTab === 'resources' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
@@ -852,14 +847,14 @@ export default function Home() {
               />
             </div>
 
-            {/* Filter Tags */}
+            {/* Filter Tags (CLEAN STYLE WITHOUT [X]) */}
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               <div>
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>LEVEL &amp; TRACK:</span>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                   {gradesList.map((grd) => (
                     <button key={grd} onClick={() => toggleGradeFilter(grd)} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedGrades.includes(grd) ? theme.accent : theme.border}`, backgroundColor: selectedGrades.includes(grd) ? theme.accent : theme.bg, color: selectedGrades.includes(grd) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
-                      {selectedGrades.includes(grd) ? '[x] ' : ''}{grd}
+                      {grd}
                     </button>
                   ))}
                 </div>
@@ -870,14 +865,14 @@ export default function Home() {
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                   {subjectsList.map((sub) => (
                     <button key={sub} onClick={() => toggleSubjectFilter(sub)} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedSubjects.includes(sub) ? theme.accent : theme.border}`, backgroundColor: selectedSubjects.includes(sub) ? theme.accent : theme.bg, color: selectedSubjects.includes(sub) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
-                      {selectedSubjects.includes(sub) ? '[x] ' : ''}{sub}
+                      {sub}
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Resource List Cards */}
+            {/* Resource Cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {filteredResources.map((res) => (
                 <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
@@ -905,12 +900,16 @@ export default function Home() {
                     </div>
 
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                      {/* LIKE: UNRESTRICTED */}
                       <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, fontWeight: res.likedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.85rem' }}>
                         {res.likedByMe ? 'Liked' : 'Like'} ({res.likes})
                       </button>
+
+                      {/* SAVE/BOOKMARK: SIGN-IN RESTRICTED */}
                       <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.bookmarkedByMe ? theme.accent : theme.textMuted, fontWeight: res.bookmarkedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.85rem' }}>
                         {res.bookmarkedByMe ? 'Saved' : 'Save'} ({res.bookmarks})
                       </button>
+
                       <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold' }}>
                         Preview
                       </button>
@@ -924,11 +923,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- OTHER TABS --- */}
+        {/* OTHER TABS */}
         {activeTab === 'lounges' && <div style={{ textAlign: 'center', padding: '4rem 2rem' }}><h2>Study Lounge</h2><p style={{ color: theme.textMuted }}>Virtual study rooms coming soon.</p></div>}
         {activeTab === 'discussions' && <div style={{ textAlign: 'center', padding: '4rem 2rem' }}><h2>Discussions</h2><p style={{ color: theme.textMuted }}>Academic discussion board coming soon.</p></div>}
 
-        {/* --- ANNOUNCEMENTS TAB --- */}
+        {/* ANNOUNCEMENTS TAB */}
         {activeTab === 'announcements' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Official Announcements</h1>
@@ -945,7 +944,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- FEEDBACK TAB --- */}
+        {/* FEEDBACK TAB */}
         {activeTab === 'feedback' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Issue Reporting</h1>
@@ -981,7 +980,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- DASHBOARD TAB --- */}
+        {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
@@ -1052,9 +1051,7 @@ export default function Home() {
 
       </main>
 
-      {/* ===================================================================
-          8. PREVIEW MODAL
-          =================================================================== */}
+      {/* PREVIEW MODAL */}
       {previewResource && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
           <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '960px', height: '80vh', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1131,9 +1128,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* ===================================================================
-          9. REPORT MODAL
-          =================================================================== */}
+      {/* REPORT MODAL */}
       {showReportModal && reportTarget && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999999 }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
@@ -1166,9 +1161,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* ===================================================================
-          10. EDIT PROFILE MODAL
-          =================================================================== */}
+      {/* EDIT PROFILE MODAL */}
       {showEditProfileModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}`, maxHeight: '90vh', overflowY: 'auto' }}>
@@ -1235,9 +1228,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* ===================================================================
-          11. AUTHENTICATION & RESET MODALS
-          =================================================================== */}
+      {/* AUTHENTICATION & RESET MODALS */}
       {showAuthModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
