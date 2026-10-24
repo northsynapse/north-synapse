@@ -510,17 +510,21 @@ export default function Home() {
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="Alex" 
-                    value={nickname} 
-                    onChange={(e) => setNickname(e.target.value)} 
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
-                  />
-                </div>
-              </div>
+                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
+                 <select
+                   required
+                   value={grade}
+                   onChange={(e) => setGrade(e.target.value)}
+                   style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}
+                 >
+                   <option value="">Select Grade</option>
+                   <option value="Grade 9">Grade 9</option>
+                   <option value="Grade 10">Grade 10</option>
+                   <option value="Grade 11">Grade 11</option>
+                   <option value="Grade 12">Grade 12</option>
+                   <option value="Alumni">Alumni</option>
+                 </select>
+               </div>
 
               {/* Grade Dropdown & Gender Select */}
               <div style={{ display: 'flex', gap: '1rem' }}>
