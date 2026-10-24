@@ -46,6 +46,10 @@ export default function Home() {
   const [bio, setBio] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
+  // Resource Filter State
+  const [selectedTag, setSelectedTag] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
   // File Input Ref for Avatar Upload
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -168,25 +172,37 @@ export default function Home() {
     }
   }
 
-  // Improved Account Deletion & Clean Sign Out
+  // Complete Account Data Wipe & Sign Out
   async function handleDeleteAccount() {
-    const confirmDelete = window.confirm('Are you sure you want to delete your profile session and sign out? This action will end your session on this device.');
+    const confirmDelete = window.confirm('Are you sure you want to wipe your profile data and deactivate this session?');
     if (!confirmDelete) return;
 
     try {
-      await supabase.auth.signOut();
-      setUser(null);
+      await supabase.auth.updateUser({
+        data: {
+          avatar_url: '',
+          username: '',
+          nickname: '',
+          grade: '',
+          gender: '',
+          bio: '',
+        }
+      });
+
       setAvatarUrl('');
       setUsername('');
       setNickname('');
       setGrade('');
       setGender('');
       setBio('');
+
+      await supabase.auth.signOut();
+      setUser(null);
       setShowEditProfileModal(false);
       setActiveTab('resources');
-      alert('Your account session has been signed out and cleared successfully.');
+      alert('Your profile data has been reset and account signed out successfully.');
     } catch (err: any) {
-      alert('Error during account action: ' + err.message);
+      alert('Error during account wipe: ' + err.message);
     }
   }
 
@@ -194,36 +210,37 @@ export default function Home() {
      5. THEME DEFINITION
      ========================================================================== */
   const theme = {
-    bg: isDarkMode ? '#12151A' : '#F8FAFC',
-    cardBg: isDarkMode ? '#1C2029' : '#FFFFFF',
-    border: isDarkMode ? '#2D3342' : '#E2E8F0',
-    textMain: isDarkMode ? '#F8FAFC' : '#0F172A',
-    textMuted: isDarkMode ? '#94A3B8' : '#64748B',
+    bg: isDarkMode ? '#0E1117' : '#F8FAFC',
+    cardBg: isDarkMode ? '#161B22' : '#FFFFFF',
+    cardInnerBg: isDarkMode ? '#1C212A' : '#F1F5F9',
+    border: isDarkMode ? '#21262D' : '#E2E8F0',
+    textMain: isDarkMode ? '#F0F6FC' : '#0F172A',
+    textMuted: isDarkMode ? '#8B949E' : '#64748B',
     accent: '#8B5CF6',
   };
 
   return (
-    <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
       {/* ===================================================================
-          6. HEADER & NAVIGATION (RESTORED DUAL-DOT LOGO)
+          6. HEADER & NAVIGATION (MATCHING SCREENSHOT LOGO & NAVBAR)
           =================================================================== */}
-      <header style={{ borderBottom: `1px solid ${theme.border}`, position: 'relative', zIndex: 10, padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header style={{ borderBottom: `1px solid ${theme.border}`, position: 'relative', zIndex: 10, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
-        {/* --- BRAND LOGO --- */}
+        {/* --- BRAND LOGO WITH STYLIZED "S" ICON --- */}
         <div 
           onClick={() => setActiveTab('resources')} 
-          style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', letterSpacing: '-0.02em' }}
+          style={{ fontSize: '1.3rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', letterSpacing: '-0.02em' }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: theme.accent }}></div>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: theme.accent, opacity: 0.6 }}></div>
-          </div>
-          <span style={{ color: theme.textMain }}>North<span style={{ color: theme.accent }}>Synapse</span></span>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a10 10 0 1 0 10 10H12V2z" opacity="0.3"/>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+          <span style={{ color: theme.textMain, fontWeight: '800' }}>North Synapse</span>
         </div>
 
         {/* --- NAVIGATION TABS --- */}
-        <nav style={{ display: 'flex', gap: '1.5rem' }}>
+        <nav style={{ display: 'flex', gap: '2rem' }}>
           {(['resources', 'lounges', 'discussions'] as NavTab[]).map((tab) => (
             <button
               key={tab}
@@ -232,14 +249,14 @@ export default function Home() {
                 background: 'none',
                 border: 'none',
                 color: activeTab === tab ? theme.accent : theme.textMuted,
-                fontWeight: activeTab === tab ? 'bold' : 'normal',
+                fontWeight: activeTab === tab ? '700' : '500',
                 cursor: 'pointer',
-                textTransform: 'capitalize',
-                paddingBottom: '0.2rem',
-                borderBottom: activeTab === tab ? `2px solid ${theme.accent}` : 'none'
+                fontSize: '0.95rem',
+                paddingBottom: '0.3rem',
+                borderBottom: activeTab === tab ? `2px solid ${theme.accent}` : '2px solid transparent'
               }}
             >
-              {tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounges' : 'Discussions'}
+              {tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounge' : 'Discussions'}
             </button>
           ))}
           {user && (
@@ -249,10 +266,11 @@ export default function Home() {
                 background: 'none',
                 border: 'none',
                 color: activeTab === 'dashboard' ? theme.accent : theme.textMuted,
-                fontWeight: activeTab === 'dashboard' ? 'bold' : 'normal',
+                fontWeight: activeTab === 'dashboard' ? '700' : '500',
                 cursor: 'pointer',
-                paddingBottom: '0.2rem',
-                borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : 'none'
+                fontSize: '0.95rem',
+                paddingBottom: '0.3rem',
+                borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent'
               }}
             >
               Dashboard
@@ -265,26 +283,28 @@ export default function Home() {
           <button 
             onClick={() => setIsDarkMode(!isDarkMode)} 
             style={{ 
-              padding: '0.4rem 0.8rem', 
-              borderRadius: '6px', 
+              padding: '0.5rem 1rem', 
+              borderRadius: '8px', 
               border: `1px solid ${theme.border}`, 
               backgroundColor: theme.cardBg, 
               color: theme.textMain, 
-              cursor: 'pointer' 
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: '600'
             }}
           >
-            {isDarkMode ? 'Light' : 'Dark'}
+            {isDarkMode ? 'Light Mode' : 'Dark Mode'}
           </button>
 
           {user ? (
-            <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
               <div 
                 onClick={() => setActiveTab('dashboard')} 
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}
               >
                 <div style={{
-                  width: '32px',
-                  height: '32px',
+                  width: '34px',
+                  height: '34px',
                   borderRadius: '50%',
                   backgroundColor: theme.accent,
                   backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none',
@@ -293,16 +313,16 @@ export default function Home() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontWeight: 'bold',
-                  fontSize: '0.8rem',
+                  fontSize: '0.85rem',
                   color: '#FFF'
                 }}>
                   {!avatarUrl && (nickname ? nickname[0].toUpperCase() : 'U')}
                 </div>
-                <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{nickname || 'User'}</span>
+                <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{nickname || 'User'}</span>
               </div>
               <button 
                 onClick={() => supabase.auth.signOut()} 
-                style={{ padding: '0.3rem 0.6rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}
+                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}
               >
                 Sign Out
               </button>
@@ -311,7 +331,7 @@ export default function Home() {
             <button 
               type="button"
               onClick={() => setShowAuthModal(true)} 
-              style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem 1.2rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+              style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem 1.4rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}
             >
               Sign In
             </button>
@@ -320,31 +340,138 @@ export default function Home() {
       </header>
 
       {/* ===================================================================
-          7. MAIN CONTENT AREA (TABS ROUTING)
+          7. MAIN CONTENT AREA (HERO BANNER & SEARCH CARDS MATCHING SCREENSHOT)
           =================================================================== */}
-      <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem' }}>
+      <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '3rem 2rem' }}>
         
-        {/* --- RESOURCE HUB TAB --- */}
+        {/* --- RESOURCE HUB TAB WITH HERO SECTION --- */}
         {activeTab === 'resources' && (
-          <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>Resource Hub</h2>
-            <p style={{ color: theme.textMuted }}>No resources available yet.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+            
+            {/* Hero Text Banner */}
+            <div style={{ textAlign: 'center', padding: '1rem 0 2rem 0' }}>
+              <span style={{ 
+                backgroundColor: 'rgba(139, 92, 246, 0.15)', 
+                color: theme.accent, 
+                padding: '0.4rem 1rem', 
+                borderRadius: '20px', 
+                fontSize: '0.8rem', 
+                fontWeight: '700',
+                letterSpacing: '0.03em',
+                display: 'inline-block',
+                marginBottom: '1.2rem'
+              }}>
+                Academic Platform for NTCI
+              </span>
+              
+              <h1 style={{ fontSize: '2.8rem', fontWeight: '900', letterSpacing: '-0.03em', marginBottom: '1rem' }}>
+                North Synapse
+              </h1>
+              
+              <p style={{ color: theme.textMuted, fontSize: '1.05rem', maxWidth: '600px', margin: '0 auto', lineHeight: '1.5' }}>
+                A centralized workspace for verified course resources, virtual study rooms, and academic peer discussions.
+              </p>
+            </div>
+
+            {/* Search & Tag Filter Bar */}
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, position: 'relative', minWidth: '300px' }}>
+                <span style={{ position: 'absolute', left: '1.2rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted, fontSize: '1rem' }}>🔍</span>
+                <input 
+                  type="text" 
+                  placeholder="Search notes, exam prep, course codes (e.g. ICS4U, SPH4U)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ 
+                    width: '100%', 
+                    padding: '0.85rem 1rem 0.85rem 3rem', 
+                    borderRadius: '10px', 
+                    border: `1px solid ${theme.border}`, 
+                    backgroundColor: theme.cardBg, 
+                    color: theme.textMain, 
+                    boxSizing: 'border-box',
+                    fontSize: '0.9rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {['ALL', 'ICS4U', 'SPH4U', 'MCV4U', 'SCH4U'].map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setSelectedTag(tag)}
+                    style={{
+                      padding: '0.6rem 1.1rem',
+                      borderRadius: '8px',
+                      border: `1px solid ${selectedTag === tag ? theme.accent : theme.border}`,
+                      backgroundColor: selectedTag === tag ? theme.accent : theme.cardBg,
+                      color: selectedTag === tag ? '#FFF' : theme.textMuted,
+                      fontWeight: '700',
+                      fontSize: '0.8rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* File Center Inner Box */}
+            <div style={{ 
+              backgroundColor: theme.cardBg, 
+              border: `1px solid ${theme.border}`, 
+              borderRadius: '16px', 
+              padding: '4rem 2rem', 
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1rem'
+            }}>
+              {/* Folder Icon SVG */}
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={theme.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              </svg>
+
+              <h3 style={{ fontSize: '1.3rem', fontWeight: '800', marginTop: '0.5rem' }}>No Resources Available</h3>
+              <p style={{ color: theme.textMuted, fontSize: '0.9rem', maxWidth: '400px' }}>
+                Be the first to share course notes or study guides for this course.
+              </p>
+
+              <button style={{ 
+                backgroundColor: theme.accent, 
+                color: '#FFF', 
+                border: 'none', 
+                padding: '0.8rem 2rem', 
+                borderRadius: '8px', 
+                fontWeight: 'bold', 
+                cursor: 'pointer', 
+                marginTop: '0.8rem',
+                fontSize: '0.9rem'
+              }}>
+                Upload Resource
+              </button>
+            </div>
+
           </div>
         )}
 
         {/* --- STUDY LOUNGES TAB --- */}
         {activeTab === 'lounges' && (
-          <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>Study Lounges</h2>
-            <p style={{ color: theme.textMuted }}>Virtual study spaces coming soon.</p>
+          <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '4rem 2rem', textAlign: 'center' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 'bold', marginBottom: '1rem' }}>Study Lounge</h2>
+            <p style={{ color: theme.textMuted }}>Virtual study spaces and pomodoro timers coming soon.</p>
           </div>
         )}
 
         {/* --- DISCUSSIONS TAB --- */}
         {activeTab === 'discussions' && (
-          <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>Discussions</h2>
-            <p style={{ color: theme.textMuted }}>Academic discussion board coming soon.</p>
+          <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '4rem 2rem', textAlign: 'center' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 'bold', marginBottom: '1rem' }}>Discussions</h2>
+            <p style={{ color: theme.textMuted }}>Academic discussion board for NTCI students coming soon.</p>
           </div>
         )}
 
@@ -353,7 +480,7 @@ export default function Home() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
             {/* User Overview Profile Card */}
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '2rem', display: 'flex', gap: '2rem', alignItems: 'center' }}>
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2.5rem', display: 'flex', gap: '2rem', alignItems: 'center' }}>
               <div style={{
                 width: '90px',
                 height: '90px',
