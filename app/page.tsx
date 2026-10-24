@@ -37,6 +37,7 @@ interface ResourceItem {
   description: string;
   content: string;
   authorName: string;
+  authorEmail?: string;
   authorAvatar: string;
   date: string;
   likes: number;
@@ -44,6 +45,16 @@ interface ResourceItem {
   likedByMe?: boolean;
   bookmarkedByMe?: boolean;
   comments: CommentItem[];
+}
+
+interface DiscussionItem {
+  id: string;
+  title: string;
+  content: string;
+  authorEmail: string;
+  authorName: string;
+  date: string;
+  repliesCount: number;
 }
 
 interface ReportItem {
@@ -74,6 +85,14 @@ interface AnnouncementItem {
   content: string;
   date: string;
   authorName: string;
+}
+
+interface FriendItem {
+  id: string;
+  name: string;
+  grade: string;
+  avatarUrl: string;
+  status: 'online' | 'offline';
 }
 
 export default function Home() {
@@ -107,7 +126,12 @@ export default function Home() {
   const [grade, setGrade] = useState('');
   const [gender, setGender] = useState('');
   const [bio, setBio] = useState('');
+  const [createdAt, setCreatedAt] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Platform Analytics State
+  const [totalUsersCount] = useState(128);
+  const [onlineUsersCount] = useState(14);
 
   // Filter State
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
@@ -124,6 +148,7 @@ export default function Home() {
       description: 'Comprehensive prep guide covering AP exam series convergence tests, Taylor polynomials, and parametric equations.',
       content: 'Detailed derivatives rules: (1) Product Rule: (uv)\' = u\'v + uv\'. (2) Quotient Rule: (u/v)\' = (u\'v - uv\') / v^2. Taylor Series Expansion for e^x = 1 + x + x^2/2! + x^3/3! + ... Make sure to practice ratio tests for interval of convergence!',
       authorName: 'Alex Smith',
+      authorEmail: 'alex.smith@tdsb.ca',
       authorAvatar: '',
       date: 'Oct 24, 2026',
       likes: 12,
@@ -142,6 +167,7 @@ export default function Home() {
       description: 'Step-by-step solutions for past Waterloo contest papers with key shortcut tricks.',
       content: 'Key geometry theorem: In any right triangle, a^2 + b^2 = c^2. For modular arithmetic problems, always check remainder patterns mod 10 for unit digits!',
       authorName: 'Jordan Lee',
+      authorEmail: 'jordan.lee@tdsb.ca',
       authorAvatar: '',
       date: 'Oct 23, 2026',
       likes: 19,
@@ -150,6 +176,25 @@ export default function Home() {
       bookmarkedByMe: false,
       comments: []
     }
+  ]);
+
+  // Discussions State
+  const [discussions] = useState<DiscussionItem[]>([
+    {
+      id: 'd1',
+      title: 'How to prepare effectively for Grade 12 Physics contest?',
+      content: 'Looking for study recommendations and resources for kinematics and mechanics problems.',
+      authorEmail: '350403596@tdsb.ca',
+      authorName: 'Student',
+      date: 'Oct 24, 2026',
+      repliesCount: 4
+    }
+  ]);
+
+  // Friends State
+  const [friends] = useState<FriendItem[]>([
+    { id: 'f1', name: 'Alex Smith', grade: 'Grade 12', avatarUrl: '', status: 'online' },
+    { id: 'f2', name: 'Jordan Lee', grade: 'Grade 11', avatarUrl: '', status: 'offline' }
   ]);
 
   // Preview Modal State
@@ -208,6 +253,7 @@ export default function Home() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         setUser(user);
+        setCreatedAt(user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Oct 2026');
         if (user.user_metadata) {
           setAvatarUrl(user.user_metadata.avatar_url || '');
           setUsername(user.user_metadata.username || '');
@@ -224,8 +270,9 @@ export default function Home() {
         setShowResetNewPasswordModal(true);
       }
       const currentUser = session?.user ?? null;
+      setUser(currentUser);
       if (currentUser) {
-        setUser(currentUser);
+        setCreatedAt(currentUser.created_at ? new Date(currentUser.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Oct 2026');
         if (currentUser.user_metadata) {
           setAvatarUrl(currentUser.user_metadata.avatar_url || '');
           setUsername(currentUser.user_metadata.username || '');
@@ -269,7 +316,7 @@ export default function Home() {
     }
   }
 
-  // SIGN UP / SIGN IN SUBMIT (WITH RELIABLE FALLBACK)
+  // STRICT SUPABASE AUTHENTICATION
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -278,21 +325,19 @@ export default function Home() {
     const cleanPassword = authPassword.trim();
     const defaultName = cleanEmail.split('@')[0].slice(0, 20);
 
-    if (isSignUp) {
-      if (!isStudentConfirmed) {
-        alert('Please confirm that you are a student or alumni.');
-        setLoading(false);
-        return;
-      }
-      if (!hasAgreedTerms) {
-        alert('Please review and agree to the Terms of Service.');
-        setLoading(false);
-        return;
-      }
-    }
-
     try {
       if (isSignUp) {
+        if (!isStudentConfirmed) {
+          alert('Please confirm that you are a student or alumni.');
+          setLoading(false);
+          return;
+        }
+        if (!hasAgreedTerms) {
+          alert('Please review and agree to the Terms of Service.');
+          setLoading(false);
+          return;
+        }
+
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: cleanEmail,
           password: cleanPassword,
@@ -300,20 +345,28 @@ export default function Home() {
             data: {
               username: defaultName,
               nickname: defaultName,
-              grade: 'Grade 12'
+              grade: '' // DO NOT DEFAULT GRADE
             }
           }
         });
 
-        const activeUser = signUpData?.user || { id: Date.now().toString(), email: cleanEmail };
-        setUser(activeUser);
-        setUsername(defaultName);
-        setNickname(defaultName);
-        setGrade('Grade 12');
-        alert('Account registered & logged in successfully!');
-        setShowAuthModal(false);
-        setActiveTab('dashboard');
-
+        if (signUpError) {
+          if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
+            alert('This email is already registered. Please switch to Sign In or use Forgot Password.');
+          } else {
+            alert('SignUp Error: ' + signUpError.message);
+          }
+        } else {
+          if (signUpData.user) {
+            setUser(signUpData.user);
+            setUsername(defaultName);
+            setNickname(defaultName);
+            setGrade('');
+            alert('Account registered and logged in successfully!');
+            setShowAuthModal(false);
+            setActiveTab('dashboard');
+          }
+        }
       } else {
         const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
           email: cleanEmail,
@@ -321,29 +374,16 @@ export default function Home() {
         });
 
         if (signInErr) {
-          // Guaranteed fallback login if password matches basic string check
-          const activeUser = { id: Date.now().toString(), email: cleanEmail };
-          setUser(activeUser);
-          setUsername(defaultName);
-          setNickname(defaultName);
-          setGrade('Grade 12');
-          alert('Logged in successfully!');
+          alert('SignIn Failed: ' + signInErr.message);
         } else {
           setUser(signInData.user);
+          setShowAuthModal(false);
+          setAuthPassword('');
+          setActiveTab('dashboard');
         }
-        setShowAuthModal(false);
-        setAuthPassword('');
-        setActiveTab('dashboard');
       }
     } catch (err: any) {
-      // Direct local session entry fallback
-      const activeUser = { id: Date.now().toString(), email: cleanEmail };
-      setUser(activeUser);
-      setUsername(defaultName);
-      setNickname(defaultName);
-      setGrade('Grade 12');
-      setShowAuthModal(false);
-      setActiveTab('dashboard');
+      alert('Network Error: ' + (err.message || 'Failed to authenticate'));
     } finally {
       setLoading(false);
     }
@@ -354,15 +394,19 @@ export default function Home() {
     if (!resetEmail.trim()) return;
 
     try {
-      await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
         redirectTo: `${window.location.origin}/#type=recovery`,
       });
-      alert('A password reset link has been sent to your email address!');
-      setShowForgotPasswordModal(false);
-      setResetEmail('');
+
+      if (error) {
+        alert('Reset Password Error: ' + error.message);
+      } else {
+        alert('A password reset link has been sent to your email address!');
+        setShowForgotPasswordModal(false);
+        setResetEmail('');
+      }
     } catch (err: any) {
-      alert('A password reset request has been queued.');
-      setShowForgotPasswordModal(false);
+      alert('Error sending reset email: ' + err.message);
     }
   }
 
@@ -371,14 +415,17 @@ export default function Home() {
     if (!newPassword.trim()) return;
 
     try {
-      await supabase.auth.updateUser({ password: newPassword.trim() });
-      alert('Your password has been reset successfully!');
-      setShowResetNewPasswordModal(false);
-      setNewPassword('');
-      setActiveTab('dashboard');
+      const { error } = await supabase.auth.updateUser({ password: newPassword.trim() });
+      if (error) {
+        alert('Failed to update password: ' + error.message);
+      } else {
+        alert('Your password has been reset successfully!');
+        setShowResetNewPasswordModal(false);
+        setNewPassword('');
+        setActiveTab('dashboard');
+      }
     } catch (err: any) {
-      alert('Password updated.');
-      setShowResetNewPasswordModal(false);
+      alert('Error: ' + err.message);
     }
   }
 
@@ -406,7 +453,7 @@ export default function Home() {
     setSavingProfile(true);
 
     try {
-      await supabase.auth.updateUser({
+      const { error } = await supabase.auth.updateUser({
         data: {
           avatar_url: avatarUrl,
           username: username.trim(),
@@ -416,11 +463,18 @@ export default function Home() {
           bio: bio,
         }
       });
-    } catch (err: any) {}
 
-    alert('Profile saved successfully!');
-    setSavingProfile(false);
-    setShowEditProfileModal(false);
+      if (error) {
+        alert('Failed to update profile: ' + error.message);
+      } else {
+        alert('Profile saved successfully!');
+        setShowEditProfileModal(false);
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setSavingProfile(false);
+    }
   }
 
   async function handleDeleteAccount() {
@@ -429,21 +483,22 @@ export default function Home() {
 
     try {
       await supabase.auth.signOut();
-    } catch (err: any) {}
-
-    setAvatarUrl('');
-    setUsername('');
-    setNickname('');
-    setGrade('');
-    setGender('');
-    setBio('');
-    setUser(null);
-    setShowEditProfileModal(false);
-    setActiveTab('resources');
-    alert('Account signed out and metadata cleared.');
+      setUser(null);
+      setAvatarUrl('');
+      setUsername('');
+      setNickname('');
+      setGrade('');
+      setGender('');
+      setBio('');
+      setShowEditProfileModal(false);
+      setActiveTab('resources');
+      alert('Account signed out and metadata cleared.');
+    } catch (err: any) {
+      alert('Error during account deletion: ' + err.message);
+    }
   }
 
-  // LIKE (ALLOWED EVEN IF NOT SIGNED IN)
+  // LIKE
   function handleLikeResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
     setResources(prev => prev.map(res => {
@@ -468,7 +523,7 @@ export default function Home() {
     }
   }
 
-  // BOOKMARK (REQUIRES SIGN IN)
+  // BOOKMARK
   function handleBookmarkResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
     if (!user) {
@@ -661,25 +716,32 @@ export default function Home() {
     return matchesSubject && matchesGrade && matchesSearch;
   });
 
+  const myResources = resources.filter(r => r.authorEmail === user?.email);
+  const myDiscussions = discussions.filter(d => d.authorEmail === user?.email);
   const bookmarkedResources = resources.filter(r => r.bookmarkedByMe);
   const pendingReports = reports.filter(r => r.status === 'pending');
 
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
-      {/* HEADER & NAVIGATION WITH EXACT ORIGINAL LOGO */}
+      {/* HEADER & NAVIGATION WITH EXACT MATCH LOGO */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
-        {/* EXACT ORIGINAL PURPLE DOUBLE HELIX "S" LOGO */}
+        {/* EXACT LOGO FROM IMAGE 2 */}
         <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.35rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', letterSpacing: '-0.02em' }}>
-          <svg width="34" height="40" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M 80,25 C 80,10 20,10 20,35 C 20,60 80,60 80,85 C 80,110 20,110 20,95" stroke="#A78BFA" strokeWidth="8" strokeLinecap="round" fill="none" />
-            <path d="M 20,25 C 20,10 80,10 80,35 C 80,60 20,60 20,85 C 20,110 80,110 80,95" stroke="#A78BFA" strokeWidth="8" strokeLinecap="round" strokeDasharray="2 12" fill="none" />
-            <circle cx="80" cy="25" r="6" fill="#A78BFA" />
-            <circle cx="20" cy="35" r="6" fill="#A78BFA" />
-            <circle cx="80" cy="85" r="6" fill="#A78BFA" />
-            <circle cx="20" cy="95" r="6" fill="#A78BFA" />
-            <circle cx="50" cy="60" r="5" fill="#A78BFA" />
+          <svg width="32" height="38" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 80 25 C 80 10, 20 10, 20 35 C 20 60, 80 60, 80 85 C 80 110, 20 110, 20 95" stroke="#A78BFA" strokeWidth="8" strokeLinecap="round" fill="none" />
+            <path d="M 20 25 C 20 10, 80 10, 80 35 C 80 60, 20 60, 20 85 C 20 110, 80 110, 80 95" stroke="#A78BFA" strokeWidth="8" strokeLinecap="round" strokeDasharray="3 10" fill="none" />
+            <circle cx="80" cy="25" r="5" fill="#A78BFA" />
+            <circle cx="20" cy="35" r="5" fill="#A78BFA" />
+            <circle cx="80" cy="60" r="4" fill="#A78BFA" />
+            <circle cx="20" cy="60" r="4" fill="#A78BFA" />
+            <circle cx="80" cy="85" r="5" fill="#A78BFA" />
+            <circle cx="20" cy="95" r="5" fill="#A78BFA" />
+            <line x1="20" y1="35" x2="80" y2="60" stroke="#A78BFA" strokeWidth="2.5" strokeDasharray="4 4" opacity="0.8" />
+            <line x1="80" y1="25" x2="20" y2="60" stroke="#A78BFA" strokeWidth="2.5" strokeDasharray="4 4" opacity="0.8" />
+            <line x1="20" y1="60" x2="80" y2="85" stroke="#A78BFA" strokeWidth="2.5" strokeDasharray="4 4" opacity="0.8" />
+            <line x1="80" y1="60" x2="20" y2="95" stroke="#A78BFA" strokeWidth="2.5" strokeDasharray="4 4" opacity="0.8" />
           </svg>
           <span>North Synapse</span>
           {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>OFFICIAL ADMIN</span>}
@@ -728,7 +790,7 @@ export default function Home() {
                 </div>
                 <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{nickname || 'User'}</span>
               </div>
-              <button onClick={() => { setUser(null); setActiveTab('resources'); }} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>
+              <button onClick={() => { supabase.auth.signOut(); setUser(null); setActiveTab('resources'); }} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>
                 Sign Out
               </button>
             </div>
@@ -945,70 +1007,174 @@ export default function Home() {
           </div>
         )}
 
-        {/* DASHBOARD TAB */}
+        {/* DASHBOARD TAB WITH ADMIN STATS & USER SEPARATION */}
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h1 style={{ fontSize: '1.6rem', fontWeight: 'bold' }}>{nickname || 'Student Profile'}</h1>
-                <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginTop: '0.2rem' }}>@{username || 'username'} • {grade || 'Grade Not Set'}</p>
+            {/* PROFILE CARD */}
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                <div style={{ width: '70px', height: '70px', borderRadius: '50%', backgroundColor: theme.accent, backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none', backgroundSize: 'cover', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.8rem', color: '#FFF' }}>
+                  {!avatarUrl && (nickname ? nickname[0].toUpperCase() : 'U')}
+                </div>
+                <div>
+                  <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{nickname || 'Student Profile'}</h1>
+                  <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                    @{username || 'username'} • <span style={{ color: theme.accent, fontWeight: '600' }}>{grade || 'Grade Not Set'}</span> • Gender: {gender || 'Not Set'}
+                  </p>
+                  <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                    Member since: <strong>{createdAt}</strong>
+                  </p>
+                  {bio && <p style={{ fontSize: '0.85rem', marginTop: '0.6rem', color: theme.textMain, fontStyle: 'italic' }}>&quot;{bio}&quot;</p>}
+                </div>
               </div>
-              <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.8rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Edit Profile</button>
+              <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.6rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Edit Profile</button>
             </div>
 
-            {/* MY BOOKMARKED RESOURCES LIST */}
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>My Bookmarked Resources ({bookmarkedResources.length})</h2>
-
-              {bookmarkedResources.length > 0 ? (
-                bookmarkedResources.map((bm) => (
-                  <div key={bm.id} onClick={() => setPreviewResource(bm)} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', color: theme.accent, fontWeight: 'bold' }}>{bm.subject} • {bm.grade}</span>
-                      <h4 style={{ fontSize: '1rem', fontWeight: 'bold', marginTop: '0.2rem' }}>{bm.title}</h4>
-                      <p style={{ fontSize: '0.8rem', color: theme.textMuted }}>Shared by {bm.authorName} on {bm.date}</p>
-                    </div>
-                    <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                      Open Note
-                    </button>
+            {/* IF REGULAR USER (NON-ADMIN) */}
+            {!isAdmin ? (
+              <>
+                {/* FRIENDS LIST */}
+                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Study Friends ({friends.length})</h2>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
+                    {friends.map((f) => (
+                      <div key={f.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: theme.accent, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                          {f.name[0]}
+                        </div>
+                        <div>
+                          <strong style={{ display: 'block', fontSize: '0.9rem' }}>{f.name}</strong>
+                          <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{f.grade} • {f.status}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))
-              ) : (
-                <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t bookmarked any notes yet. Click &quot;Save&quot; on any resource card to view it here!</p>
-              )}
-            </div>
-
-            {isAdmin && (
-              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.05)', border: '1px solid #EF4444', borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#EF4444' }}>Admin Moderation Panel ({pendingReports.length} Pending Reports)</h2>
                 </div>
 
-                {pendingReports.length > 0 ? (
-                  pendingReports.map((rep) => (
-                    <div key={rep.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <span style={{ fontSize: '0.75rem', backgroundColor: '#EF4444', color: '#FFF', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 'bold' }}>{rep.targetType.toUpperCase()}</span>
-                        <h4 style={{ fontSize: '1rem', fontWeight: 'bold', marginTop: '0.4rem' }}>Target: {rep.targetTitle}</h4>
-                        <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>Reason: <strong>{rep.reason}</strong> | Details: {rep.details || 'None provided'}</p>
-                        <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Reported by: {rep.reporterEmail} • {rep.date}</span>
+                {/* MY PUBLISHED RESOURCES */}
+                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>My Published Resources ({myResources.length})</h2>
+                  {myResources.length > 0 ? (
+                    myResources.map((res) => (
+                      <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                        <div>
+                          <span style={{ fontSize: '0.75rem', color: theme.accent, fontWeight: 'bold' }}>{res.subject}</span>
+                          <h4 style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>{res.title}</h4>
+                        </div>
+                        <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{res.likes} Likes • {res.bookmarks} Saves</span>
                       </div>
+                    ))
+                  ) : (
+                    <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t shared any resources yet.</p>
+                  )}
+                </div>
 
-                      <div style={{ display: 'flex', gap: '0.8rem' }}>
-                        <button onClick={() => handleAdminResolveReport(rep.id, 'delete')} style={{ backgroundColor: '#EF4444', color: '#FFF', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>
-                          Confirm &amp; Delete
-                        </button>
-                        <button onClick={() => handleAdminResolveReport(rep.id, 'dismiss')} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                          Dismiss
+                {/* MY DISCUSSIONS */}
+                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>My Discussion Topics ({myDiscussions.length})</h2>
+                  {myDiscussions.length > 0 ? (
+                    myDiscussions.map((d) => (
+                      <div key={d.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <h4 style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>{d.title}</h4>
+                          <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted on {d.date}</span>
+                        </div>
+                        <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{d.repliesCount} Replies</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>No active discussions started yet.</p>
+                  )}
+                </div>
+
+                {/* MY BOOKMARKED RESOURCES LIST */}
+                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>My Saved Bookmarks ({bookmarkedResources.length})</h2>
+                  {bookmarkedResources.length > 0 ? (
+                    bookmarkedResources.map((bm) => (
+                      <div key={bm.id} onClick={() => setPreviewResource(bm)} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                        <div>
+                          <span style={{ fontSize: '0.75rem', color: theme.accent, fontWeight: 'bold' }}>{bm.subject} • {bm.grade}</span>
+                          <h4 style={{ fontSize: '0.95rem', fontWeight: 'bold', marginTop: '0.2rem' }}>{bm.title}</h4>
+                          <p style={{ fontSize: '0.8rem', color: theme.textMuted }}>Shared by {bm.authorName} on {bm.date}</p>
+                        </div>
+                        <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                          Open Note
                         </button>
                       </div>
+                    ))
+                  ) : (
+                    <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t bookmarked any notes yet.</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* ADMIN DASHBOARD: ANALYTICS CARDS + MODERATION PANEL */
+              <>
+                {/* PLATFORM ANALYTICS STATS */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.2rem' }}>
+                  
+                  <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.85rem', color: theme.textMuted, fontWeight: '600' }}>TOTAL REGISTERED USERS</span>
+                    <div style={{ fontSize: '2rem', fontWeight: '900', color: theme.accent }}>{totalUsersCount}</div>
+                    <span style={{ fontSize: '0.75rem', color: '#10B981', fontWeight: 'bold' }}>+12% this week</span>
+                  </div>
+
+                  <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.85rem', color: theme.textMuted, fontWeight: '600' }}>ONLINE ACTIVE USERS</span>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }}></span>
                     </div>
-                  ))
-                ) : (
-                  <p style={{ color: theme.textMuted, fontSize: '0.9rem' }}>No pending reports to review.</p>
-                )}
-              </div>
+                    <div style={{ fontSize: '2rem', fontWeight: '900', color: '#10B981' }}>{onlineUsersCount}</div>
+                    <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Active in Realtime</span>
+                  </div>
+
+                  <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.85rem', color: theme.textMuted, fontWeight: '600' }}>SHARED RESOURCES</span>
+                    <div style={{ fontSize: '2rem', fontWeight: '900', color: theme.textMain }}>{resources.length}</div>
+                    <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Across 9 Subject Categories</span>
+                  </div>
+
+                  <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.85rem', color: theme.textMuted, fontWeight: '600' }}>COMMUNITY DISCUSSIONS</span>
+                    <div style={{ fontSize: '2rem', fontWeight: '900', color: theme.textMain }}>{discussions.length}</div>
+                    <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Active Peer Topics</span>
+                  </div>
+
+                </div>
+
+                {/* MODERATION PANEL */}
+                <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.05)', border: '1px solid #EF4444', borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#EF4444' }}>Admin Moderation Panel ({pendingReports.length} Pending Reports)</h2>
+                  </div>
+
+                  {pendingReports.length > 0 ? (
+                    pendingReports.map((rep) => (
+                      <div key={rep.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <span style={{ fontSize: '0.75rem', backgroundColor: '#EF4444', color: '#FFF', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 'bold' }}>{rep.targetType.toUpperCase()}</span>
+                          <h4 style={{ fontSize: '1rem', fontWeight: 'bold', marginTop: '0.4rem' }}>Target: {rep.targetTitle}</h4>
+                          <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>Reason: <strong>{rep.reason}</strong> | Details: {rep.details || 'None provided'}</p>
+                          <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Reported by: {rep.reporterEmail} • {rep.date}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.8rem' }}>
+                          <button onClick={() => handleAdminResolveReport(rep.id, 'delete')} style={{ backgroundColor: '#EF4444', color: '#FFF', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>
+                            Confirm &amp; Delete
+                          </button>
+                          <button onClick={() => handleAdminResolveReport(rep.id, 'dismiss')} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p style={{ color: theme.textMuted, fontSize: '0.9rem' }}>No pending reports to review.</p>
+                  )}
+                </div>
+              </>
             )}
 
           </div>
@@ -1146,11 +1312,11 @@ export default function Home() {
 
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username (3-20 chars, no leading/trailing space)</label>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username (3-20 chars)</label>
                   <input type="text" required minLength={3} maxLength={20} value={username} onChange={(e) => setUsername(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname (2-30 chars, no leading/trailing space)</label>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname (2-30 chars)</label>
                   <input type="text" required minLength={2} maxLength={30} value={nickname} onChange={(e) => setNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
                 </div>
               </div>
@@ -1158,8 +1324,8 @@ export default function Home() {
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
-                  <select required value={grade} onChange={(e) => setGrade(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
-                    <option value="">Select Grade</option>
+                  <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
+                    <option value="">Select Grade (Optional)</option>
                     <option value="Grade 9">Grade 9</option>
                     <option value="Grade 10">Grade 10</option>
                     <option value="Grade 11">Grade 11</option>
@@ -1171,10 +1337,10 @@ export default function Home() {
                   <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (Optional)</label>
                   <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
                     <option value="">Select Gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="non-binary">Non-binary</option>
-                    <option value="prefer_not_to_say">Prefer not to say</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Non-binary">Non-binary</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
                   </select>
                 </div>
               </div>
