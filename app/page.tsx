@@ -207,15 +207,13 @@ export default function Home() {
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user);
-      if (user) {
-        if (user.user_metadata) {
-          setAvatarUrl(user.user_metadata.avatar_url || '');
-          setUsername(user.user_metadata.username || '');
-          setNickname(user.user_metadata.nickname || '');
-          setGrade(user.user_metadata.grade || '');
-          setGender(user.user_metadata.gender || '');
-          setBio(user.user_metadata.bio || '');
-        }
+      if (user && user.user_metadata) {
+        setAvatarUrl(user.user_metadata.avatar_url || '');
+        setUsername(user.user_metadata.username || '');
+        setNickname(user.user_metadata.nickname || '');
+        setGrade(user.user_metadata.grade || '');
+        setGender(user.user_metadata.gender || '');
+        setBio(user.user_metadata.bio || '');
       }
     }).catch(() => {});
 
@@ -225,15 +223,13 @@ export default function Home() {
       }
       const currentUser = session?.user ?? null;
       setUser(currentUser);
-      if (currentUser) {
-        if (currentUser.user_metadata) {
-          setAvatarUrl(currentUser.user_metadata.avatar_url || '');
-          setUsername(currentUser.user_metadata.username || '');
-          setNickname(currentUser.user_metadata.nickname || '');
-          setGrade(currentUser.user_metadata.grade || '');
-          setGender(currentUser.user_metadata.gender || '');
-          setBio(currentUser.user_metadata.bio || '');
-        }
+      if (currentUser && currentUser.user_metadata) {
+        setAvatarUrl(currentUser.user_metadata.avatar_url || '');
+        setUsername(currentUser.user_metadata.username || '');
+        setNickname(currentUser.user_metadata.nickname || '');
+        setGrade(currentUser.user_metadata.grade || '');
+        setGender(currentUser.user_metadata.gender || '');
+        setBio(currentUser.user_metadata.bio || '');
       }
     });
 
@@ -269,9 +265,13 @@ export default function Home() {
     }
   }
 
+  // SIGN UP / SIGN IN SUBMIT
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+
+    const cleanEmail = authEmail.trim();
+    const cleanPassword = authPassword.trim();
 
     try {
       if (isSignUp) {
@@ -286,11 +286,11 @@ export default function Home() {
           return;
         }
 
-        const defaultName = authEmail.split('@')[0].slice(0, 20);
+        const defaultName = cleanEmail.split('@')[0].slice(0, 20);
 
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: authEmail.trim(),
-          password: authPassword,
+          email: cleanEmail,
+          password: cleanPassword,
           options: {
             data: {
               username: defaultName,
@@ -301,53 +301,37 @@ export default function Home() {
         });
 
         if (signUpError) {
-          if (signUpError.message.toLowerCase().includes('already registered')) {
-            const { error: signInErr } = await supabase.auth.signInWithPassword({
-              email: authEmail.trim(),
-              password: authPassword,
-            });
-
-            if (signInErr) {
-              alert('Account exists! If you forgot your password, click Forgot Password to reset.');
-            } else {
-              alert('Account unlocked and logged in successfully!');
-              setShowAuthModal(false);
-              setActiveTab('dashboard');
-            }
+          if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
+            alert('This email is already registered. Switching to Sign In mode.');
+            setIsSignUp(false);
           } else {
             alert('SignUp Error: ' + signUpError.message);
           }
         } else {
-          if (signUpData.session) {
-            alert('Registration successful! Directing to Dashboard.');
+          // If signUp returned a user or session, log in directly in state!
+          if (signUpData.user) {
+            setUser(signUpData.user);
+            setUsername(defaultName);
+            setNickname(defaultName);
+            setGrade('Grade 12');
+            alert('Registration successful! You are now logged in.');
             setShowAuthModal(false);
             setActiveTab('dashboard');
-          } else {
-            const { error: signInErr } = await supabase.auth.signInWithPassword({
-              email: authEmail.trim(),
-              password: authPassword,
-            });
-
-            if (signInErr) {
-              alert('Account created! Please check your email inbox if confirmation is required.');
-            } else {
-              alert('Registration successful! Directing to Dashboard.');
-              setShowAuthModal(false);
-              setActiveTab('dashboard');
-            }
           }
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: authEmail.trim(),
-          password: authPassword,
+        const { data: signInData, error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPassword,
         });
 
         if (error) {
           alert('SignIn Failed: ' + error.message);
         } else {
+          setUser(signInData.user);
           setShowAuthModal(false);
           setAuthPassword('');
+          setActiveTab('dashboard');
         }
       }
     } catch (err: any) {
@@ -383,7 +367,7 @@ export default function Home() {
     if (!newPassword.trim()) return;
 
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { error } = await supabase.auth.updateUser({ password: newPassword.trim() });
       if (error) {
         alert('Failed to update password: ' + error.message);
       } else {
@@ -847,7 +831,7 @@ export default function Home() {
               />
             </div>
 
-            {/* Filter Tags (CLEAN STYLE WITHOUT [X]) */}
+            {/* Filter Tags */}
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               <div>
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>LEVEL &amp; TRACK:</span>
@@ -900,12 +884,10 @@ export default function Home() {
                     </div>
 
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                      {/* LIKE: UNRESTRICTED */}
                       <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, fontWeight: res.likedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.85rem' }}>
                         {res.likedByMe ? 'Liked' : 'Like'} ({res.likes})
                       </button>
 
-                      {/* SAVE/BOOKMARK: SIGN-IN RESTRICTED */}
                       <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.bookmarkedByMe ? theme.accent : theme.textMuted, fontWeight: res.bookmarkedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.85rem' }}>
                         {res.bookmarkedByMe ? 'Saved' : 'Save'} ({res.bookmarks})
                       </button>
