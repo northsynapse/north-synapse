@@ -138,6 +138,9 @@ export default function Home() {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Logo Image Fallback Toggle
+  const [useLogoImage, setUseLogoImage] = useState(true);
+
   // Resources Data State
   const [resources, setResources] = useState<ResourceItem[]>([
     {
@@ -351,13 +354,15 @@ export default function Home() {
         });
 
         if (signUpError) {
-          if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
-            alert('This email is already registered. Please switch to Sign In or use Forgot Password.');
+          const errMsg = signUpError.message.toLowerCase();
+          if (errMsg.includes('already registered') || errMsg.includes('already exists') || errMsg.includes('user_already_exists')) {
+            alert('This email is already registered! Please switch to "Sign In" or click "Forgot Password".');
           } else {
             alert('SignUp Error: ' + signUpError.message);
           }
         } else {
-          if (signUpData.user) {
+          // Check if confirmation email is required
+          if (signUpData.user && signUpData.session) {
             setUser(signUpData.user);
             setUsername(defaultName);
             setNickname(defaultName);
@@ -365,6 +370,9 @@ export default function Home() {
             alert('Account registered and logged in successfully!');
             setShowAuthModal(false);
             setActiveTab('dashboard');
+          } else if (signUpData.user && !signUpData.session) {
+            alert('Registration email sent! Please check your inbox and confirm your email address before signing in.');
+            setIsSignUp(false);
           }
         }
       } else {
@@ -374,7 +382,14 @@ export default function Home() {
         });
 
         if (signInErr) {
-          alert('SignIn Failed: ' + signInErr.message);
+          const errMsg = signInErr.message.toLowerCase();
+          if (errMsg.includes('email not confirmed')) {
+            alert('Your email has not been confirmed yet. Please check your inbox for the confirmation link.');
+          } else if (errMsg.includes('invalid login credentials')) {
+            alert('Invalid email or password. Please double check your credentials.');
+          } else {
+            alert('SignIn Error: ' + signInErr.message);
+          }
         } else {
           setUser(signInData.user);
           setShowAuthModal(false);
@@ -724,35 +739,29 @@ export default function Home() {
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
-      {/* HEADER & NAVIGATION WITH EXACT MATCH LOGO FROM LATEST IMAGE */}
+      {/* HEADER & NAVIGATION */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
-        {/* EXACT LOGO MATCHED FROM LATEST USER IMAGE */}
-        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.4rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.9rem', cursor: 'pointer', letterSpacing: '-0.02em' }}>
-          <svg width="44" height="48" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Smooth Rounded Double Arc Chains */}
-            <path d="M 82,24 C 82,8 18,8 18,36 C 18,64 82,64 82,92 C 82,112 18,112 18,92" stroke="#A78BFA" strokeWidth="8.5" strokeLinecap="round" fill="none" />
-            <path d="M 18,24 C 18,8 82,8 82,36 C 82,64 18,64 18,92 C 18,112 82,112 82,92" stroke="#A78BFA" strokeWidth="8.5" strokeLinecap="round" fill="none" opacity="0.45" />
-
-            {/* Inner Diagonal Synapse Chains */}
-            <line x1="26" y1="28" x2="74" y2="44" stroke="#A78BFA" strokeWidth="3" strokeDasharray="4 4" />
-            <line x1="74" y1="28" x2="26" y2="44" stroke="#A78BFA" strokeWidth="3" strokeDasharray="4 4" />
-            <line x1="26" y1="80" x2="74" y2="96" stroke="#A78BFA" strokeWidth="3" strokeDasharray="4 4" />
-            <line x1="74" y1="80" x2="26" y2="96" stroke="#A78BFA" strokeWidth="3" strokeDasharray="4 4" />
-
-            {/* Main Outer & Inner Synapse Node Circles */}
-            <circle cx="82" cy="24" r="6.5" fill="#A78BFA" />
-            <circle cx="18" cy="24" r="6.5" fill="#A78BFA" />
-            <circle cx="74" cy="38" r="5" fill="#A78BFA" />
-            <circle cx="26" cy="38" r="5" fill="#A78BFA" />
-            
-            <circle cx="50" cy="62" r="7.5" fill="#A78BFA" />
-
-            <circle cx="26" cy="84" r="5" fill="#A78BFA" />
-            <circle cx="74" cy="84" r="5" fill="#A78BFA" />
-            <circle cx="18" cy="98" r="6.5" fill="#A78BFA" />
-            <circle cx="82" cy="98" r="6.5" fill="#A78BFA" />
-          </svg>
+        {/* LOGO AREA WITH IMAGE LOADER & CRISP SVG FALLBACK */}
+        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.4rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', letterSpacing: '-0.02em' }}>
+          {useLogoImage ? (
+            <img 
+              src="/logo.png" 
+              alt="North Synapse Logo" 
+              style={{ width: '38px', height: '38px', objectFit: 'contain' }} 
+              onError={() => setUseLogoImage(false)} 
+            />
+          ) : (
+            <svg width="34" height="38" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M 75,20 C 75,10 25,10 25,35 C 25,60 75,60 75,85 C 75,100 25,100 25,90" stroke="#A78BFA" strokeWidth="6" strokeLinecap="round" fill="none" />
+              <path d="M 25,20 C 25,10 75,10 75,35 C 75,60 25,60 25,85 C 25,100 75,100 75,90" stroke="#A78BFA" strokeWidth="6" strokeLinecap="round" strokeDasharray="3 7" fill="none" />
+              <circle cx="75" cy="20" r="4.5" fill="#A78BFA" />
+              <circle cx="25" cy="35" r="4.5" fill="#A78BFA" />
+              <circle cx="50" cy="60" r="5" fill="#A78BFA" />
+              <circle cx="75" cy="85" r="4.5" fill="#A78BFA" />
+              <circle cx="25" cy="90" r="4.5" fill="#A78BFA" />
+            </svg>
+          )}
           <span>North Synapse</span>
           {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>OFFICIAL ADMIN</span>}
         </div>
@@ -900,7 +909,7 @@ export default function Home() {
               </div>
 
               <div>
-                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                   {subjectsList.map((sub) => (
                     <button key={sub} onClick={() => toggleSubjectFilter(sub)} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedSubjects.includes(sub) ? theme.accent : theme.border}`, backgroundColor: selectedSubjects.includes(sub) ? theme.accent : theme.bg, color: selectedSubjects.includes(sub) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
