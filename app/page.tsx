@@ -272,7 +272,6 @@ export default function Home() {
     }
   }
 
-  // SIGN UP WITH AUTOMATIC AUTO SIGN IN & METADATA INIT
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -296,7 +295,6 @@ export default function Home() {
         });
 
         if (signUpError && signUpError.message.toLowerCase().includes('already registered')) {
-          // Trigger unblock & auto sign in
           const { error: signInErr } = await supabase.auth.signInWithPassword({
             email: authEmail.trim(),
             password: authPassword,
@@ -323,7 +321,6 @@ export default function Home() {
         } else if (signUpError) {
           alert('SignUp Error: ' + signUpError.message);
         } else {
-          // Standard fresh signup -> Immediate login
           const { error: autoSignInErr } = await supabase.auth.signInWithPassword({
             email: authEmail.trim(),
             password: authPassword,
@@ -407,7 +404,6 @@ export default function Home() {
     }
   }
 
-  // Profile Save with Strict Username / Nickname Validation
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
 
@@ -489,7 +485,6 @@ export default function Home() {
     }
   }
 
-  // TOGGLE LIKE & TOGGLE BOOKMARK (CAN UN-LIKE & UN-BOOKMARK)
   function handleLikeResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
     setResources(prev => prev.map(res => {
@@ -538,7 +533,6 @@ export default function Home() {
     }
   }
 
-  // Comment Handler with Toggle Like
   function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
     if (!user) {
@@ -583,7 +577,6 @@ export default function Home() {
     setResources(prev => prev.map(r => r.id === previewResource.id ? updatedResource : r));
   }
 
-  // Report Handler
   function triggerReportModal(targetType: 'resource' | 'comment', targetId: string, targetTitle: string, userEmail?: string, e?: React.MouseEvent) {
     e?.stopPropagation();
     if (!user) {
@@ -622,7 +615,6 @@ export default function Home() {
     alert('Report submitted successfully! Direct email sent to northsynapse@gmail.com.');
   }
 
-  // Admin Resolve Report Handler
   function handleAdminResolveReport(reportId: string, action: 'delete' | 'dismiss') {
     const report = reports.find(r => r.id === reportId);
     if (!report) return;
@@ -953,7 +945,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- FEEDBACK TAB (WITH REPORT ISSUE CATEGORY) --- */}
+        {/* --- FEEDBACK TAB --- */}
         {activeTab === 'feedback' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Issue Reporting</h1>
@@ -989,7 +981,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- DASHBOARD TAB (WITH SAVED BOOKMARKS LIST) --- */}
+        {/* --- DASHBOARD TAB --- */}
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
@@ -1019,7 +1011,7 @@ export default function Home() {
                   </div>
                 ))
               ) : (
-                <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven't bookmarked any notes yet. Click "Save" on any resource card to view it here!</p>
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t bookmarked any notes yet. Click &quot;Save&quot; on any resource card to view it here!</p>
               )}
             </div>
 
