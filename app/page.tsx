@@ -186,9 +186,17 @@ export default function Home() {
       
       {/* Header Navigation */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, position: 'relative', zIndex: 10, padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontSize: '1.2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: theme.accent }}></div>
-          North Synapse
+        
+        {/* Custom Logo with Double Dots */}
+        <div 
+          onClick={() => setActiveTab('resources')} 
+          style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', letterSpacing: '-0.02em' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: theme.accent }}></div>
+            <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: theme.accent, opacity: 0.6 }}></div>
+          </div>
+          <span style={{ color: theme.textMain }}>North<span style={{ color: theme.accent }}>Synapse</span></span>
         </div>
 
         <nav style={{ display: 'flex', gap: '1.5rem' }}>
@@ -483,7 +491,7 @@ export default function Home() {
               {/* Grade & Gender */}
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
                   <select
                     required
                     value={grade}
