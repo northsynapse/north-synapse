@@ -348,7 +348,7 @@ export default function Home() {
             data: {
               username: defaultName,
               nickname: defaultName,
-              grade: '' // DO NOT DEFAULT GRADE
+              grade: ''
             }
           }
         });
@@ -361,7 +361,6 @@ export default function Home() {
             alert('SignUp Error: ' + signUpError.message);
           }
         } else {
-          // Check if confirmation email is required
           if (signUpData.user && signUpData.session) {
             setUser(signUpData.user);
             setUsername(defaultName);
@@ -909,7 +908,7 @@ export default function Home() {
               </div>
 
               <div>
-                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                   {subjectsList.map((sub) => (
                     <button key={sub} onClick={() => toggleSubjectFilter(sub)} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedSubjects.includes(sub) ? theme.accent : theme.border}`, backgroundColor: selectedSubjects.includes(sub) ? theme.accent : theme.bg, color: selectedSubjects.includes(sub) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
