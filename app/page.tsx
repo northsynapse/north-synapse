@@ -19,14 +19,13 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard';
 
-interface AnnouncementItem {
+interface CommentItem {
   id: string;
-  title: string;
-  content: string;
-  date: string;
   authorName: string;
   authorAvatar: string;
-  images: string[];
+  text: string;
+  date: string;
+  likes: number;
 }
 
 interface ResourceItem {
@@ -35,7 +34,26 @@ interface ResourceItem {
   subject: string;
   grade: string;
   description: string;
-  author: string;
+  content: string;
+  authorName: string;
+  authorAvatar: string;
+  date: string;
+  likes: number;
+  bookmarks: number;
+  comments: CommentItem[];
+}
+
+interface ReportItem {
+  id: string;
+  targetType: 'resource' | 'comment';
+  targetId: string;
+  targetTitle: string;
+  reason: string;
+  details: string;
+  reporterEmail: string;
+  targetUserEmail: string;
+  date: string;
+  status: 'pending' | 'resolved_deleted' | 'resolved_dismissed';
 }
 
 interface FeedbackItem {
@@ -47,9 +65,17 @@ interface FeedbackItem {
   date: string;
 }
 
+interface AnnouncementItem {
+  id: string;
+  title: string;
+  content: string;
+  date: string;
+  authorName: string;
+}
+
 export default function Home() {
   /* ==========================================================================
-     2. GLOBAL & COMPONENT STATES
+     2. GLOBAL STATES
      ========================================================================== */
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [activeTab, setActiveTab] = useState<NavTab>('resources');
@@ -81,20 +107,60 @@ export default function Home() {
   const [createdAt, setCreatedAt] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Multi-Select Filter State
+  // Filter State
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Sample Resources Data
-  const [resources] = useState<ResourceItem[]>([
-    { id: '1', title: 'AP Calculus BC Derivatives & Series Review', subject: 'Mathematics', grade: 'AP Courses', description: 'Comprehensive prep guide covering AP exam series convergence tests.', author: 'Alex Smith' },
-    { id: '2', title: 'Waterloo Fermat Math Competition Solutions', subject: 'Mathematics', grade: 'Academic Competitions', description: 'Step-by-step solutions for past contest papers.', author: 'Jordan Lee' },
-    { id: '3', title: 'French DELF B2 Grammar & Oral Guide', subject: 'French', grade: 'Grade 11', description: 'Oral exam key vocabulary and sentence structures.', author: 'Emily Zhang' },
-    { id: '4', title: 'Business Management & Economics Fundamentals', subject: 'Business & Economics', grade: 'Grade 12', description: 'Summary notes for business case analysis and market models.', author: 'Chris Wong' },
+  // Resources Data State
+  const [resources, setResources] = useState<ResourceItem[]>([
+    {
+      id: '1',
+      title: 'AP Calculus BC Derivatives & Series Master Review',
+      subject: 'Mathematics',
+      grade: 'AP Courses',
+      description: 'Comprehensive prep guide covering AP exam series convergence tests, Taylor polynomials, and parametric equations.',
+      content: 'Detailed derivatives rules: (1) Product Rule: (uv)\' = u\'v + uv\'. (2) Quotient Rule: (u/v)\' = (u\'v - uv\') / v^2. Taylor Series Expansion for e^x = 1 + x + x^2/2! + x^3/3! + ... Make sure to practice ratio tests for interval of convergence!',
+      authorName: 'Alex Smith',
+      authorAvatar: '',
+      date: 'Oct 24, 2026',
+      likes: 12,
+      bookmarks: 8,
+      comments: [
+        { id: 'c1', authorName: 'Jordan Lee', authorAvatar: '', text: 'This saved my midterm review! Thanks!', date: 'Oct 24, 2026', likes: 3 }
+      ]
+    },
+    {
+      id: '2',
+      title: 'Waterloo Fermat Math Competition Past Solutions',
+      subject: 'Mathematics',
+      grade: 'Academic Competitions',
+      description: 'Step-by-step solutions for past Waterloo contest papers with key shortcut tricks.',
+      content: 'Key geometry theorem: In any right triangle, a^2 + b^2 = c^2. For modular arithmetic problems, always check remainder patterns mod 10 for unit digits!',
+      authorName: 'Jordan Lee',
+      authorAvatar: '',
+      date: 'Oct 23, 2026',
+      likes: 19,
+      bookmarks: 14,
+      comments: []
+    }
   ]);
 
-  // Feedback State
+  // Preview Modal State
+  const [previewResource, setPreviewResource] = useState<ResourceItem | null>(null);
+  const [showCommentsArea, setShowCommentsArea] = useState(true);
+  const [newCommentText, setNewCommentText] = useState('');
+
+  // Report Modal State
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{ type: 'resource' | 'comment'; id: string; title: string; userEmail?: string } | null>(null);
+  const [reportReason, setReportReason] = useState('Academic Dishonesty');
+  const [reportDetails, setReportDetails] = useState('');
+
+  // Reports Store State
+  const [reports, setReports] = useState<ReportItem[]>([]);
+
+  // Feedbacks Store State
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
   const [feedbackRating, setFeedbackRating] = useState(5);
   const [feedbackCategory, setFeedbackCategory] = useState('General Suggestion');
@@ -107,32 +173,27 @@ export default function Home() {
       title: 'Welcome to North Synapse Academic Platform',
       content: 'A centralized workspace for verified course resources, virtual study rooms, and academic peer discussions.',
       date: 'Oct 24, 2026',
-      authorName: 'North Synapse Official',
-      authorAvatar: '',
-      images: []
+      authorName: 'North Synapse Official'
     },
     {
       id: '2',
       title: 'AP & Competition Prep Resource Categories Added',
       content: 'We updated our Resource Hub filter tags with AP Courses, Academic Competitions, French, and Geography!',
       date: 'Oct 24, 2026',
-      authorName: 'North Synapse Official',
-      authorAvatar: '',
-      images: []
+      authorName: 'North Synapse Official'
     }
   ]);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Admin Check
+  // Admin Verification
   const isAdmin = user?.email?.toLowerCase().includes('northsynapse');
 
   /* ==========================================================================
-     3. RECOVERY DETECTOR & SESSION EFFECT
+     3. AUTHENTICATION & SESSION EFFECT
      ========================================================================== */
   useEffect(() => {
-    // Detect if user landed on website via Password Reset Email Token
     if (typeof window !== 'undefined') {
       const hash = window.location.hash;
       if (hash && (hash.includes('type=recovery') || hash.includes('access_token'))) {
@@ -177,35 +238,24 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Carousel Timer
+  // Precise Banner Timer
   useEffect(() => {
-    const bannerItemsCount = Math.min(announcements.length, 3);
-    if (bannerItemsCount <= 1) return;
-
+    if (announcements.length <= 1) return;
     const timer = setInterval(() => {
-      setCurrentBannerIndex((prevIndex) => (prevIndex + 1) % bannerItemsCount);
-    }, 10000);
-
+      setCurrentBannerIndex((prev) => (prev + 1) % announcements.length);
+    }, 8000);
     return () => clearInterval(timer);
   }, [announcements]);
 
   /* ==========================================================================
-     4. HANDLERS
+     4. HANDLERS (AUTH UNLOCK, POSTS, REPORTS, FEEDBACK)
      ========================================================================== */
   function toggleSubjectFilter(sub: string) {
-    if (selectedSubjects.includes(sub)) {
-      setSelectedSubjects(selectedSubjects.filter(s => s !== sub));
-    } else {
-      setSelectedSubjects([...selectedSubjects, sub]);
-    }
+    setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
   }
 
   function toggleGradeFilter(grd: string) {
-    if (selectedGrades.includes(grd)) {
-      setSelectedGrades(selectedGrades.filter(g => g !== grd));
-    } else {
-      setSelectedGrades([...selectedGrades, grd]);
-    }
+    setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, grd]);
   }
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -217,6 +267,7 @@ export default function Home() {
     }
   }
 
+  // AUTO-UNLOCK REGISTER & SIGN IN LOGIC
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -234,19 +285,32 @@ export default function Home() {
           return;
         }
 
-        const { error } = await supabase.auth.signUp({
+        // Try SignUp
+        const { data, error } = await supabase.auth.signUp({
           email: authEmail.trim(),
           password: authPassword,
         });
 
         if (error) {
-          if (error.message.includes('already registered')) {
-            alert('This email is already registered. If you previously deleted this account, please use Sign In or Reset Password, or contact admin to clear backend history.');
+          // If email was previously registered/deleted, automatically fall back to direct sign-in and sync
+          if (error.message.toLowerCase().includes('already registered')) {
+            const { error: signInErr } = await supabase.auth.signInWithPassword({
+              email: authEmail.trim(),
+              password: authPassword,
+            });
+
+            if (signInErr) {
+              alert('This email was previously used. We have sent a password reset link or you can sign in with your previous password.');
+            } else {
+              alert('Account restored and signed in successfully!');
+              setShowAuthModal(false);
+              setActiveTab('dashboard');
+            }
           } else {
-            alert('SignUp Failed: ' + error.message);
+            alert('SignUp Error: ' + error.message);
           }
         } else {
-          alert('Registration successful! Redirecting to Dashboard.');
+          alert('Registration successful! Directing to Dashboard.');
           setShowAuthModal(false);
           setActiveTab('dashboard');
         }
@@ -282,7 +346,7 @@ export default function Home() {
       if (error) {
         alert('Reset Password Error: ' + error.message);
       } else {
-        alert('A password reset link has been sent to your email address! Please check your inbox.');
+        alert('A password reset link has been sent to your email address!');
         setShowForgotPasswordModal(false);
         setResetEmail('');
       }
@@ -296,20 +360,17 @@ export default function Home() {
     if (!newPassword.trim()) return;
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
-      });
-
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) {
         alert('Failed to update password: ' + error.message);
       } else {
-        alert('Your password has been reset successfully! You are now logged in.');
+        alert('Your password has been reset successfully!');
         setShowResetNewPasswordModal(false);
         setNewPassword('');
         setActiveTab('dashboard');
       }
     } catch (err: any) {
-      alert('Error updating password: ' + err.message);
+      alert('Error: ' + err.message);
     }
   }
 
@@ -336,14 +397,14 @@ export default function Home() {
         setShowEditProfileModal(false);
       }
     } catch (err: any) {
-      alert('Error updating profile: ' + err.message);
+      alert('Error: ' + err.message);
     } finally {
       setSavingProfile(false);
     }
   }
 
   async function handleDeleteAccount() {
-    const confirmDelete = window.confirm('Are you sure you want to delete this account? Your profile data will be permanently cleared.');
+    const confirmDelete = window.confirm('Are you sure you want to delete this account? Profile data will be cleared.');
     if (!confirmDelete) return;
 
     try {
@@ -369,21 +430,139 @@ export default function Home() {
       setUser(null);
       setShowEditProfileModal(false);
       setActiveTab('resources');
-      alert('Account signed out and profile metadata erased.');
+      alert('Account signed out and metadata cleared.');
     } catch (err: any) {
       alert('Error during account deletion: ' + err.message);
     }
   }
 
-  // Require Login for Feedback
-  function handleAddFeedback(e: React.FormEvent) {
+  // Like & Bookmark
+  function handleLikeResource(id: string, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    setResources(prev => prev.map(res => res.id === id ? { ...res, likes: res.likes + 1 } : res));
+    if (previewResource && previewResource.id === id) {
+      setPreviewResource(prev => prev ? { ...prev, likes: prev.likes + 1 } : null);
+    }
+  }
+
+  function handleBookmarkResource(id: string, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    setResources(prev => prev.map(res => res.id === id ? { ...res, bookmarks: res.bookmarks + 1 } : res));
+    if (previewResource && previewResource.id === id) {
+      setPreviewResource(prev => prev ? { ...prev, bookmarks: prev.bookmarks + 1 } : null);
+    }
+  }
+
+  // Add Comment Handler
+  function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
     if (!user) {
-      alert('Please sign in first before submitting feedback or reviews.');
+      alert('Please sign in first to post a comment.');
       setShowAuthModal(true);
       return;
     }
+    if (!newCommentText.trim() || !previewResource) return;
 
+    const commentObj: CommentItem = {
+      id: Date.now().toString(),
+      authorName: nickname || user?.email?.split('@')[0] || 'Student',
+      authorAvatar: avatarUrl,
+      text: newCommentText,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      likes: 0
+    };
+
+    const updatedResource = {
+      ...previewResource,
+      comments: [...previewResource.comments, commentObj]
+    };
+
+    setPreviewResource(updatedResource);
+    setResources(prev => prev.map(r => r.id === previewResource.id ? updatedResource : r));
+    setNewCommentText('');
+  }
+
+  function handleLikeComment(commentId: string) {
+    if (!previewResource) return;
+    const updatedComments = previewResource.comments.map(c => c.id === commentId ? { ...c, likes: c.likes + 1 } : c);
+    const updatedResource = { ...previewResource, comments: updatedComments };
+    setPreviewResource(updatedResource);
+    setResources(prev => prev.map(r => r.id === previewResource.id ? updatedResource : r));
+  }
+
+  // Report Handler
+  function triggerReportModal(targetType: 'resource' | 'comment', targetId: string, targetTitle: string, userEmail?: string, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    if (!user) {
+      alert('Please sign in first to report content.');
+      setShowAuthModal(true);
+      return;
+    }
+    setReportTarget({ type: targetType, id: targetId, title: targetTitle, userEmail });
+    setShowReportModal(true);
+  }
+
+  function handleSubmitReport(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reportTarget || !user) return;
+
+    const newReport: ReportItem = {
+      id: Date.now().toString(),
+      targetType: reportTarget.type,
+      targetId: reportTarget.id,
+      targetTitle: reportTarget.title,
+      reason: reportReason,
+      details: reportDetails,
+      reporterEmail: user.email || 'Anonymous',
+      targetUserEmail: reportTarget.userEmail || 'Unknown User',
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      status: 'pending'
+    };
+
+    setReports([newReport, ...reports]);
+
+    const mailtoUrl = `mailto:northsynapse@gmail.com?subject=[REPORT SUBMITTED] ${reportTarget.type.toUpperCase()} - ${reportReason}&body=Reporter: ${user.email}%0D%0ATarget ID: ${reportTarget.id}%0D%0ATarget Title: ${encodeURIComponent(reportTarget.title)}%0D%0AReason: ${encodeURIComponent(reportReason)}%0D%0ADetails:%0D%0A${encodeURIComponent(reportDetails)}`;
+    window.open(mailtoUrl, '_blank');
+
+    setShowReportModal(false);
+    setReportDetails('');
+    alert('Report submitted successfully! Direct email sent to northsynapse@gmail.com.');
+  }
+
+  // Admin Resolve Report Handler
+  function handleAdminResolveReport(reportId: string, action: 'delete' | 'dismiss') {
+    const report = reports.find(r => r.id === reportId);
+    if (!report) return;
+
+    if (action === 'delete') {
+      if (report.targetType === 'resource') {
+        setResources(prev => prev.filter(r => r.id !== report.targetId));
+        if (previewResource?.id === report.targetId) setPreviewResource(null);
+      } else if (report.targetType === 'comment' && previewResource) {
+        const updatedComments = previewResource.comments.filter(c => c.id !== report.targetId);
+        const updatedResource = { ...previewResource, comments: updatedComments };
+        setPreviewResource(updatedResource);
+        setResources(prev => prev.map(r => r.id === previewResource.id ? updatedResource : r));
+      }
+
+      const notifyMail = `mailto:${report.targetUserEmail}?subject=[North Synapse Moderation] Content Removed&body=Dear User,%0D%0A%0D%0AYour recent ${report.targetType} "${report.targetTitle}" was reported and flagged. After review, it has been removed.%0D%0A%0D%0ANorth Synapse Admin Team`;
+      window.open(notifyMail, '_blank');
+
+      setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'resolved_deleted' } : r));
+      alert('Content deleted and email notice drafted.');
+    } else {
+      setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'resolved_dismissed' } : r));
+      alert('Report dismissed.');
+    }
+  }
+
+  function handleAddFeedback(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) {
+      alert('Please sign in first before submitting feedback.');
+      setShowAuthModal(true);
+      return;
+    }
     if (!feedbackComment.trim()) return;
 
     const newFb: FeedbackItem = {
@@ -398,15 +577,14 @@ export default function Home() {
     setFeedbacks([newFb, ...feedbacks]);
     setFeedbackComment('');
 
-    // Trigger Direct Email to Admin Mailbox
     const mailtoUrl = `mailto:northsynapse@gmail.com?subject=[North Synapse Feedback] ${feedbackCategory} - ${feedbackRating} Stars&body=User: ${user.email}%0D%0ARating: ${feedbackRating} Stars%0D%0ACategory: ${feedbackCategory}%0D%0A%0D%0AComment:%0D%0A${encodeURIComponent(feedbackComment)}`;
     window.open(mailtoUrl, '_blank');
 
-    alert('Thank you for your feedback! It has been submitted and sent to northsynapse@gmail.com.');
+    alert('Thank you for your feedback! Sent directly to northsynapse@gmail.com.');
   }
 
   /* ==========================================================================
-     5. THEME & FILTER LIST DEFINITION
+     5. THEME & CATEGORY DEFINITION
      ========================================================================== */
   const theme = {
     bg: isDarkMode ? '#0E1117' : '#F8FAFC',
@@ -418,25 +596,12 @@ export default function Home() {
   };
 
   const subjectsList = [
-    'Mathematics',
-    'Science',
-    'ESL & Languages',
-    'French',
-    'History & Social Sciences',
-    'Geography',
-    'Business & Economics',
-    'Art & Music',
-    'Computer Science & Tech'
+    'Mathematics', 'Science', 'ESL & Languages', 'French', 
+    'History & Social Sciences', 'Geography', 'Business & Economics', 
+    'Art & Music', 'Computer Science & Tech'
   ];
 
-  const gradesList = [
-    'Grade 9',
-    'Grade 10',
-    'Grade 11',
-    'Grade 12',
-    'AP Courses',
-    'Academic Competitions'
-  ];
+  const gradesList = ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'AP Courses', 'Academic Competitions'];
 
   const filteredResources = resources.filter(res => {
     const matchesSubject = selectedSubjects.length === 0 || selectedSubjects.includes(res.subject);
@@ -445,62 +610,28 @@ export default function Home() {
     return matchesSubject && matchesGrade && matchesSearch;
   });
 
-  const topThreeAnnouncements = announcements.slice(0, 3);
+  const pendingReports = reports.filter(r => r.status === 'pending');
   const avgRating = feedbacks.length > 0 ? (feedbacks.reduce((acc, f) => acc + f.rating, 0) / feedbacks.length).toFixed(1) : '5.0';
 
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
-      {/* Mobile Responsive Global CSS Injection */}
-      <style jsx global>{`
-        @media (max-width: 768px) {
-          header {
-            padding: 1rem !important;
-            flex-direction: column !important;
-            gap: 1rem !important;
-          }
-          nav {
-            flex-wrap: wrap !important;
-            justify-content: center !important;
-            gap: 0.8rem !important;
-          }
-          main {
-            padding: 1rem !important;
-          }
-          .responsive-flex-col {
-            flex-direction: column !important;
-            align-items: stretch !important;
-          }
-        }
-      `}</style>
-
       {/* ===================================================================
-          6. HEADER & NAVIGATION (RESPONSIVE)
+          6. HEADER & NAVIGATION
           =================================================================== */}
-      <header style={{ borderBottom: `1px solid ${theme.border}`, position: 'relative', zIndex: 10, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
-        {/* --- BRAND LOGO --- */}
-        <div 
-          onClick={() => setActiveTab('resources')} 
-          style={{ fontSize: '1.3rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', letterSpacing: '-0.02em' }}
-        >
+        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.3rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer' }}>
           <svg width="30" height="30" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M75 25 C 50 10, 20 20, 25 45 C 30 70, 70 65, 75 80 C 80 95, 45 95, 25 80" stroke="#8B5CF6" strokeWidth="8" strokeLinecap="round"/>
-            <path d="M25 25 L 75 80" stroke="#8B5CF6" strokeWidth="3" strokeDasharray="5 5" opacity="0.6"/>
-            <path d="M75 25 L 25 80" stroke="#8B5CF6" strokeWidth="3" strokeDasharray="5 5" opacity="0.6"/>
             <circle cx="75" cy="25" r="7" fill="#8B5CF6"/>
             <circle cx="25" cy="45" r="5" fill="#8B5CF6"/>
             <circle cx="75" cy="80" r="7" fill="#8B5CF6"/>
-            <circle cx="25" cy="80" r="5" fill="#8B5CF6"/>
-            <circle cx="50" cy="52.5" r="5" fill="#8B5CF6"/>
           </svg>
-          <span style={{ color: theme.textMain, fontWeight: '800' }}>North Synapse</span>
-          {isAdmin && (
-            <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold', marginLeft: '0.3rem' }}>OFFICIAL ADMIN</span>
-          )}
+          <span>North Synapse</span>
+          {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>OFFICIAL ADMIN</span>}
         </div>
 
-        {/* --- NAVIGATION TABS --- */}
         <nav style={{ display: 'flex', gap: '1.6rem' }}>
           {(['resources', 'lounges', 'announcements', 'discussions', 'feedback'] as NavTab[]).map((tab) => (
             <button
@@ -524,77 +655,32 @@ export default function Home() {
           {user && (
             <button
               onClick={() => setActiveTab('dashboard')}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: activeTab === 'dashboard' ? theme.accent : theme.textMuted,
-                fontWeight: activeTab === 'dashboard' ? '700' : '500',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                paddingBottom: '0.3rem',
-                borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent'
-              }}
+              style={{ background: 'none', border: 'none', color: activeTab === 'dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', paddingBottom: '0.3rem', borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}
             >
               Dashboard
             </button>
           )}
         </nav>
 
-        {/* --- USER / AUTH ACTIONS --- */}
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button 
-            onClick={() => setIsDarkMode(!isDarkMode)} 
-            style={{ 
-              padding: '0.5rem 1rem', 
-              borderRadius: '8px', 
-              border: `1px solid ${theme.border}`, 
-              backgroundColor: theme.cardBg, 
-              color: theme.textMain, 
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              fontWeight: '600'
-            }}
-          >
+          <button onClick={() => setIsDarkMode(!isDarkMode)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}>
             {isDarkMode ? 'Light Mode' : 'Dark Mode'}
           </button>
 
           {user ? (
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <div 
-                onClick={() => setActiveTab('dashboard')} 
-                style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}
-              >
-                <div style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '50%',
-                  backgroundColor: theme.accent,
-                  backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none',
-                  backgroundSize: 'cover',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 'bold',
-                  fontSize: '0.85rem',
-                  color: '#FFF'
-                }}>
+              <div onClick={() => setActiveTab('dashboard')} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
+                <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: theme.accent, backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none', backgroundSize: 'cover', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem', color: '#FFF' }}>
                   {!avatarUrl && (nickname ? nickname[0].toUpperCase() : 'U')}
                 </div>
                 <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{nickname || 'User'}</span>
               </div>
-              <button 
-                onClick={() => supabase.auth.signOut()} 
-                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}
-              >
+              <button onClick={() => supabase.auth.signOut()} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>
                 Sign Out
               </button>
             </div>
           ) : (
-            <button 
-              type="button"
-              onClick={() => setShowAuthModal(true)} 
-              style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem 1.4rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}
-            >
+            <button type="button" onClick={() => setShowAuthModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem 1.4rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}>
               Sign In
             </button>
           )}
@@ -606,7 +692,7 @@ export default function Home() {
           =================================================================== */}
       <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
         
-        {/* --- FIXED VERTICAL ROLLING BANNER (STRICTLY CENTERED ALIGNMENT) --- */}
+        {/* --- PERFECTLY CENTERED BANNER (NO OVERFLOW/CUT-OFF) --- */}
         <div style={{ 
           backgroundColor: 'rgba(139, 92, 246, 0.08)', 
           border: `1px solid ${theme.accent}`, 
@@ -616,40 +702,42 @@ export default function Home() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '1rem',
-          overflow: 'hidden',
-          height: '48px',
-          boxSizing: 'border-box'
+          height: '52px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, overflow: 'hidden', height: '100%' }}>
-            <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
-              NOTICE ({currentBannerIndex + 1}/{topThreeAnnouncements.length})
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, overflow: 'hidden' }}>
+            <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
+              NOTICE ({currentBannerIndex + 1}/{announcements.length})
             </span>
 
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              transition: 'transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)', 
-              transform: `translateY(-${currentBannerIndex * 48}px)`
-            }}>
-              {topThreeAnnouncements.map((item) => (
-                <div key={item.id} style={{ height: '48px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <span style={{ fontSize: '0.9rem', color: theme.textMain, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: '48px' }}>
+            <div style={{ flex: 1, overflow: 'hidden', height: '52px', position: 'relative' }}>
+              {announcements.map((item, idx) => (
+                <div 
+                  key={item.id} 
+                  style={{ 
+                    position: 'absolute', 
+                    top: 0, 
+                    left: 0, 
+                    width: '100%', 
+                    height: '52px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '0.8rem',
+                    opacity: idx === currentBannerIndex ? 1 : 0,
+                    transform: idx === currentBannerIndex ? 'translateY(0)' : 'translateY(15px)',
+                    transition: 'all 0.4s ease-in-out'
+                  }}
+                >
+                  <span style={{ fontSize: '0.9rem', color: theme.textMain, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {item.title}
                   </span>
-                  <span style={{ fontSize: '0.8rem', color: theme.textMuted, flexShrink: 0, lineHeight: '48px' }}>
-                    • {item.date}
-                  </span>
+                  <span style={{ fontSize: '0.8rem', color: theme.textMuted, flexShrink: 0 }}>• {item.date}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <button 
-            onClick={() => setActiveTab('announcements')} 
-            style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', flexShrink: 0 }}
-          >
-            View All →
+          <button onClick={() => setActiveTab('announcements')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', flexShrink: 0 }}>
+            View All
           </button>
         </div>
 
@@ -657,285 +745,180 @@ export default function Home() {
         {activeTab === 'resources' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
-            <div style={{ textAlign: 'center', padding: '0.5rem 0 0.5rem 0' }}>
+            <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
               <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '700', display: 'inline-block', marginBottom: '1rem' }}>
                 Academic Platform for NTCI
               </span>
-              <h1 style={{ fontSize: '2.5rem', fontWeight: '900', letterSpacing: '-0.03em', marginBottom: '0.8rem' }}>North Synapse</h1>
-              <p style={{ color: theme.textMuted, fontSize: '1rem', maxWidth: '580px', margin: '0 auto', lineHeight: '1.5' }}>
-                Browse verified course materials, AP guides, and contest prep by selecting subject categories below.
-              </p>
+              <h1 style={{ fontSize: '2.5rem', fontWeight: '900', letterSpacing: '-0.03em', marginBottom: '0.8rem' }}>North Synapse Resource Hub</h1>
             </div>
 
             {/* Search Bar */}
             <div style={{ position: 'relative', width: '100%' }}>
-              <span style={{ position: 'absolute', left: '1.2rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}>🔍</span>
               <input 
                 type="text" 
                 placeholder="Search notes, topics, or study guide titles..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '100%', padding: '0.85rem 1rem 0.85rem 3rem', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box', outline: 'none' }}
+                style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box', outline: 'none' }}
               />
             </div>
 
-            {/* Multi-Select Tags Panel */}
+            {/* Filter Tags */}
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              
               <div>
-                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>LEVEL &amp; ACADEMIC TRACK:</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>LEVEL &amp; TRACK:</span>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  {gradesList.map((grd) => {
-                    const isSelected = selectedGrades.includes(grd);
-                    return (
-                      <button
-                        key={grd}
-                        onClick={() => toggleGradeFilter(grd)}
-                        style={{
-                          padding: '0.4rem 1rem',
-                          borderRadius: '20px',
-                          border: `1px solid ${isSelected ? theme.accent : theme.border}`,
-                          backgroundColor: isSelected ? theme.accent : theme.bg,
-                          color: isSelected ? '#FFF' : theme.textMain,
-                          fontWeight: '600',
-                          fontSize: '0.8rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {isSelected ? '✓ ' : ''}{grd}
-                      </button>
-                    );
-                  })}
+                  {gradesList.map((grd) => (
+                    <button key={grd} onClick={() => toggleGradeFilter(grd)} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedGrades.includes(grd) ? theme.accent : theme.border}`, backgroundColor: selectedGrades.includes(grd) ? theme.accent : theme.bg, color: selectedGrades.includes(grd) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
+                      {selectedGrades.includes(grd) ? '[x] ' : ''}{grd}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               <div>
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  {subjectsList.map((sub) => {
-                    const isSelected = selectedSubjects.includes(sub);
-                    return (
-                      <button
-                        key={sub}
-                        onClick={() => toggleSubjectFilter(sub)}
-                        style={{
-                          padding: '0.4rem 1rem',
-                          borderRadius: '20px',
-                          border: `1px solid ${isSelected ? theme.accent : theme.border}`,
-                          backgroundColor: isSelected ? theme.accent : theme.bg,
-                          color: isSelected ? '#FFF' : theme.textMain,
-                          fontWeight: '600',
-                          fontSize: '0.8rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {isSelected ? '✓ ' : ''}{sub}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-            </div>
-
-            {/* Filtered Results Card Grid */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {filteredResources.length > 0 ? (
-                filteredResources.map((res) => (
-                  <div key={res.id} className="responsive-flex-col" style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-                    <div>
-                      <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.5rem' }}>
-                        <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px' }}>{res.subject}</span>
-                        <span style={{ backgroundColor: theme.bg, color: theme.textMuted, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>{res.grade}</span>
-                      </div>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{res.title}</h3>
-                      <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.3rem' }}>{res.description}</p>
-                      <span style={{ fontSize: '0.75rem', color: theme.textMuted, marginTop: '0.5rem', display: 'block' }}>Shared by: {res.author}</span>
-                    </div>
-
-                    <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', flexShrink: 0 }}>
-                      Download
+                  {subjectsList.map((sub) => (
+                    <button key={sub} onClick={() => toggleSubjectFilter(sub)} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedSubjects.includes(sub) ? theme.accent : theme.border}`, backgroundColor: selectedSubjects.includes(sub) ? theme.accent : theme.bg, color: selectedSubjects.includes(sub) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
+                      {selectedSubjects.includes(sub) ? '[x] ' : ''}{sub}
                     </button>
-                  </div>
-                ))
-              ) : (
-                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '3rem 2rem', textAlign: 'center' }}>
-                  <p style={{ color: theme.textMuted }}>No study resources match your selected subject/grade combination.</p>
-                </div>
-              )}
-            </div>
-
-          </div>
-        )}
-
-        {/* --- STUDY LOUNGES TAB --- */}
-        {activeTab === 'lounges' && (
-          <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '4rem 2rem', textAlign: 'center' }}>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 'bold', marginBottom: '1rem' }}>Study Lounge</h2>
-            <p style={{ color: theme.textMuted }}>Virtual study rooms and focus timers coming soon.</p>
-          </div>
-        )}
-
-        {/* --- ANNOUNCEMENTS TAB --- */}
-        {activeTab === 'announcements' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Official Announcements &amp; Posters</h1>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              {announcements.map((item) => (
-                <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
-                    <strong style={{ fontSize: '0.95rem', color: theme.accent }}>{item.authorName}</strong>
-                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
-                  </div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.8rem' }}>{item.title}</h3>
-                  <p style={{ fontSize: '0.95rem', color: theme.textMain, lineHeight: '1.6' }}>{item.content}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* --- FEEDBACK & REVIEWS TAB (LOGIN GUARANTEED) --- */}
-        {activeTab === 'feedback' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ borderBottom: `1px solid ${theme.border}`, paddingBottom: '1rem' }}>
-              <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Reviews</h1>
-              <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginTop: '0.3rem' }}>Submit star ratings and reviews directly to northsynapse@gmail.com.</p>
-            </div>
-
-            <form onSubmit={handleAddFeedback} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>Leave Your Feedback</h3>
-
-              <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Star Rating:</label>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <span 
-                      key={star} 
-                      onClick={() => setFeedbackRating(star)} 
-                      style={{ fontSize: '1.5rem', cursor: 'pointer', color: star <= feedbackRating ? '#F59E0B' : theme.textMuted }}
-                    >
-                      ★
-                    </span>
                   ))}
                 </div>
               </div>
+            </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Category</label>
-                <select 
-                  value={feedbackCategory} 
-                  onChange={(e) => setFeedbackCategory(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}
-                >
-                  <option value="General Suggestion">General Suggestion</option>
-                  <option value="Bug Report">Bug Report</option>
-                  <option value="Resource Request">Resource Request</option>
-                  <option value="Study Lounge Feature">Study Lounge Feature</option>
-                </select>
+            {/* Resource List Cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {filteredResources.map((res) => (
+                <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.6rem' }}>
+                    <div style={{ display: 'flex', gap: '0.6rem' }}>
+                      <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px' }}>{res.subject}</span>
+                      <span style={{ backgroundColor: theme.bg, color: theme.textMuted, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>{res.grade}</span>
+                    </div>
+
+                    <button onClick={(e) => triggerReportModal('resource', res.id, res.title, res.authorName, e)} style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '0.8rem', cursor: 'pointer' }}>
+                      Report
+                    </button>
+                  </div>
+
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
+                  <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '1rem' }}>{res.description}</p>
+
+                  {/* Author Header & Interaction Bar */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${theme.border}`, paddingTop: '0.8rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: theme.accent, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                        {res.authorName[0].toUpperCase()}
+                      </div>
+                      <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by {res.authorName}</span>
+                      <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>• {res.date}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                      <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>
+                        Likes: {res.likes}
+                      </button>
+                      <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>
+                        Saved: {res.bookmarks}
+                      </button>
+                      <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                        Preview
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              ))}
+            </div>
+
+          </div>
+        )}
+
+        {/* --- OTHER TABS --- */}
+        {activeTab === 'lounges' && <div style={{ textAlign: 'center', padding: '4rem 2rem' }}><h2>Study Lounge</h2><p style={{ color: theme.textMuted }}>Virtual study rooms coming soon.</p></div>}
+        {activeTab === 'discussions' && <div style={{ textAlign: 'center', padding: '4rem 2rem' }}><h2>Discussions</h2><p style={{ color: theme.textMuted }}>Academic discussion board coming soon.</p></div>}
+
+        {/* --- ANNOUNCEMENTS TAB --- */}
+        {activeTab === 'announcements' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Official Announcements</h1>
+            {announcements.map((item) => (
+              <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
+                  <strong style={{ color: theme.accent }}>{item.authorName}</strong>
+                  <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
+                </div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{item.title}</h3>
+                <p style={{ marginTop: '0.5rem', color: theme.textMain }}>{item.content}</p>
               </div>
+            ))}
+          </div>
+        )}
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Your Review / Feedback</label>
-                <textarea 
-                  required
-                  rows={4}
-                  placeholder="Let us know what you think or what features you'd like to see..."
-                  value={feedbackComment}
-                  onChange={(e) => setFeedbackComment(e.target.value)}
-                  style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', fontFamily: 'inherit' }}
-                />
+        {/* --- FEEDBACK TAB --- */}
+        {activeTab === 'feedback' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Reviews</h1>
+            <form onSubmit={handleAddFeedback} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>Leave Your Rating</h3>
+              <div style={{ display: 'flex', gap: '0.6rem' }}>
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <button key={s} type="button" onClick={() => setFeedbackRating(s)} style={{ padding: '0.3rem 0.8rem', borderRadius: '6px', border: `1px solid ${s <= feedbackRating ? theme.accent : theme.border}`, backgroundColor: s <= feedbackRating ? theme.accent : theme.bg, color: s <= feedbackRating ? '#FFF' : theme.textMain, fontWeight: 'bold', cursor: 'pointer' }}>
+                    {s} Star
+                  </button>
+                ))}
               </div>
-
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>
-                Submit Review
-              </button>
+              <textarea required rows={4} placeholder="Your feedback..." value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>Submit Review</button>
             </form>
           </div>
         )}
 
-        {/* --- DISCUSSIONS TAB --- */}
-        {activeTab === 'discussions' && (
-          <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '4rem 2rem', textAlign: 'center' }}>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 'bold', marginBottom: '1rem' }}>Discussions</h2>
-            <p style={{ color: theme.textMuted }}>Academic discussion board coming soon.</p>
-          </div>
-        )}
-
-        {/* --- USER / ADMIN DASHBOARD TAB --- */}
+        {/* --- DASHBOARD TAB (WITH ADMIN MODERATION PANEL) --- */}
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
-            <div className="responsive-flex-col" style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2.5rem', display: 'flex', gap: '2rem', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-                <div style={{
-                  width: '90px',
-                  height: '90px',
-                  borderRadius: '50%',
-                  backgroundColor: theme.bg,
-                  border: `2px solid ${theme.accent}`,
-                  backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '2rem',
-                  fontWeight: 'bold',
-                  color: theme.accent,
-                  flexShrink: 0
-                }}>
-                  {!avatarUrl && (nickname ? nickname[0].toUpperCase() : 'U')}
-                </div>
-
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                    <h1 style={{ fontSize: '1.6rem', fontWeight: 'bold' }}>{nickname || 'Anonymous Student'}</h1>
-                    {isAdmin && (
-                      <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '10px', fontWeight: 'bold' }}>ADMIN ACCOUNT</span>
-                    )}
-                  </div>
-                  <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginTop: '0.2rem' }}>@{username || 'username'} • {grade || 'Grade Not Set'} • {gender || 'Gender Not Specified'}</p>
-                  <p style={{ marginTop: '0.6rem', fontSize: '0.85rem' }}>{bio || 'No bio written yet.'}</p>
-                </div>
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h1 style={{ fontSize: '1.6rem', fontWeight: 'bold' }}>{nickname || 'Student Profile'}</h1>
+                <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginTop: '0.2rem' }}>@{username || 'username'} • {grade || 'Grade Not Set'}</p>
               </div>
-
-              <div style={{ backgroundColor: theme.bg, padding: '1rem 1.5rem', borderRadius: '12px', border: `1px solid ${theme.border}`, textAlign: 'right' }}>
-                <span style={{ fontSize: '0.75rem', color: theme.textMuted, display: 'block', textTransform: 'uppercase', fontWeight: 'bold' }}>Member Since</span>
-                <strong style={{ fontSize: '1rem', color: theme.accent }}>{createdAt}</strong>
-              </div>
+              <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.8rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Edit Profile</button>
             </div>
 
             {isAdmin && (
-              <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.05)', border: `1px solid ${theme.accent}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.05)', border: '1px solid #EF4444', borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.accent }}>North Synapse Operational Analytics</h2>
-                  <span style={{ backgroundColor: theme.cardBg, padding: '0.4rem 0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}`, fontSize: '0.85rem', color: '#10B981', fontWeight: 'bold' }}>
-                    ● Average Rating: {avgRating} / 5.0
-                  </span>
+                  <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#EF4444' }}>Admin Moderation Panel ({pendingReports.length} Pending Reports)</h2>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.2rem' }}>
-                  <div style={{ padding: '1.2rem', backgroundColor: theme.cardBg, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Total Reviews Received</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: '900', color: theme.accent, marginTop: '0.3rem' }}>{feedbacks.length} Reviews</h3>
-                  </div>
-                  <div style={{ padding: '1.2rem', backgroundColor: theme.cardBg, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Overall Platform Rating</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: '900', color: '#F59E0B', marginTop: '0.3rem' }}>★ {avgRating}</h3>
-                  </div>
-                </div>
+                {pendingReports.length > 0 ? (
+                  pendingReports.map((rep) => (
+                    <div key={rep.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontSize: '0.75rem', backgroundColor: '#EF4444', color: '#FFF', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 'bold' }}>{rep.targetType.toUpperCase()}</span>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 'bold', marginTop: '0.4rem' }}>Target: {rep.targetTitle}</h4>
+                        <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>Reason: <strong>{rep.reason}</strong> | Details: {rep.details || 'None provided'}</p>
+                        <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Reported by: {rep.reporterEmail} • {rep.date}</span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.8rem' }}>
+                        <button onClick={() => handleAdminResolveReport(rep.id, 'delete')} style={{ backgroundColor: '#EF4444', color: '#FFF', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>
+                          Confirm &amp; Delete
+                        </button>
+                        <button onClick={() => handleAdminResolveReport(rep.id, 'dismiss')} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p style={{ color: theme.textMuted, fontSize: '0.9rem' }}>No pending reports to review.</p>
+                )}
               </div>
             )}
-
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-              <button 
-                onClick={() => setShowEditProfileModal(true)}
-                style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.95rem' }}
-              >
-                Edit Profile
-              </button>
-            </div>
 
           </div>
         )}
@@ -943,14 +926,134 @@ export default function Home() {
       </main>
 
       {/* ===================================================================
-          8. EDIT PROFILE MODAL
+          8. PREVIEW MODAL (SPLIT VIEW WITH TOGGLE COMMENTS)
+          =================================================================== */}
+      {previewResource && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '960px', height: '80vh', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            
+            {/* Modal Header */}
+            <div style={{ padding: '1.2rem 2rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: 'bold' }}>{previewResource.subject}</span>
+                <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', marginTop: '0.2rem' }}>{previewResource.title}</h2>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <button onClick={() => setShowCommentsArea(!showCommentsArea)} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}>
+                  {showCommentsArea ? 'Hide Comments' : 'Show Comments'}
+                </button>
+                <button onClick={() => setPreviewResource(null)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.4rem' }}>X</button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+              
+              {/* Left Content Area */}
+              <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', borderRight: showCommentsArea ? `1px solid ${theme.border}` : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: `1px solid ${theme.border}` }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: theme.accent, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                    {previewResource.authorName[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '0.95rem' }}>{previewResource.authorName}</strong>
+                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Posted on {previewResource.date}</span>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.95rem', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}>
+                  {previewResource.content}
+                </div>
+              </div>
+
+              {/* Right Comments Sidebar */}
+              {showCommentsArea && (
+                <div style={{ width: '360px', backgroundColor: theme.bg, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Comments ({previewResource.comments.length})</h3>
+
+                  <form onSubmit={handleAddComment} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    <textarea 
+                      rows={3} 
+                      placeholder="Write a comment..." 
+                      value={newCommentText}
+                      onChange={(e) => setNewCommentText(e.target.value)}
+                      style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box' }}
+                    />
+                    <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end', fontSize: '0.85rem' }}>Post Comment</button>
+                  </form>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+                    {previewResource.comments.map((c) => (
+                      <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                          <strong style={{ fontSize: '0.85rem' }}>{c.authorName}</strong>
+                          <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{c.date}</span>
+                        </div>
+                        <p style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>{c.text}</p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <button onClick={() => handleLikeComment(c.id)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '0.75rem' }}>
+                            Like ({c.likes})
+                          </button>
+                          <button onClick={(e) => triggerReportModal('comment', c.id, c.text, c.authorName, e)} style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '0.75rem', cursor: 'pointer' }}>
+                            Report
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================
+          9. REPORT MODAL
+          =================================================================== */}
+      {showReportModal && reportTarget && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#EF4444' }}>Report Content</h2>
+              <button onClick={() => setShowReportModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+            </div>
+
+            <form onSubmit={handleSubmitReport} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Report Reason</label>
+                <select value={reportReason} onChange={(e) => setReportReason(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}>
+                  <option value="Academic Dishonesty">Academic Dishonesty / Unreleased Exam</option>
+                  <option value="Insulting / Harassment">Insulting Language / Harassment</option>
+                  <option value="Spam / Inappropriate">Spam / Inappropriate Content</option>
+                  <option value="Other">Other Issues</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Additional Details (Optional)</label>
+                <textarea rows={3} placeholder="Provide specific context if needed..." value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              <button type="submit" style={{ backgroundColor: '#EF4444', color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                Submit Report
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================
+          10. EDIT PROFILE MODAL
           =================================================================== */}
       {showEditProfileModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}`, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Edit Profile Settings</h2>
-              <button onClick={() => setShowEditProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+              <button onClick={() => setShowEditProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
             </div>
 
             <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
@@ -1012,14 +1115,14 @@ export default function Home() {
       )}
 
       {/* ===================================================================
-          9. AUTHENTICATION & FORGOT PASSWORD MODALS
+          11. AUTHENTICATION & RESET MODALS
           =================================================================== */}
       {showAuthModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{isSignUp ? 'Sign Up' : 'Sign In'}</h2>
-              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
             </div>
 
             <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1071,7 +1174,7 @@ export default function Home() {
           <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px', border: `1px solid ${theme.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Reset Password</h2>
-              <button onClick={() => setShowForgotPasswordModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+              <button onClick={() => setShowForgotPasswordModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
             </div>
 
             <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1088,13 +1191,13 @@ export default function Home() {
         </div>
       )}
 
-      {/* Reset NEW Password Modal (Triggered via Email Token Link) */}
+      {/* Set New Password Modal */}
       {showResetNewPasswordModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999999 }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px', border: `1px solid ${theme.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.accent }}>Set New Password</h2>
-              <button onClick={() => setShowResetNewPasswordModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+              <button onClick={() => setShowResetNewPasswordModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
             </div>
 
             <form onSubmit={handleUpdateNewPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1124,7 +1227,7 @@ export default function Home() {
           <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '16px', width: '90%', maxWidth: '520px', border: `1px solid ${theme.border}`, maxHeight: '80vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.8rem' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.accent }}>Terms of Service &amp; Community Agreement</h2>
-              <button onClick={() => setShowTermsModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+              <button onClick={() => setShowTermsModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
             </div>
 
             <div style={{ fontSize: '0.85rem', color: theme.textMuted, lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
