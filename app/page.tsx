@@ -236,7 +236,7 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Precise Banner Timer
+  // Banner Timer
   useEffect(() => {
     if (announcements.length <= 1) return;
     const timer = setInterval(() => {
@@ -246,14 +246,14 @@ export default function Home() {
   }, [announcements]);
 
   /* ==========================================================================
-     4. HANDLERS (EXPLICIT AUTO-UNBLOCK SIGN-UP LOGIC)
+     4. HANDLERS
      ========================================================================== */
   function toggleSubjectFilter(sub: string) {
     setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
   }
 
   function toggleGradeFilter(grd: string) {
-    setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, g]);
+    setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, grd]);
   }
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -283,14 +283,12 @@ export default function Home() {
           return;
         }
 
-        // Try standard SignUp first
         const { error: signUpError } = await supabase.auth.signUp({
           email: authEmail.trim(),
           password: authPassword,
         });
 
         if (signUpError) {
-          // If Supabase flags that email is already registered, automatically sign in with new credentials and refresh metadata
           if (signUpError.message.toLowerCase().includes('already registered')) {
             const { error: signInErr } = await supabase.auth.signInWithPassword({
               email: authEmail.trim(),
@@ -300,7 +298,6 @@ export default function Home() {
             if (signInErr) {
               alert('Account exists! If you forgot your password, please use Forgot Password to reset it.');
             } else {
-              // Reset profile metadata for new account state
               await supabase.auth.updateUser({
                 data: {
                   avatar_url: '',
@@ -625,11 +622,10 @@ export default function Home() {
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
       {/* ===================================================================
-          6. HEADER & NAVIGATION WITH RESTORED ORIGINAL LOGO
+          6. HEADER & NAVIGATION
           =================================================================== */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
-        {/* --- ORIGINAL NORTH SYNAPSE NEURAL NETWORK LOGO --- */}
         <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.3rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', letterSpacing: '-0.02em' }}>
           <svg width="34" height="34" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M75 25 C 50 10, 20 20, 25 45 C 30 70, 70 65, 75 80 C 80 95, 45 95, 25 80" stroke="#8B5CF6" strokeWidth="8" strokeLinecap="round"/>
@@ -705,7 +701,7 @@ export default function Home() {
           =================================================================== */}
       <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
         
-        {/* --- PERFECTLY CENTERED BANNER (NO OVERFLOW/CUT-OFF) --- */}
+        {/* --- PERFECTLY CENTERED BANNER --- */}
         <div style={{ 
           backgroundColor: 'rgba(139, 92, 246, 0.08)', 
           border: `1px solid ${theme.accent}`, 
@@ -888,7 +884,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- DASHBOARD TAB (WITH ADMIN MODERATION PANEL) --- */}
+        {/* --- DASHBOARD TAB --- */}
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
@@ -1252,3 +1248,4 @@ export default function Home() {
 
     </div>
   );
+}
