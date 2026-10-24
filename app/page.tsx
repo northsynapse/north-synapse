@@ -724,24 +724,34 @@ export default function Home() {
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
-      {/* HEADER & NAVIGATION WITH EXACT MATCH LOGO */}
+      {/* HEADER & NAVIGATION WITH EXACT MATCH LOGO FROM LATEST IMAGE */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
-        {/* EXACT LOGO FROM IMAGE 2 */}
-        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.35rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', letterSpacing: '-0.02em' }}>
-          <svg width="32" height="38" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M 80 25 C 80 10, 20 10, 20 35 C 20 60, 80 60, 80 85 C 80 110, 20 110, 20 95" stroke="#A78BFA" strokeWidth="8" strokeLinecap="round" fill="none" />
-            <path d="M 20 25 C 20 10, 80 10, 80 35 C 80 60, 20 60, 20 85 C 20 110, 80 110, 80 95" stroke="#A78BFA" strokeWidth="8" strokeLinecap="round" strokeDasharray="3 10" fill="none" />
-            <circle cx="80" cy="25" r="5" fill="#A78BFA" />
-            <circle cx="20" cy="35" r="5" fill="#A78BFA" />
-            <circle cx="80" cy="60" r="4" fill="#A78BFA" />
-            <circle cx="20" cy="60" r="4" fill="#A78BFA" />
-            <circle cx="80" cy="85" r="5" fill="#A78BFA" />
-            <circle cx="20" cy="95" r="5" fill="#A78BFA" />
-            <line x1="20" y1="35" x2="80" y2="60" stroke="#A78BFA" strokeWidth="2.5" strokeDasharray="4 4" opacity="0.8" />
-            <line x1="80" y1="25" x2="20" y2="60" stroke="#A78BFA" strokeWidth="2.5" strokeDasharray="4 4" opacity="0.8" />
-            <line x1="20" y1="60" x2="80" y2="85" stroke="#A78BFA" strokeWidth="2.5" strokeDasharray="4 4" opacity="0.8" />
-            <line x1="80" y1="60" x2="20" y2="95" stroke="#A78BFA" strokeWidth="2.5" strokeDasharray="4 4" opacity="0.8" />
+        {/* EXACT LOGO MATCHED FROM LATEST USER IMAGE */}
+        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.4rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.9rem', cursor: 'pointer', letterSpacing: '-0.02em' }}>
+          <svg width="44" height="48" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Smooth Rounded Double Arc Chains */}
+            <path d="M 82,24 C 82,8 18,8 18,36 C 18,64 82,64 82,92 C 82,112 18,112 18,92" stroke="#A78BFA" strokeWidth="8.5" strokeLinecap="round" fill="none" />
+            <path d="M 18,24 C 18,8 82,8 82,36 C 82,64 18,64 18,92 C 18,112 82,112 82,92" stroke="#A78BFA" strokeWidth="8.5" strokeLinecap="round" fill="none" opacity="0.45" />
+
+            {/* Inner Diagonal Synapse Chains */}
+            <line x1="26" y1="28" x2="74" y2="44" stroke="#A78BFA" strokeWidth="3" strokeDasharray="4 4" />
+            <line x1="74" y1="28" x2="26" y2="44" stroke="#A78BFA" strokeWidth="3" strokeDasharray="4 4" />
+            <line x1="26" y1="80" x2="74" y2="96" stroke="#A78BFA" strokeWidth="3" strokeDasharray="4 4" />
+            <line x1="74" y1="80" x2="26" y2="96" stroke="#A78BFA" strokeWidth="3" strokeDasharray="4 4" />
+
+            {/* Main Outer & Inner Synapse Node Circles */}
+            <circle cx="82" cy="24" r="6.5" fill="#A78BFA" />
+            <circle cx="18" cy="24" r="6.5" fill="#A78BFA" />
+            <circle cx="74" cy="38" r="5" fill="#A78BFA" />
+            <circle cx="26" cy="38" r="5" fill="#A78BFA" />
+            
+            <circle cx="50" cy="62" r="7.5" fill="#A78BFA" />
+
+            <circle cx="26" cy="84" r="5" fill="#A78BFA" />
+            <circle cx="74" cy="84" r="5" fill="#A78BFA" />
+            <circle cx="18" cy="98" r="6.5" fill="#A78BFA" />
+            <circle cx="82" cy="98" r="6.5" fill="#A78BFA" />
           </svg>
           <span>North Synapse</span>
           {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>OFFICIAL ADMIN</span>}
