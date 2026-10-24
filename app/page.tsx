@@ -17,7 +17,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
-type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'dashboard';
+type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard';
 
 interface AnnouncementItem {
   id: string;
@@ -27,11 +27,24 @@ interface AnnouncementItem {
   authorName: string;
   authorAvatar: string;
   images: string[];
-  formatting?: {
-    isBold?: boolean;
-    isItalic?: boolean;
-    headerSize?: 'normal' | 'h2' | 'h3';
-  };
+}
+
+interface ResourceItem {
+  id: string;
+  title: string;
+  subject: string;
+  grade: string;
+  description: string;
+  author: string;
+}
+
+interface FeedbackItem {
+  id: string;
+  rating: number;
+  category: string;
+  comment: string;
+  userEmail: string;
+  date: string;
 }
 
 export default function Home() {
@@ -43,12 +56,14 @@ export default function Home() {
 
   const [user, setUser] = useState<any>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   
   // Auth Form State
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
   const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
@@ -64,8 +79,27 @@ export default function Home() {
   const [createdAt, setCreatedAt] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Announcements List State
-  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([
+  // Multi-Select Filter State
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Sample Resources Data
+  const [resources] = useState<ResourceItem[]>([
+    { id: '1', title: 'AP Calculus BC Derivatives & Series Review', subject: 'Mathematics', grade: 'AP Courses', description: 'Comprehensive prep guide covering AP exam series convergence tests.', author: 'Alex Smith' },
+    { id: '2', title: 'Waterloo Fermat Math Competition Solutions', subject: 'Mathematics', grade: 'Academic Competitions', description: 'Step-by-step solutions for past contest papers.', author: 'Jordan Lee' },
+    { id: '3', title: 'French DELF B2 Grammar & Oral Guide', subject: 'French', grade: 'Grade 11', description: 'Oral exam key vocabulary and sentence structures.', author: 'Emily Zhang' },
+    { id: '4', title: 'Business Management & Economics Fundamentals', subject: 'Business & Economics', grade: 'Grade 12', description: 'Summary notes for business case analysis and market models.', author: 'Chris Wong' },
+  ]);
+
+  // Feedback State
+  const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackCategory, setFeedbackCategory] = useState('General Suggestion');
+  const [feedbackComment, setFeedbackComment] = useState('');
+
+  // Announcements Carousel State
+  const [announcements] = useState<AnnouncementItem[]>([
     {
       id: '1',
       title: 'Welcome to North Synapse Academic Platform',
@@ -77,50 +111,23 @@ export default function Home() {
     },
     {
       id: '2',
-      title: 'New Study Lounges & Pomodoro Timers Deployment',
-      content: 'We are launching virtual quiet study lounges for midterm prep. Check back under the Study Lounge tab!',
-      date: 'Oct 22, 2026',
-      authorName: 'North Synapse Official',
-      authorAvatar: '',
-      images: []
-    },
-    {
-      id: '3',
-      title: 'Academic Integrity & Platform Rules',
-      content: 'Ensure all shared materials uphold school guidelines and student privacy. Welcome everyone!',
-      date: 'Oct 18, 2026',
+      title: 'AP & Competition Prep Resource Categories Added',
+      content: 'We updated our Resource Hub filter tags with AP Courses, Academic Competitions, French, and Geography!',
+      date: 'Oct 24, 2026',
       authorName: 'North Synapse Official',
       authorAvatar: '',
       images: []
     }
   ]);
-
-  // Rolling Banner Carousel Index State (10 Seconds Auto Carousel)
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
-  // Admin Rich Post Form State
-  const [newTitle, setNewTitle] = useState('');
-  const [newContent, setNewContent] = useState('');
-  const [postAuthorIdentity, setPostAuthorIdentity] = useState('official');
-  const [customAuthorName, setCustomAuthorName] = useState('');
-  const [customAuthorAvatar, setCustomAuthorAvatar] = useState('');
-  const [imageInputs, setImageInputs] = useState<string[]>(['']);
-  const [isBold, setIsBold] = useState(false);
-  const [isItalic, setIsItalic] = useState(false);
-  const [headerSize, setHeaderSize] = useState<'normal' | 'h2' | 'h3'>('normal');
-
-  // Resource Filter State
-  const [selectedTag, setSelectedTag] = useState('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // File Input Ref
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Check if current logged-in user is Admin
+  // Admin Check
   const isAdmin = user?.email?.toLowerCase().includes('northsynapse');
 
   /* ==========================================================================
-     3. AUTHENTICATION & CAROUSEL TIMING EFFECT
+     3. AUTHENTICATION & CAROUSEL EFFECTS
      ========================================================================== */
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -157,14 +164,14 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Auto-scroll Banner Timer (Rotates through latest 3 items every 10 seconds)
+  // Carousel Timer
   useEffect(() => {
     const bannerItemsCount = Math.min(announcements.length, 3);
     if (bannerItemsCount <= 1) return;
 
     const timer = setInterval(() => {
       setCurrentBannerIndex((prevIndex) => (prevIndex + 1) % bannerItemsCount);
-    }, 10000); // 10 seconds
+    }, 10000);
 
     return () => clearInterval(timer);
   }, [announcements]);
@@ -172,25 +179,29 @@ export default function Home() {
   /* ==========================================================================
      4. HANDLERS
      ========================================================================== */
+  function toggleSubjectFilter(sub: string) {
+    if (selectedSubjects.includes(sub)) {
+      setSelectedSubjects(selectedSubjects.filter(s => s !== sub));
+    } else {
+      setSelectedSubjects([...selectedSubjects, sub]);
+    }
+  }
+
+  function toggleGradeFilter(grd: string) {
+    if (selectedGrades.includes(grd)) {
+      setSelectedGrades(selectedGrades.filter(g => g !== grd));
+    } else {
+      setSelectedGrades([...selectedGrades, grd]);
+    }
+  }
+
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarUrl(reader.result as string);
-      };
+      reader.onloadend = () => setAvatarUrl(reader.result as string);
       reader.readAsDataURL(file);
     }
-  }
-
-  function handleAddImageInput() {
-    setImageInputs([...imageInputs, '']);
-  }
-
-  function handleImageInputChange(index: number, val: string) {
-    const updated = [...imageInputs];
-    updated[index] = val;
-    setImageInputs(updated);
   }
 
   async function handleAuthSubmit(e: React.FormEvent) {
@@ -205,7 +216,7 @@ export default function Home() {
           return;
         }
         if (!hasAgreedTerms) {
-          alert('Please review and agree to the Terms of Service before registering.');
+          alert('Please review and agree to the Terms of Service.');
           setLoading(false);
           return;
         }
@@ -218,7 +229,7 @@ export default function Home() {
         if (error) {
           alert('SignUp Failed: ' + error.message);
         } else {
-          alert('Registration successful! Redirecting to your Dashboard.');
+          alert('Registration successful! Redirecting to Dashboard.');
           setShowAuthModal(false);
           setActiveTab('dashboard');
         }
@@ -239,6 +250,27 @@ export default function Home() {
       alert('Network Error: ' + (err.message || 'Failed to fetch'));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resetEmail.trim()) return;
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+        redirectTo: window.location.origin,
+      });
+
+      if (error) {
+        alert('Reset Password Error: ' + error.message);
+      } else {
+        alert('A password reset link/verification has been sent to your email address!');
+        setShowForgotPasswordModal(false);
+        setResetEmail('');
+      }
+    } catch (err: any) {
+      alert('Error sending reset email: ' + err.message);
     }
   }
 
@@ -272,13 +304,11 @@ export default function Home() {
   }
 
   async function handleDeleteAccount() {
-    const confirmDelete = window.confirm('Are you sure you want to delete this account? This will permanently invalidate your current credentials.');
+    const confirmDelete = window.confirm('Are you sure you want to delete this account? Your profile data will be permanently cleared.');
     if (!confirmDelete) return;
 
     try {
-      const scrambledPassword = 'DELETED_' + Math.random().toString(36).slice(-10) + Date.now();
       await supabase.auth.updateUser({
-        password: scrambledPassword,
         data: {
           avatar_url: '',
           username: '',
@@ -300,45 +330,32 @@ export default function Home() {
       setUser(null);
       setShowEditProfileModal(false);
       setActiveTab('resources');
-      alert('Account invalidated and signed out successfully.');
+      alert('Account signed out and profile metadata erased.');
     } catch (err: any) {
-      alert('Error deactivating account: ' + err.message);
+      alert('Error during account deletion: ' + err.message);
     }
   }
 
-  function handleCreateAnnouncement(e: React.FormEvent) {
+  function handleAddFeedback(e: React.FormEvent) {
     e.preventDefault();
-    if (!newTitle.trim() || !newContent.trim()) return;
+    if (!feedbackComment.trim()) return;
 
-    const validImages = imageInputs.filter(url => url.trim() !== '');
-
-    const newPost: AnnouncementItem = {
+    const newFb: FeedbackItem = {
       id: Date.now().toString(),
-      title: newTitle,
-      content: newContent,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      authorName: postAuthorIdentity === 'custom' && customAuthorName.trim() ? customAuthorName : 'North Synapse Official',
-      authorAvatar: postAuthorIdentity === 'custom' ? customAuthorAvatar : '',
-      images: validImages,
-      formatting: {
-        isBold,
-        isItalic,
-        headerSize
-      }
+      rating: feedbackRating,
+      category: feedbackCategory,
+      comment: feedbackComment,
+      userEmail: user?.email || 'Anonymous Student',
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     };
 
-    setAnnouncements([newPost, ...announcements]);
-    setCurrentBannerIndex(0);
-    setNewTitle('');
-    setNewContent('');
-    setImageInputs(['']);
-    setCustomAuthorName('');
-    setCustomAuthorAvatar('');
-    alert('Announcement / Poster published successfully!');
+    setFeedbacks([newFb, ...feedbacks]);
+    setFeedbackComment('');
+    alert('Thank you for your feedback! Submitted directly to the admin team.');
   }
 
   /* ==========================================================================
-     5. THEME DEFINITION
+     5. THEME & FILTER LIST DEFINITION (POPULARITY RANKED)
      ========================================================================== */
   const theme = {
     bg: isDarkMode ? '#0E1117' : '#F8FAFC',
@@ -349,9 +366,39 @@ export default function Home() {
     accent: '#8B5CF6',
   };
 
-  // Get Top 3 Items for Vertical Carousel
+  // Subjects Sorted by Popularity
+  const subjectsList = [
+    'Mathematics',
+    'Science',
+    'ESL & Languages',
+    'French',
+    'History & Social Sciences',
+    'Geography',
+    'Business & Economics',
+    'Art & Music',
+    'Computer Science & Tech'
+  ];
+
+  // Grade & Academic Track Options
+  const gradesList = [
+    'Grade 9',
+    'Grade 10',
+    'Grade 11',
+    'Grade 12',
+    'AP Courses',
+    'Academic Competitions'
+  ];
+
+  // Filtering Logic
+  const filteredResources = resources.filter(res => {
+    const matchesSubject = selectedSubjects.length === 0 || selectedSubjects.includes(res.subject);
+    const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(res.grade);
+    const matchesSearch = searchQuery === '' || res.title.toLowerCase().includes(searchQuery.toLowerCase()) || res.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSubject && matchesGrade && matchesSearch;
+  });
+
   const topThreeAnnouncements = announcements.slice(0, 3);
-  const activeBannerItem = topThreeAnnouncements[currentBannerIndex] || topThreeAnnouncements[0];
+  const avgRating = feedbacks.length > 0 ? (feedbacks.reduce((acc, f) => acc + f.rating, 0) / feedbacks.length).toFixed(1) : '5.0';
 
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
@@ -383,8 +430,8 @@ export default function Home() {
         </div>
 
         {/* --- NAVIGATION TABS --- */}
-        <nav style={{ display: 'flex', gap: '1.8rem' }}>
-          {(['resources', 'lounges', 'announcements', 'discussions'] as NavTab[]).map((tab) => (
+        <nav style={{ display: 'flex', gap: '1.6rem' }}>
+          {(['resources', 'lounges', 'announcements', 'discussions', 'feedback'] as NavTab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -396,10 +443,11 @@ export default function Home() {
                 cursor: 'pointer',
                 fontSize: '0.95rem',
                 paddingBottom: '0.3rem',
-                borderBottom: activeTab === tab ? `2px solid ${theme.accent}` : '2px solid transparent'
+                borderBottom: activeTab === tab ? `2px solid ${theme.accent}` : '2px solid transparent',
+                textTransform: 'capitalize'
               }}
             >
-              {tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounge' : tab === 'announcements' ? 'Announcements' : 'Discussions'}
+              {tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounge' : tab}
             </button>
           ))}
           {user && (
@@ -487,7 +535,7 @@ export default function Home() {
           =================================================================== */}
       <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
         
-        {/* --- VERTICAL ROLLING BANNER (LOOPS TOP 3 LATEST ANNOUNCEMENTS EVERY 10 SECONDS) --- */}
+        {/* --- VERTICAL ROLLING BANNER --- */}
         <div style={{ 
           backgroundColor: 'rgba(139, 92, 246, 0.08)', 
           border: `1px solid ${theme.accent}`, 
@@ -507,7 +555,6 @@ export default function Home() {
               NOTICE ({currentBannerIndex + 1}/{topThreeAnnouncements.length})
             </span>
 
-            {/* Vertical Smooth Slide Text Container */}
             <div style={{ 
               display: 'flex', 
               flexDirection: 'column', 
@@ -535,115 +582,118 @@ export default function Home() {
           </button>
         </div>
 
-        {/* --- RESOURCE HUB TAB --- */}
+        {/* --- RESOURCE HUB TAB (WITH POPULARITY CATEGORY & TRACK FILTERS) --- */}
         {activeTab === 'resources' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
-            {/* Hero Text Banner */}
-            <div style={{ textAlign: 'center', padding: '0.5rem 0 1.5rem 0' }}>
-              <span style={{ 
-                backgroundColor: 'rgba(139, 92, 246, 0.15)', 
-                color: theme.accent, 
-                padding: '0.4rem 1rem', 
-                borderRadius: '20px', 
-                fontSize: '0.8rem', 
-                fontWeight: '700',
-                letterSpacing: '0.03em',
-                display: 'inline-block',
-                marginBottom: '1.2rem'
-              }}>
+            <div style={{ textAlign: 'center', padding: '0.5rem 0 0.5rem 0' }}>
+              <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '700', display: 'inline-block', marginBottom: '1rem' }}>
                 Academic Platform for NTCI
               </span>
-              
-              <h1 style={{ fontSize: '2.8rem', fontWeight: '900', letterSpacing: '-0.03em', marginBottom: '1rem' }}>
-                North Synapse
-              </h1>
-              
-              <p style={{ color: theme.textMuted, fontSize: '1.05rem', maxWidth: '600px', margin: '0 auto', lineHeight: '1.5' }}>
-                A centralized workspace for verified course resources, virtual study rooms, and academic peer discussions.
+              <h1 style={{ fontSize: '2.5rem', fontWeight: '900', letterSpacing: '-0.03em', marginBottom: '0.8rem' }}>North Synapse</h1>
+              <p style={{ color: theme.textMuted, fontSize: '1rem', maxWidth: '580px', margin: '0 auto', lineHeight: '1.5' }}>
+                Browse verified course materials, AP guides, and contest prep by selecting subject categories below.
               </p>
             </div>
 
-            {/* Search & Tag Filter Bar */}
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, position: 'relative', minWidth: '300px' }}>
-                <span style={{ position: 'absolute', left: '1.2rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted, fontSize: '1rem' }}>🔍</span>
-                <input 
-                  type="text" 
-                  placeholder="Search notes, exam prep, course codes (e.g. ICS4U, SPH4U)..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ 
-                    width: '100%', 
-                    padding: '0.85rem 1rem 0.85rem 3rem', 
-                    borderRadius: '10px', 
-                    border: `1px solid ${theme.border}`, 
-                    backgroundColor: theme.cardBg, 
-                    color: theme.textMain, 
-                    boxSizing: 'border-box',
-                    fontSize: '0.9rem',
-                    outline: 'none'
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                {['ALL', 'ICS4U', 'SPH4U', 'MCV4U', 'SCH4U'].map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => setSelectedTag(tag)}
-                    style={{
-                      padding: '0.6rem 1.1rem',
-                      borderRadius: '8px',
-                      border: `1px solid ${selectedTag === tag ? theme.accent : theme.border}`,
-                      backgroundColor: selectedTag === tag ? theme.accent : theme.cardBg,
-                      color: selectedTag === tag ? '#FFF' : theme.textMuted,
-                      fontWeight: '700',
-                      fontSize: '0.8rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
+            {/* Search Bar */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <span style={{ position: 'absolute', left: '1.2rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}>🔍</span>
+              <input 
+                type="text" 
+                placeholder="Search notes, topics, or study guide titles..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ width: '100%', padding: '0.85rem 1rem 0.85rem 3rem', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box', outline: 'none' }}
+              />
             </div>
 
-            {/* File Center Inner Box */}
-            <div style={{ 
-              backgroundColor: theme.cardBg, 
-              border: `1px solid ${theme.border}`, 
-              borderRadius: '16px', 
-              padding: '4rem 2rem', 
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '1rem'
-            }}>
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={theme.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-              </svg>
+            {/* Multi-Select Tags Panel (Streaming / Category Style) */}
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              
+              {/* Category 1: Grade Level & Academic Track */}
+              <div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>LEVEL &amp; ACADEMIC TRACK:</span>
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  {gradesList.map((grd) => {
+                    const isSelected = selectedGrades.includes(grd);
+                    return (
+                      <button
+                        key={grd}
+                        onClick={() => toggleGradeFilter(grd)}
+                        style={{
+                          padding: '0.4rem 1rem',
+                          borderRadius: '20px',
+                          border: `1px solid ${isSelected ? theme.accent : theme.border}`,
+                          backgroundColor: isSelected ? theme.accent : theme.bg,
+                          color: isSelected ? '#FFF' : theme.textMain,
+                          fontWeight: '600',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {isSelected ? '✓ ' : ''}{grd}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-              <h3 style={{ fontSize: '1.3rem', fontWeight: '800', marginTop: '0.5rem' }}>No Resources Available</h3>
-              <p style={{ color: theme.textMuted, fontSize: '0.9rem', maxWidth: '400px' }}>
-                Be the first to share course notes or study guides for this course.
-              </p>
+              {/* Category 2: Subjects Sorted by Popularity */}
+              <div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  {subjectsList.map((sub) => {
+                    const isSelected = selectedSubjects.includes(sub);
+                    return (
+                      <button
+                        key={sub}
+                        onClick={() => toggleSubjectFilter(sub)}
+                        style={{
+                          padding: '0.4rem 1rem',
+                          borderRadius: '20px',
+                          border: `1px solid ${isSelected ? theme.accent : theme.border}`,
+                          backgroundColor: isSelected ? theme.accent : theme.bg,
+                          color: isSelected ? '#FFF' : theme.textMain,
+                          fontWeight: '600',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {isSelected ? '✓ ' : ''}{sub}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-              <button style={{ 
-                backgroundColor: theme.accent, 
-                color: '#FFF', 
-                border: 'none', 
-                padding: '0.8rem 2rem', 
-                borderRadius: '8px', 
-                fontWeight: 'bold', 
-                cursor: 'pointer', 
-                marginTop: '0.8rem',
-                fontSize: '0.9rem'
-              }}>
-                Upload Resource
-              </button>
+            </div>
+
+            {/* Filtered Results Card Grid */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {filteredResources.length > 0 ? (
+                filteredResources.map((res) => (
+                  <div key={res.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.5rem' }}>
+                        <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px' }}>{res.subject}</span>
+                        <span style={{ backgroundColor: theme.bg, color: theme.textMuted, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>{res.grade}</span>
+                      </div>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{res.title}</h3>
+                      <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.3rem' }}>{res.description}</p>
+                      <span style={{ fontSize: '0.75rem', color: theme.textMuted, marginTop: '0.5rem', display: 'block' }}>Shared by: {res.author}</span>
+                    </div>
+
+                    <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>
+                      Download
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '3rem 2rem', textAlign: 'center' }}>
+                  <p style={{ color: theme.textMuted }}>No study resources match your selected subject/grade combination.</p>
+                </div>
+              )}
             </div>
 
           </div>
@@ -657,216 +707,81 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- ANNOUNCEMENTS TAB (WITH RICH POSTER EDITOR & IDENTITY SWITCHER) --- */}
+        {/* --- ANNOUNCEMENTS TAB --- */}
         {activeTab === 'announcements' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${theme.border}`, paddingBottom: '1rem' }}>
-              <div>
-                <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Official Announcements &amp; Posters</h1>
-                <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginTop: '0.3rem' }}>Browse official school announcements, posters, and student spotlights.</p>
-              </div>
-            </div>
-
-            {/* Admin Advanced Creator Control */}
-            {isAdmin && (
-              <form onSubmit={handleCreateAnnouncement} style={{ backgroundColor: 'rgba(139, 92, 246, 0.05)', border: `1px solid ${theme.accent}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', color: theme.accent }}>Admin Announcement &amp; Poster Studio</h3>
-                  <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Rich Poster Studio Active</span>
-                </div>
-
-                {/* Identity Selection Bar */}
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', backgroundColor: theme.cardBg, padding: '1rem', borderRadius: '10px', border: `1px solid ${theme.border}` }}>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Post Identity:</label>
-                  <select 
-                    value={postAuthorIdentity} 
-                    onChange={(e) => setPostAuthorIdentity(e.target.value)}
-                    style={{ padding: '0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}
-                  >
-                    <option value="official">North Synapse Official</option>
-                    <option value="custom">Post as Custom User / Student</option>
-                  </select>
-
-                  {postAuthorIdentity === 'custom' && (
-                    <div style={{ display: 'flex', gap: '0.8rem', flex: 1, minWidth: '280px' }}>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="Author Nickname (e.g. Alex Smith)"
-                        value={customAuthorName}
-                        onChange={(e) => setCustomAuthorName(e.target.value)}
-                        style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}
-                      />
-                      <input 
-                        type="text" 
-                        placeholder="Avatar Image URL (Optional)"
-                        value={customAuthorAvatar}
-                        onChange={(e) => setCustomAuthorAvatar(e.target.value)}
-                        style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Rich Formatting Toolbar */}
-                <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', backgroundColor: theme.cardBg, padding: '0.6rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
-                  <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Text Style:</span>
-                  <button 
-                    type="button" 
-                    onClick={() => setIsBold(!isBold)} 
-                    style={{ padding: '0.3rem 0.8rem', borderRadius: '4px', border: `1px solid ${theme.border}`, backgroundColor: isBold ? theme.accent : theme.bg, color: isBold ? '#FFF' : theme.textMain, fontWeight: 'bold', cursor: 'pointer' }}
-                  >
-                    B
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setIsItalic(!isItalic)} 
-                    style={{ padding: '0.3rem 0.8rem', borderRadius: '4px', border: `1px solid ${theme.border}`, backgroundColor: isItalic ? theme.accent : theme.bg, color: isItalic ? '#FFF' : theme.textMain, fontStyle: 'italic', cursor: 'pointer' }}
-                  >
-                    I
-                  </button>
-                  <select 
-                    value={headerSize} 
-                    onChange={(e: any) => setHeaderSize(e.target.value)}
-                    style={{ padding: '0.3rem', borderRadius: '4px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, fontSize: '0.8rem' }}
-                  >
-                    <option value="normal">Normal Text</option>
-                    <option value="h2">Large Title (H2)</option>
-                    <option value="h3">Medium Subtitle (H3)</option>
-                  </select>
-                </div>
-
-                {/* Title & Content Input */}
-                <input 
-                  type="text" 
-                  required
-                  placeholder="Poster / Announcement Heading..."
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box', fontWeight: 'bold' }}
-                />
-
-                <textarea 
-                  required
-                  rows={4}
-                  placeholder="Write full poster text, descriptions, or event details..."
-                  value={newContent}
-                  onChange={(e) => setNewContent(e.target.value)}
-                  style={{ 
-                    width: '100%', 
-                    padding: '0.8rem', 
-                    borderRadius: '8px', 
-                    border: `1px solid ${theme.border}`, 
-                    backgroundColor: theme.cardBg, 
-                    color: theme.textMain, 
-                    boxSizing: 'border-box', 
-                    fontFamily: 'inherit',
-                    fontWeight: isBold ? 'bold' : 'normal',
-                    fontStyle: isItalic ? 'italic' : 'normal',
-                  }}
-                />
-
-                {/* Multiple Image / Poster Attachment Section */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Poster Image Links (Multiple Supported):</label>
-                  {imageInputs.map((img, idx) => (
-                    <input
-                      key={idx}
-                      type="text"
-                      placeholder={`Image / Poster URL #${idx + 1}`}
-                      value={img}
-                      onChange={(e) => handleImageInputChange(idx, e.target.value)}
-                      style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box' }}
-                    />
-                  ))}
-                  <button 
-                    type="button" 
-                    onClick={handleAddImageInput} 
-                    style={{ background: 'none', border: `1px dashed ${theme.accent}`, color: theme.accent, padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', alignSelf: 'flex-start' }}
-                  >
-                    + Add Another Poster Image
-                  </button>
-                </div>
-
-                <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start', marginTop: '0.5rem' }}>
-                  Publish Announcement &amp; Poster
-                </button>
-              </form>
-            )}
-
-            {/* Announcements List with Left-Top Avatar & Image Gallery */}
+            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Official Announcements &amp; Posters</h1>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               {announcements.map((item) => (
                 <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-                  
-                  {/* Top Header: Author Identity Info & Date */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.8rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                      <div style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '50%',
-                        backgroundColor: theme.accent,
-                        backgroundImage: item.authorAvatar ? `url(${item.authorAvatar})` : 'none',
-                        backgroundSize: 'cover',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 'bold',
-                        color: '#FFF',
-                        fontSize: '0.85rem'
-                      }}>
-                        {!item.authorAvatar && item.authorName[0].toUpperCase()}
-                      </div>
-                      <div>
-                        <strong style={{ display: 'block', fontSize: '0.95rem', color: theme.textMain }}>{item.authorName}</strong>
-                        <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Official Publisher</span>
-                      </div>
-                    </div>
-
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
+                    <strong style={{ fontSize: '0.95rem', color: theme.accent }}>{item.authorName}</strong>
                     <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
                   </div>
-
-                  {/* Post Heading */}
-                  {item.formatting?.headerSize === 'h2' ? (
-                    <h2 style={{ fontSize: '1.6rem', fontWeight: '900', marginBottom: '0.8rem' }}>{item.title}</h2>
-                  ) : item.formatting?.headerSize === 'h3' ? (
-                    <h3 style={{ fontSize: '1.3rem', fontWeight: '800', marginBottom: '0.8rem' }}>{item.title}</h3>
-                  ) : (
-                    <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.8rem' }}>{item.title}</h3>
-                  )}
-
-                  {/* Post Content Body */}
-                  <p style={{ 
-                    fontSize: '0.95rem', 
-                    color: theme.textMain, 
-                    lineHeight: '1.6', 
-                    whiteSpace: 'pre-wrap',
-                    fontWeight: item.formatting?.isBold ? 'bold' : 'normal',
-                    fontStyle: item.formatting?.isItalic ? 'italic' : 'normal'
-                  }}>
-                    {item.content}
-                  </p>
-
-                  {/* Image Gallery Grid */}
-                  {item.images && item.images.length > 0 && (
-                    <div style={{ display: 'grid', gridTemplateColumns: item.images.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '1.2rem' }}>
-                      {item.images.map((imgUrl, imgIdx) => (
-                        <img 
-                          key={imgIdx} 
-                          src={imgUrl} 
-                          alt="Poster Attachment" 
-                          style={{ width: '100%', maxHeight: '400px', objectFit: 'cover', borderRadius: '10px', border: `1px solid ${theme.border}` }}
-                        />
-                      ))}
-                    </div>
-                  )}
-
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.8rem' }}>{item.title}</h3>
+                  <p style={{ fontSize: '0.95rem', color: theme.textMain, lineHeight: '1.6' }}>{item.content}</p>
                 </div>
               ))}
             </div>
+          </div>
+        )}
 
+        {/* --- FEEDBACK & REVIEWS TAB --- */}
+        {activeTab === 'feedback' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ borderBottom: `1px solid ${theme.border}`, paddingBottom: '1rem' }}>
+              <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Reviews</h1>
+              <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginTop: '0.3rem' }}>Submit star ratings and reviews directly to the North Synapse administration team.</p>
+            </div>
+
+            <form onSubmit={handleAddFeedback} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>Leave Your Feedback</h3>
+
+              <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Star Rating:</label>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <span 
+                      key={star} 
+                      onClick={() => setFeedbackRating(star)} 
+                      style={{ fontSize: '1.5rem', cursor: 'pointer', color: star <= feedbackRating ? '#F59E0B' : theme.textMuted }}
+                    >
+                      ★
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Category</label>
+                <select 
+                  value={feedbackCategory} 
+                  onChange={(e) => setFeedbackCategory(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}
+                >
+                  <option value="General Suggestion">General Suggestion</option>
+                  <option value="Bug Report">Bug Report</option>
+                  <option value="Resource Request">Resource Request</option>
+                  <option value="Study Lounge Feature">Study Lounge Feature</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Your Review / Feedback</label>
+                <textarea 
+                  required
+                  rows={4}
+                  placeholder="Let us know what you think or what features you'd like to see..."
+                  value={feedbackComment}
+                  onChange={(e) => setFeedbackComment(e.target.value)}
+                  style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', fontFamily: 'inherit' }}
+                />
+              </div>
+
+              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>
+                Submit Review
+              </button>
+            </form>
           </div>
         )}
 
@@ -878,11 +793,10 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- USER DASHBOARD TAB --- */}
+        {/* --- USER / ADMIN DASHBOARD TAB --- */}
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
-            {/* User Overview Profile Card */}
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2.5rem', display: 'flex', gap: '2rem', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
                 <div style={{
@@ -916,82 +830,34 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Display Member Since / Created Date */}
               <div style={{ backgroundColor: theme.bg, padding: '1rem 1.5rem', borderRadius: '12px', border: `1px solid ${theme.border}`, textAlign: 'right' }}>
-                <span style={{ fontSize: '0.75rem', color: theme.textMuted, display: 'block', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.05em' }}>Member Since</span>
+                <span style={{ fontSize: '0.75rem', color: theme.textMuted, display: 'block', textTransform: 'uppercase', fontWeight: 'bold' }}>Member Since</span>
                 <strong style={{ fontSize: '1rem', color: theme.accent }}>{createdAt}</strong>
               </div>
             </div>
 
-            {/* --- ADMIN EXCLUSIVE DASHBOARD (REPLACED STUDENT METRICS WITH REAL ADMIN ANALYTICS) --- */}
-            {isAdmin ? (
-              <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.05)', border: `1px solid ${theme.accent}`, borderRadius: '16px', padding: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.accent }}>North Synapse Master Operational Panel</h2>
-                  <div style={{ backgroundColor: theme.cardBg, padding: '0.5rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, fontSize: '0.85rem', color: theme.textMuted }}>
-                    Master Status: <strong style={{ color: '#10B981' }}>Live &amp; Operational</strong>
-                  </div>
+            {isAdmin && (
+              <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.05)', border: `1px solid ${theme.accent}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.accent }}>North Synapse Operational Analytics</h2>
+                  <span style={{ backgroundColor: theme.cardBg, padding: '0.4rem 0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}`, fontSize: '0.85rem', color: '#10B981', fontWeight: 'bold' }}>
+                    ● Average Rating: {avgRating} / 5.0
+                  </span>
                 </div>
 
-                {/* Admin Exclusive Stats Metrics */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.2rem' }}>
-                  
                   <div style={{ padding: '1.2rem', backgroundColor: theme.cardBg, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Total Registered Users</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: '900', color: theme.accent, marginTop: '0.3rem' }}>1 Accounts</h3>
-                    <span style={{ fontSize: '0.75rem', color: '#10B981' }}>● Verified Database</span>
+                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Total Reviews Received</span>
+                    <h3 style={{ fontSize: '1.8rem', fontWeight: '900', color: theme.accent, marginTop: '0.3rem' }}>{feedbacks.length} Reviews</h3>
                   </div>
-
                   <div style={{ padding: '1.2rem', backgroundColor: theme.cardBg, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Active Sessions</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: '900', color: theme.textMain, marginTop: '0.3rem' }}>1 Online</h3>
-                    <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Real-time user traffic</span>
+                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Overall Platform Rating</span>
+                    <h3 style={{ fontSize: '1.8rem', fontWeight: '900', color: '#F59E0B', marginTop: '0.3rem' }}>★ {avgRating}</h3>
                   </div>
-
-                  <div style={{ padding: '1.2rem', backgroundColor: theme.cardBg, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Platform Storage Used</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: '900', color: theme.textMain, marginTop: '0.3rem' }}>0.02 MB</h3>
-                    <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Supabase Cloud Bucket</span>
-                  </div>
-
-                  <div style={{ padding: '1.2rem', backgroundColor: theme.cardBg, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>System Firewall &amp; Auth</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: '900', color: '#10B981', marginTop: '0.3rem' }}>Protected</h3>
-                    <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Encrypted Tokens</span>
-                  </div>
-
-                </div>
-              </div>
-            ) : (
-              /* --- REGULAR STUDENT ACTIVITY GRID --- */
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>Study Lounge Activity</h3>
-                  <div style={{ fontSize: '0.85rem', color: theme.textMuted, display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                    <div style={{ padding: '0.8rem', backgroundColor: theme.bg, borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Total Study Time</span>
-                      <strong style={{ color: theme.accent }}>0 hrs 0 mins</strong>
-                    </div>
-                    <div style={{ padding: '0.8rem', backgroundColor: theme.bg, borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Rooms Joined</span>
-                      <strong>0 Lounges</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Posts &amp; Threads</h3>
-                  <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>You haven&apos;t created any posts in Discussions yet.</p>
-                </div>
-
-                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>Study Peers</h3>
-                  <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>No added study friends yet.</p>
                 </div>
               </div>
             )}
 
-            {/* Dashboard Edit Profile Trigger Button */}
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
               <button 
                 onClick={() => setShowEditProfileModal(true)}
@@ -1010,20 +876,7 @@ export default function Home() {
           8. EDIT PROFILE MODAL
           =================================================================== */}
       {showEditProfileModal && (
-        <div 
-          style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            width: '100vw', 
-            height: '100vh', 
-            backgroundColor: 'rgba(0,0,0,0.8)', 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            zIndex: 999999 
-          }}
-        >
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}`, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Edit Profile Settings</h2>
@@ -1031,84 +884,29 @@ export default function Home() {
             </div>
 
             <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              
-              {/* Avatar Upload Field */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  accept="image/*" 
-                  onChange={handleAvatarChange} 
-                  style={{ display: 'none' }} 
-                />
-                <div 
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    width: '75px',
-                    height: '75px',
-                    borderRadius: '50%',
-                    backgroundColor: theme.bg,
-                    border: `2px dashed ${theme.accent}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    overflow: 'hidden',
-                    backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none',
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                  }}
-                >
+                <input type="file" ref={fileInputRef} accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
+                <div onClick={() => fileInputRef.current?.click()} style={{ width: '75px', height: '75px', borderRadius: '50%', backgroundColor: theme.bg, border: `2px dashed ${theme.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none', backgroundSize: 'cover' }}>
                   {!avatarUrl && <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Upload</span>}
                 </div>
-                <div>
-                  <button 
-                    type="button" 
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}
-                  >
-                    Change Image
-                  </button>
-                  <p style={{ fontSize: '0.75rem', color: theme.textMuted, marginTop: '0.3rem' }}>Click to select an image from your device</p>
-                </div>
+                <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}>Change Image</button>
               </div>
 
-              {/* Username & Nickname Fields */}
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username</label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="alex_smith" 
-                    value={username} 
-                    onChange={(e) => setUsername(e.target.value)} 
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
-                  />
+                  <input type="text" required value={username} onChange={(e) => setUsername(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="Alex" 
-                    value={nickname} 
-                    onChange={(e) => setNickname(e.target.value)} 
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
-                  />
+                  <input type="text" required value={nickname} onChange={(e) => setNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
                 </div>
               </div>
 
-              {/* Grade Dropdown & Gender Select */}
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
-                  <select
-                    required
-                    value={grade}
-                    onChange={(e) => setGrade(e.target.value)}
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}
-                  >
+                  <select required value={grade} onChange={(e) => setGrade(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
                     <option value="">Select Grade</option>
                     <option value="Grade 9">Grade 9</option>
                     <option value="Grade 10">Grade 10</option>
@@ -1119,11 +917,7 @@ export default function Home() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (Optional)</label>
-                  <select
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}
-                  >
+                  <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
                     <option value="">Select Gender</option>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
@@ -1133,59 +927,25 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Bio Field */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio (Optional)</label>
-                <textarea 
-                  placeholder="Tell us a bit about yourself..." 
-                  value={bio} 
-                  onChange={(e) => setBio(e.target.value)} 
-                  rows={3}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', fontFamily: 'inherit' }} 
-                />
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio</label>
+                <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', fontFamily: 'inherit' }} />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-                <button 
-                  type="submit" 
-                  disabled={savingProfile}
-                  style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', opacity: savingProfile ? 0.6 : 1 }}
-                >
-                  {savingProfile ? 'Saving Changes...' : 'Save Profile Changes'}
-                </button>
-
-                <button 
-                  type="button" 
-                  onClick={handleDeleteAccount}
-                  style={{ background: 'none', border: '1px solid #EF4444', color: '#EF4444', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer' }}
-                >
-                  Delete Account
-                </button>
+                <button type="submit" disabled={savingProfile} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>{savingProfile ? 'Saving...' : 'Save Profile Changes'}</button>
+                <button type="button" onClick={handleDeleteAccount} style={{ background: 'none', border: '1px solid #EF4444', color: '#EF4444', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer' }}>Delete Account</button>
               </div>
-
             </form>
           </div>
         </div>
       )}
 
       {/* ===================================================================
-          9. AUTHENTICATION MODAL (SIGN IN / SIGN UP WITH TERMS)
+          9. AUTHENTICATION & FORGOT PASSWORD MODALS
           =================================================================== */}
       {showAuthModal && (
-        <div 
-          style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            width: '100vw', 
-            height: '100vh', 
-            backgroundColor: 'rgba(0,0,0,0.8)', 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            zIndex: 999999 
-          }}
-        >
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{isSignUp ? 'Sign Up' : 'Sign In'}</h2>
@@ -1195,162 +955,85 @@ export default function Home() {
             <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Email</label>
-                <input 
-                  type="email" 
-                  required 
-                  placeholder="350403596@tdsb.ca" 
-                  value={authEmail} 
-                  onChange={(e) => setAuthEmail(e.target.value)} 
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
-                />
+                <input type="email" required placeholder="350403596@tdsb.ca" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Password</label>
-                <input 
-                  type="password" 
-                  required 
-                  placeholder="••••••••" 
-                  value={authPassword} 
-                  onChange={(e) => setAuthPassword(e.target.value)} 
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                  <label style={{ fontSize: '0.85rem', color: theme.textMuted }}>Password</label>
+                  {!isSignUp && (
+                    <span onClick={() => { setShowAuthModal(false); setShowForgotPasswordModal(true); }} style={{ fontSize: '0.8rem', color: theme.accent, cursor: 'pointer' }}>Forgot Password?</span>
+                  )}
+                </div>
+                <input type="password" required placeholder="••••••••" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
               </div>
 
               {isSignUp && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '0.2rem' }}>
-                  
-                  {/* Student Confirmation Checkbox */}
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                    <input
-                      type="checkbox"
-                      id="studentConfirm"
-                      required
-                      checked={isStudentConfirmed}
-                      onChange={(e) => setIsStudentConfirmed(e.target.checked)}
-                      style={{ marginTop: '0.2rem' }}
-                    />
-                    <label htmlFor="studentConfirm" style={{ fontSize: '0.8rem', color: theme.textMuted, lineHeight: '1.3' }}>
-                      I confirm that I am a current student or alumni, and I agree to uphold academic integrity.
-                    </label>
+                    <input type="checkbox" id="studentConfirm" required checked={isStudentConfirmed} onChange={(e) => setIsStudentConfirmed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
+                    <label htmlFor="studentConfirm" style={{ fontSize: '0.8rem', color: theme.textMuted, lineHeight: '1.3' }}>I confirm that I am a current student or alumni.</label>
                   </div>
-
-                  {/* Terms & Conditions Agreement Checkbox */}
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                    <input
-                      type="checkbox"
-                      id="termsConfirm"
-                      required
-                      checked={hasAgreedTerms}
-                      onChange={(e) => setHasAgreedTerms(e.target.checked)}
-                      style={{ marginTop: '0.2rem' }}
-                    />
+                    <input type="checkbox" id="termsConfirm" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} style={{ marginTop: '0.2rem' }} />
                     <label htmlFor="termsConfirm" style={{ fontSize: '0.8rem', color: theme.textMuted, lineHeight: '1.3' }}>
-                      I have read and agree to the{' '}
-                      <span 
-                        onClick={() => setShowTermsModal(true)} 
-                        style={{ color: theme.accent, textDecoration: 'underline', cursor: 'pointer', fontWeight: 'bold' }}
-                      >
-                        Terms of Service
-                      </span>.
+                      I agree to the <span onClick={() => setShowTermsModal(true)} style={{ color: theme.accent, textDecoration: 'underline', cursor: 'pointer', fontWeight: 'bold' }}>Terms of Service</span>.
                     </label>
                   </div>
-
                 </div>
               )}
 
-              <button 
-                type="submit" 
-                disabled={loading}
-                style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', opacity: loading ? 0.6 : 1, marginTop: '0.5rem' }}
-              >
+              <button type="submit" disabled={loading} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', opacity: loading ? 0.6 : 1, marginTop: '0.5rem' }}>
                 {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
               </button>
             </form>
 
-            <p 
-              onClick={() => { setIsSignUp(!isSignUp); setIsStudentConfirmed(false); setHasAgreedTerms(false); }} 
-              style={{ color: theme.accent, marginTop: '1.2rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}
-            >
+            <p onClick={() => { setIsSignUp(!isSignUp); setIsStudentConfirmed(false); setHasAgreedTerms(false); }} style={{ color: theme.accent, marginTop: '1.2rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}>
               {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
             </p>
           </div>
         </div>
       )}
 
-      {/* ===================================================================
-          10. TERMS OF SERVICE MODAL
-          =================================================================== */}
+      {/* Forgot Password Modal */}
+      {showForgotPasswordModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Reset Password</h2>
+              <button onClick={() => setShowForgotPasswordModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Enter your email address</label>
+                <input type="email" required placeholder="your_email@tdsb.ca" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                Send Reset Link
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Terms Modal */}
       {showTermsModal && (
-        <div 
-          style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            width: '100vw', 
-            height: '100vh', 
-            backgroundColor: 'rgba(0,0,0,0.85)', 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            zIndex: 9999999 
-          }}
-        >
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999999 }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '16px', width: '90%', maxWidth: '520px', border: `1px solid ${theme.border}`, maxHeight: '80vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.8rem' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.accent }}>Terms of Service &amp; Community Agreement</h2>
               <button onClick={() => setShowTermsModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
             </div>
 
-            <div style={{ fontSize: '0.85rem', color: theme.textMain, lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <p style={{ color: theme.textMuted }}>
-                Welcome to <strong>North Synapse</strong>. This platform is an independent, student-built space dedicated to academic collaboration and peer study. By registering, you agree to the following terms:
-              </p>
-
-              <div>
-                <strong style={{ color: theme.accent, display: 'block', marginBottom: '0.2rem' }}>1. Community Scope &amp; Access Control</strong>
-                <p style={{ color: theme.textMuted }}>
-                  <strong>Student-Exclusive Platform</strong>: Access is strictly reserved for current students and alumni. Teachers, school administrators, parents, or outside supervisors are strictly prohibited from creating accounts or accessing internal user data.<br/>
-                  <strong>Account Integrity</strong>: Users must safeguard their credentials and shall not grant account access to non-student individuals who may compromise community privacy or academic autonomy.
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: theme.accent, display: 'block', marginBottom: '0.2rem' }}>2. System &amp; Network Security</strong>
-                <p style={{ color: theme.textMuted }}>
-                  <strong>Prohibition of Malicious Activity</strong>: Distributing malicious code, Trojan viruses, phishing links, or attempting unauthorized access/data scraping against the infrastructure is strictly forbidden.
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: theme.accent, display: 'block', marginBottom: '0.2rem' }}>3. Academic Collaboration &amp; Disclaimer</strong>
-                <p style={{ color: theme.textMuted }}>
-                  <strong>Service Purpose</strong>: North Synapse provides tools for course notes sharing, exam study guides, and peer academic discussions.<br/>
-                  <strong>Public Area Compliance</strong>: Posting unreleased exam papers, official test keys, or engaging in explicit academic dishonesty (e.g., cheating, proxy test-taking) within <strong>public areas</strong> (including Resource Hub and Discussions) is strictly prohibited.<br/>
-                  <strong>Platform Disclaimer</strong>: North Synapse and its developers accept no liability for individual conduct or private peer interactions. Users remain solely responsible for their statements and actions on the platform.
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: theme.accent, display: 'block', marginBottom: '0.2rem' }}>4. Community Standards</strong>
-                <p style={{ color: theme.textMuted }}>
-                  <strong>Respectful Conduct</strong>: Doxxing, harassment, bullying, or hate speech targeting any student is strictly unacceptable.
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: theme.accent, display: 'block', marginBottom: '0.2rem' }}>5. Administrative Authority</strong>
-                <p style={{ color: theme.textMuted }}>
-                  To maintain system security and platform integrity, the North Synapse administrative team reserves the right to remove non-compliant public content and suspend accounts violating these terms.
-                </p>
-              </div>
+            <div style={{ fontSize: '0.85rem', color: theme.textMuted, lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <p>Welcome to <strong>North Synapse</strong>. Access is reserved for current students and alumni.</p>
+              <p>Posting unreleased exam papers or engaging in academic dishonesty in public areas is strictly prohibited.</p>
             </div>
 
             <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
-              <button 
-                onClick={() => { setHasAgreedTerms(true); setShowTermsModal(false); }} 
-                style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.5rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}
-              >
+              <button onClick={() => { setHasAgreedTerms(true); setShowTermsModal(false); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.5rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>
                 I Understand &amp; Agree
               </button>
             </div>
