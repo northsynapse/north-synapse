@@ -302,13 +302,25 @@ export default function Home() {
 
         if (signUpError) {
           if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
-            alert('This email is already registered. Switching to Sign In mode.');
-            setIsSignUp(false);
+            alert('This email is already registered! Attempting to sign in...');
+            
+            const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password: cleanPassword,
+            });
+
+            if (signInErr) {
+              alert('Login failed: ' + signInErr.message + '\n\nPlease check your password, or click "Forgot Password" to reset it.');
+            } else {
+              setUser(signInData.user);
+              alert('Successfully logged in!');
+              setShowAuthModal(false);
+              setActiveTab('dashboard');
+            }
           } else {
             alert('SignUp Error: ' + signUpError.message);
           }
         } else {
-          // If signUp returned a user or session, log in directly in state!
           if (signUpData.user) {
             setUser(signUpData.user);
             setUsername(defaultName);
@@ -689,14 +701,20 @@ export default function Home() {
       {/* HEADER & NAVIGATION */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
+        {/* NORTH SYNAPSE LOGO */}
         <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.35rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', letterSpacing: '-0.02em' }}>
-          <svg width="32" height="38" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M 80,25 C 80,10 20,10 20,35 C 20,60 80,60 80,85 C 80,110 20,110 20,95" stroke="#8B5CF6" strokeWidth="9" strokeLinecap="round" fill="none" />
-            <path d="M 20,25 C 20,10 80,10 80,35 C 80,60 20,60 20,85 C 20,110 80,110 80,95" stroke="#8B5CF6" strokeWidth="9" strokeLinecap="round" strokeDasharray="3 14" fill="none" />
-            <circle cx="80" cy="25" r="5" fill="#8B5CF6" />
-            <circle cx="20" cy="35" r="5" fill="#8B5CF6" />
-            <circle cx="80" cy="85" r="5" fill="#8B5CF6" />
-            <circle cx="20" cy="95" r="5" fill="#8B5CF6" />
+          <svg width="36" height="36" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 25 30 Q 50 10, 75 30 T 25 70" stroke="#8B5CF6" strokeWidth="7" strokeLinecap="round" fill="none" />
+            <path d="M 75 30 Q 50 50, 25 70 T 75 70" stroke="#8B5CF6" strokeWidth="7" strokeLinecap="round" fill="none" opacity="0.6" />
+            <circle cx="25" cy="30" r="7" fill="#8B5CF6" />
+            <circle cx="75" cy="30" r="7" fill="#8B5CF6" />
+            <circle cx="50" cy="50" r="8" fill="#A78BFA" />
+            <circle cx="25" cy="70" r="7" fill="#8B5CF6" />
+            <circle cx="75" cy="70" r="7" fill="#8B5CF6" />
+            <line x1="25" y1="30" x2="50" y2="50" stroke="#8B5CF6" strokeWidth="3" opacity="0.8" />
+            <line x1="75" y1="30" x2="50" y2="50" stroke="#8B5CF6" strokeWidth="3" opacity="0.8" />
+            <line x1="25" y1="70" x2="50" y2="50" stroke="#8B5CF6" strokeWidth="3" opacity="0.8" />
+            <line x1="75" y1="70" x2="50" y2="50" stroke="#8B5CF6" strokeWidth="3" opacity="0.8" />
           </svg>
           <span>North Synapse</span>
           {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>OFFICIAL ADMIN</span>}
