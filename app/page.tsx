@@ -1,1534 +1,889 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Search, BookOpen, User, Star, ArrowRight, ShieldCheck, 
+  Menu, X, CheckCircle, ChevronRight, MessageSquare, AlertCircle, 
+  FileText, Download, Share2, Bookmark, Filter, SlidersHorizontal,
+  ThumbsUp, Eye, Sparkles, Database, Code, Globe, Lock, Activity,
+  Quote, Copy, Check, Send, Award, ExternalLink, RefreshCw
+} from 'lucide-react';
 
-/* ==========================================================================
-   1. SUPABASE CLIENT & CONFIGURATION
-   ========================================================================== */
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://urgbcrkvlyfswpdsgyzp.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_9aHZdWEJ6TMseemR9mQFjQ_b0ZgJoiW';
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true
-  }
-});
-
-type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard';
-
-interface CommentItem {
-  id: string;
-  authorName: string;
-  authorAvatar: string;
-  text: string;
-  date: string;
-  likes: number;
-  likedByMe?: boolean;
-}
-
-interface ResourceItem {
-  id: string;
-  title: string;
-  subject: string;
-  grade: string;
-  description: string;
-  content: string;
-  authorName: string;
-  authorEmail?: string;
-  authorAvatar: string;
-  date: string;
-  likes: number;
-  bookmarks: number;
-  likedByMe?: boolean;
-  bookmarkedByMe?: boolean;
-  comments: CommentItem[];
-}
-
-interface DiscussionItem {
-  id: string;
-  title: string;
-  content: string;
-  authorEmail: string;
-  authorName: string;
-  date: string;
-  repliesCount: number;
-}
-
-interface ReportItem {
-  id: string;
-  targetType: 'resource' | 'comment';
-  targetId: string;
-  targetTitle: string;
-  reason: string;
-  details: string;
-  reporterEmail: string;
-  targetUserEmail: string;
-  date: string;
-  status: 'pending' | 'resolved_deleted' | 'resolved_dismissed';
-}
-
-interface FeedbackItem {
-  id: string;
-  rating: number;
-  category: string;
-  comment: string;
-  userEmail: string;
-  date: string;
-}
-
-interface AnnouncementItem {
-  id: string;
-  title: string;
-  content: string;
-  date: string;
-  authorName: string;
-}
-
-interface FriendItem {
+// ==========================================
+// SECTION 1: 类型与接口定义 (TYPES & INTERFACES)
+// ==========================================
+export interface Author {
   id: string;
   name: string;
-  grade: string;
-  avatarUrl: string;
-  status: 'online' | 'offline';
+  avatar: string;
+  institution: string;
+  hIndex: number;
+  orcid: string;
 }
 
-export default function Home() {
-  /* ==========================================================================
-     2. GLOBAL STATES
-     ========================================================================== */
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const [activeTab, setActiveTab] = useState<NavTab>('resources');
+export interface Resource {
+  id: string;
+  title: string;
+  abstract: string;
+  author: Author;
+  coAuthors: string[];
+  category: string;
+  tags: string[];
+  rating: number;
+  downloads: number;
+  views: number;
+  likes: number;
+  publishedAt: string;
+  doi: string;
+  isPeerReviewed: boolean;
+  citationCount: number;
+  pdfUrl: string;
+  fullText: string;
+}
 
-  const [user, setUser] = useState<any>(null);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
-  const [showResetNewPasswordModal, setShowResetNewPasswordModal] = useState(false);
-  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState(false);
-  
-  // Auth Form State
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [resetEmail, setResetEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
-  const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
-  const [loading, setLoading] = useState(false);
+export interface Discussion {
+  id: string;
+  resourceId: string;
+  user: string;
+  avatar: string;
+  comment: string;
+  createdAt: string;
+  likes: number;
+}
 
-  // Profile Form State
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [username, setUsername] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [grade, setGrade] = useState('');
-  const [gender, setGender] = useState('');
-  const [bio, setBio] = useState('');
-  const [createdAt, setCreatedAt] = useState('');
-  const [savingProfile, setSavingProfile] = useState(false);
+export interface PlatformStat {
+  label: string;
+  value: string;
+  change: string;
+  isPositive: boolean;
+}
 
-  // REAL Platform Analytics State (Admin Only)
-  const [realUserCount, setRealUserCount] = useState<number>(0);
-
-  // Filter State
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
-  const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Logo Image Fallback Toggle
-  const [useLogoImage, setUseLogoImage] = useState(true);
-
-  // Resources Data State
-  const [resources, setResources] = useState<ResourceItem[]>([
-    {
-      id: '1',
-      title: 'AP Calculus BC Derivatives & Series Master Review',
-      subject: 'Mathematics',
-      grade: 'AP Courses',
-      description: 'Comprehensive prep guide covering AP exam series convergence tests, Taylor polynomials, and parametric equations.',
-      content: 'Detailed derivatives rules: (1) Product Rule: (uv)\' = u\'v + uv\'. (2) Quotient Rule: (u/v)\' = (u\'v - uv\') / v^2. Taylor Series Expansion for e^x = 1 + x + x^2/2! + x^3/3! + ... Make sure to practice ratio tests for interval of convergence!',
-      authorName: 'Alex Smith',
-      authorEmail: 'alex.smith@tdsb.ca',
-      authorAvatar: '',
-      date: 'Oct 24, 2026',
-      likes: 12,
-      bookmarks: 8,
-      likedByMe: false,
-      bookmarkedByMe: false,
-      comments: [
-        { id: 'c1', authorName: 'Jordan Lee', authorAvatar: '', text: 'This saved my midterm review! Thanks!', date: 'Oct 24, 2026', likes: 3, likedByMe: false }
-      ]
-    },
-    {
-      id: '2',
-      title: 'Waterloo Fermat Math Competition Past Solutions',
-      subject: 'Mathematics',
-      grade: 'Academic Competitions',
-      description: 'Step-by-step solutions for past Waterloo contest papers with key shortcut tricks.',
-      content: 'Key geometry theorem: In any right triangle, a^2 + b^2 = c^2. For modular arithmetic problems, always check remainder patterns mod 10 for unit digits!',
-      authorName: 'Jordan Lee',
-      authorEmail: 'jordan.lee@tdsb.ca',
-      authorAvatar: '',
-      date: 'Oct 23, 2026',
-      likes: 19,
-      bookmarks: 14,
-      likedByMe: false,
-      bookmarkedByMe: false,
-      comments: []
-    }
-  ]);
-
-  // Discussions State
-  const [discussions] = useState<DiscussionItem[]>([
-    {
-      id: 'd1',
-      title: 'How to prepare effectively for Grade 12 Physics contest?',
-      content: 'Looking for study recommendations and resources for kinematics and mechanics problems.',
-      authorEmail: '350403596@tdsb.ca',
-      authorName: 'Student',
-      date: 'Oct 24, 2026',
-      repliesCount: 4
-    }
-  ]);
-
-  // Friends State
-  const [friends] = useState<FriendItem[]>([
-    { id: 'f1', name: 'Alex Smith', grade: 'Grade 12', avatarUrl: '', status: 'online' },
-    { id: 'f2', name: 'Jordan Lee', grade: 'Grade 11', avatarUrl: '', status: 'offline' }
-  ]);
-
-  // Preview Modal State
-  const [previewResource, setPreviewResource] = useState<ResourceItem | null>(null);
-  const [showCommentsArea, setShowCommentsArea] = useState(true);
-  const [newCommentText, setNewCommentText] = useState('');
-
-  // Report Modal State
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reportTarget, setReportTarget] = useState<{ type: 'resource' | 'comment'; id: string; title: string; userEmail?: string } | null>(null);
-  const [reportReason, setReportReason] = useState('Academic Dishonesty');
-  const [reportDetails, setReportDetails] = useState('');
-
-  // Stores
-  const [reports, setReports] = useState<ReportItem[]>([]);
-  const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
-  const [feedbackRating, setFeedbackRating] = useState(5);
-  const [feedbackCategory, setFeedbackCategory] = useState('General Suggestion');
-  const [feedbackComment, setFeedbackComment] = useState('');
-
-  // Announcements Carousel State
-  const [announcements] = useState<AnnouncementItem[]>([
-    {
-      id: '1',
-      title: 'Welcome to North Synapse Academic Platform',
-      content: 'A centralized workspace for verified course resources, virtual study rooms, and academic peer discussions.',
-      date: 'Oct 24, 2026',
-      authorName: 'North Synapse Official'
-    },
-    {
-      id: '2',
-      title: 'AP & Competition Prep Resource Categories Added',
-      content: 'We updated our Resource Hub filter tags with AP Courses, Academic Competitions, French, and Geography!',
-      date: 'Oct 24, 2026',
-      authorName: 'North Synapse Official'
-    }
-  ]);
-  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
-
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Admin Verification
-  const isAdmin = user?.email?.toLowerCase().includes('northsynapse');
-
-  /* ==========================================================================
-     3. AUTHENTICATION & RECOVERY HASH DETECTION
-     ========================================================================== */
-  useEffect(() => {
-    // 拦截重置密码邮件跳转回来的 Hash URL
-    if (typeof window !== 'undefined') {
-      const hash = window.location.hash;
-      if (hash && (hash.includes('type=recovery') || hash.includes('access_token'))) {
-        setShowResetNewPasswordModal(true);
-      }
-    }
-
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        setUser(user);
-        setCreatedAt(user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Oct 2026');
-        if (user.user_metadata) {
-          setAvatarUrl(user.user_metadata.avatar_url || '');
-          setUsername(user.user_metadata.username || '');
-          setNickname(user.user_metadata.nickname || '');
-          setGrade(user.user_metadata.grade || '');
-          setGender(user.user_metadata.gender || '');
-          setBio(user.user_metadata.bio || '');
-        }
-      }
-    }).catch(() => {});
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setShowResetNewPasswordModal(true);
-      }
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      if (currentUser) {
-        setCreatedAt(currentUser.created_at ? new Date(currentUser.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Oct 2026');
-        if (currentUser.user_metadata) {
-          setAvatarUrl(currentUser.user_metadata.avatar_url || '');
-          setUsername(currentUser.user_metadata.username || '');
-          setNickname(currentUser.user_metadata.nickname || '');
-          setGrade(currentUser.user_metadata.grade || '');
-          setGender(currentUser.user_metadata.gender || '');
-          setBio(currentUser.user_metadata.bio || '');
-        }
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // REAL DATA FETCH FOR ADMIN
-  useEffect(() => {
-    if (isAdmin) {
-      const fetchUserCount = async () => {
-        try {
-          const { data, error } = await supabase.rpc('get_user_count');
-          if (!error && data) {
-            setRealUserCount(data);
-          } else {
-            setRealUserCount(1);
-          }
-        } catch {
-          setRealUserCount(1);
-        }
-      };
-      fetchUserCount();
-    }
-  }, [isAdmin]);
-
-  // Banner Timer
-  useEffect(() => {
-    if (announcements.length <= 1) return;
-    const timer = setInterval(() => {
-      setCurrentBannerIndex((prev) => (prev + 1) % announcements.length);
-    }, 8000);
-    return () => clearInterval(timer);
-  }, [announcements]);
-
-  /* ==========================================================================
-     4. HANDLERS
-     ========================================================================== */
-  function toggleSubjectFilter(sub: string) {
-    setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
+// ==========================================
+// SECTION 2: 模拟数据与初始状态 (MOCK DATA & INITIAL STATE)
+// ==========================================
+const MOCK_AUTHORS: Author[] = [
+  { 
+    id: 'a1', 
+    name: 'Dr. Elena Rostova', 
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150', 
+    institution: 'MIT Neuroscience Institute', 
+    hIndex: 34,
+    orcid: '0000-0002-1825-0097'
+  },
+  { 
+    id: 'a2', 
+    name: 'Prof. Marcus Vance', 
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150', 
+    institution: 'Stanford Quantum Center', 
+    hIndex: 42,
+    orcid: '0000-0001-9014-4321'
+  },
+  { 
+    id: 'a3', 
+    name: 'Dr. Sarah Lin', 
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=150', 
+    institution: 'Harvard Genomic Lab', 
+    hIndex: 29,
+    orcid: '0000-0003-1120-8834'
+  },
+  { 
+    id: 'a4', 
+    name: 'Dr. Alex Chen', 
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150', 
+    institution: 'ETH Zürich AI Lab', 
+    hIndex: 38,
+    orcid: '0000-0002-4411-9022'
   }
+];
 
-  function toggleGradeFilter(grd: string) {
-    setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, grd]);
+const MOCK_RESOURCES: Resource[] = [
+  {
+    id: 'res-001',
+    title: 'Advanced Machine Learning Paradigms in Neuroscience',
+    abstract: 'A comprehensive study on neural network architectures modeled after synaptic plasticity, exploring how biological dynamics optimize backpropagation in artificial intelligence models. Our empirical evaluation reveals a 34% speedup in convergence rates on large-scale neuroimaging datasets.',
+    author: MOCK_AUTHORS[0],
+    coAuthors: ['Prof. Alan Turing Jr.', 'Dr. Sophia Martinez'],
+    category: 'Computer Science',
+    tags: ['Machine Learning', 'Neuroscience', 'Synaptic Plasticity', 'Deep Learning'],
+    rating: 4.9,
+    downloads: 1240,
+    views: 4320,
+    likes: 312,
+    publishedAt: '2026-01-15',
+    doi: '10.1038/s41586-026-0812-x',
+    isPeerReviewed: true,
+    citationCount: 142,
+    pdfUrl: '#',
+    fullText: `1. INTRODUCTION
+Biological neural networks exhibit remarkable energy efficiency and adaptive capacity, largely driven by synaptic plasticity mechanisms such as Spike-Timing-Dependent Plasticity (STDP). Artificial Neural Networks (ANNs), despite their recent breakthroughs, continue to rely heavily on computationally expensive backpropagation algorithms.
+
+2. SYNAPTIC PLASTICITY MODELING
+We present the Synapse-Net framework, which integrates local weight update rules inspired by biological LTP (Long-Term Potentiation) and LTD (Long-Term Depression) into gradient descent optimizers.
+
+3. EXPERIMENTAL RESULTS
+Across six standardized benchmarks (including Neuromorphic-MNIST and Connectome-3D), Synapse-Net achieved superior generalization while reducing tensor memory overhead by 28.5%.`
+  },
+  {
+    id: 'res-002',
+    title: 'Quantum Information Systems: Core Principles & Fault-Tolerant Architectures',
+    abstract: 'Foundational framework for quantum state manipulation and algorithmic execution across topological qubit architectures with fault-tolerant error suppression using surface code syndromes.',
+    author: MOCK_AUTHORS[1],
+    coAuthors: ['Dr. Hiroshi Tanaka', 'Prof. Elizabeth Warren'],
+    category: 'Physics',
+    tags: ['Quantum Computing', 'Topological Physics', 'Qubits', 'Information Theory'],
+    rating: 4.8,
+    downloads: 980,
+    views: 3100,
+    likes: 245,
+    publishedAt: '2026-02-01',
+    doi: '10.1103/PhysRevX.2026.041002',
+    isPeerReviewed: true,
+    citationCount: 89,
+    pdfUrl: '#',
+    fullText: `1. OVERVIEW
+Scalable quantum computation requires logical qubits protected against environmental decoherence. Topological quantum computing leverages non-Abelian anyons to store quantum information non-locally.
+
+2. FAULT-TOLERANT PROTOCOLS
+This paper formulates a 2D surface code lattice design capable of maintaining fidelity under a physical error threshold of 1.2%. We demonstrate real-time error detection via high-speed FPGA decoders.`
+  },
+  {
+    id: 'res-003',
+    title: 'Cellular Epigenomics & Dynamic Gene Regulation Pathways',
+    abstract: 'Exploring non-coding RNA mechanisms, histone modifications, and chromatin remodeling pathways in early mammalian embryonic stem cell differentiation using single-cell ATAC-seq.',
+    author: MOCK_AUTHORS[2],
+    coAuthors: ['Dr. Michael Chang'],
+    category: 'Biology',
+    tags: ['Genomics', 'Epigenetics', 'CRISPR', 'Cell Biology'],
+    rating: 4.7,
+    downloads: 850,
+    views: 2940,
+    likes: 189,
+    publishedAt: '2025-11-20',
+    doi: '10.1016/j.cell.2025.11.015',
+    isPeerReviewed: true,
+    citationCount: 67,
+    pdfUrl: '#',
+    fullText: `1. INTRODUCTION
+Epigenetic modifications govern cell fate determination without altering the underlying DNA sequence. Recent advances in single-cell assay technologies enable high-resolution mapping of chromatin accessibility.
+
+2. SINGLE-CELL ANALYSIS
+Using scATAC-seq across 50,000 differentiating mouse embryonic stem cells, we identified 1,200 novel distal enhancer elements regulating key pluripotency transcription factors.`
+  },
+  {
+    id: 'res-004',
+    title: 'Autonomous Graph Neural Networks for Molecular Discovery',
+    abstract: 'Accelerating de novo drug discovery using dynamic geometric graph neural networks that predict ligand-protein binding affinity with sub-angstrom precision without requiring explicit docking simulations.',
+    author: MOCK_AUTHORS[3],
+    coAuthors: ['Dr. Clara Oswald', 'Prof. David Becker'],
+    category: 'Computer Science',
+    tags: ['Graph Neural Networks', 'Drug Discovery', 'Bioinformatics', 'AI'],
+    rating: 4.95,
+    downloads: 2150,
+    views: 6800,
+    likes: 520,
+    publishedAt: '2026-03-04',
+    doi: '10.1038/s41587-026-0104-9',
+    isPeerReviewed: true,
+    citationCount: 210,
+    pdfUrl: '#',
+    fullText: `1. ABSTRACT
+Small molecule generation for novel pharmacological targets remains a major bottleneck in drug development. We introduce MolGraph-3D, an equivariant message passing neural network.
+
+2. METHODOLOGY
+MolGraph-3D represents atomic coordinates as continuous 3D point clouds, applying SO(3) rotational invariance to predict free energy of binding.`
   }
+];
 
-  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setAvatarUrl(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  }
+const INITIAL_DISCUSSIONS: Discussion[] = [
+  { id: 'd1', resourceId: 'res-001', user: 'Prof. David K.', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100', comment: 'The synaptic decay rate formula in Equation 4 shows surprising alignment with empirical EEG recordings.', createdAt: '2 hours ago', likes: 14 },
+  { id: 'd2', resourceId: 'res-001', user: 'Li Wei, Ph.D.', avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&q=80&w=100', comment: 'Has anyone attempted replicating the PyTorch implementation on distributed GPU clusters?', createdAt: '5 hours ago', likes: 8 },
+  { id: 'd3', resourceId: 'res-002', user: 'Dr. Rebecca Miller', avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=100', comment: 'Section 3.2 syndrome decoding speed looks very promising for lattice surgeries.', createdAt: '1 day ago', likes: 19 }
+];
 
-  // STRICT SUPABASE AUTHENTICATION FIX
-  async function handleAuthSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
+const PLATFORM_STATS: PlatformStat[] = [
+  { label: 'Indexed Publications', value: '128,450', change: '+12% this month', isPositive: true },
+  { label: 'Verified Researchers', value: '45,210', change: '+8% this month', isPositive: true },
+  { label: 'Node Reliability', value: '99.98%', change: 'Uptime optimal', isPositive: true },
+  { label: 'Monthly Citations', value: '2,410,000', change: '+24% YoY', isPositive: true }
+];
 
-    const cleanEmail = authEmail.trim();
-    const cleanPassword = authPassword.trim();
-    const defaultName = cleanEmail.split('@')[0].slice(0, 20);
-
-    try {
-      if (isSignUp) {
-        if (!isStudentConfirmed) {
-          alert('Please confirm that you are a student or alumni.');
-          setLoading(false);
-          return;
-        }
-        if (!hasAgreedTerms) {
-          alert('Please review and agree to the Terms of Service.');
-          setLoading(false);
-          return;
-        }
-
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: cleanEmail,
-          password: cleanPassword,
-          options: {
-            data: {
-              username: defaultName,
-              nickname: defaultName,
-              grade: ''
-            }
-          }
-        });
-
-        if (signUpError) {
-          const errMsg = signUpError.message.toLowerCase();
-          if (errMsg.includes('already registered') || errMsg.includes('already exists') || errMsg.includes('user_already_exists')) {
-            alert('该邮箱已被注册！请直接在登录页面输入密码登录，或点击“Forgot Password”重置密码。');
-          } else {
-            alert('注册失败: ' + signUpError.message);
-          }
-        } else {
-          if (signUpData.user && signUpData.session) {
-            setUser(signUpData.user);
-            setUsername(defaultName);
-            setNickname(defaultName);
-            setGrade('');
-            alert('账号注册并登录成功！');
-            setShowAuthModal(false);
-            setActiveTab('dashboard');
-          } else if (signUpData.user && !signUpData.session) {
-            alert(`注册确认邮件已发送至 ${cleanEmail}！\n请前往您的邮箱点击验证链接，完成后即可登录。`);
-            setIsSignUp(false);
-          }
-        }
-      } else {
-        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password: cleanPassword,
-        });
-
-        if (signInErr) {
-          const errMsg = signInErr.message.toLowerCase();
-          if (errMsg.includes('email not confirmed')) {
-            alert('您的账号尚未完成邮箱验证！\n请前往您的邮箱找到验证链接点击激活后，再尝试登录。');
-          } else if (errMsg.includes('invalid login credentials')) {
-            alert('登录失败：邮箱或密码错误，或者该账号尚未完成邮箱验证。');
-          } else {
-            alert('登录错误: ' + signInErr.message);
-          }
-        } else {
-          setUser(signInData.user);
-          setShowAuthModal(false);
-          setAuthPassword('');
-          setActiveTab('dashboard');
-        }
-      }
-    } catch (err: any) {
-      alert('网络连接错误: ' + (err.message || '无法连接至认证服务器'));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleForgotPassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (!resetEmail.trim()) return;
-
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
-        redirectTo: `${window.location.origin}/#type=recovery`,
-      });
-
-      if (error) {
-        alert('发送重置邮件失败: ' + error.message);
-      } else {
-        alert('密码重置链接已成功发送至您的邮箱，请检查收件箱（或垃圾邮件箱）！');
-        setShowForgotPasswordModal(false);
-        setResetEmail('');
-      }
-    } catch (err: any) {
-      alert('发送重置邮件错误: ' + err.message);
-    }
-  }
-
-  async function handleUpdateNewPassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newPassword.trim()) return;
-
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword.trim() });
-      if (error) {
-        alert('更新密码失败: ' + error.message);
-      } else {
-        alert('您的密码已成功修改！请使用新密码进行登录。');
-        setShowResetNewPasswordModal(false);
-        setNewPassword('');
-        setActiveTab('dashboard');
-      }
-    } catch (err: any) {
-      alert('错误: ' + err.message);
-    }
-  }
-
-  async function handleSaveProfile(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (username.startsWith(' ') || username.endsWith(' ')) {
-      alert('Username cannot start or end with spaces.');
-      return;
-    }
-    if (nickname.startsWith(' ') || nickname.endsWith(' ')) {
-      alert('Nickname cannot start or end with spaces.');
-      return;
-    }
-
-    if (username.length < 3 || username.length > 20) {
-      alert('Username length must be between 3 and 20 characters.');
-      return;
-    }
-    if (nickname.length < 2 || nickname.length > 30) {
-      alert('Nickname length must be between 2 and 30 characters.');
-      return;
-    }
-
-    setSavingProfile(true);
-
-    try {
-      const { error } = await supabase.auth.updateUser({
-        data: {
-          avatar_url: avatarUrl,
-          username: username.trim(),
-          nickname: nickname.trim(),
-          grade: grade,
-          gender: gender,
-          bio: bio,
-        }
-      });
-
-      if (error) {
-        alert('Failed to update profile: ' + error.message);
-      } else {
-        alert('Profile saved successfully!');
-        setShowEditProfileModal(false);
-      }
-    } catch (err: any) {
-      alert('Error: ' + err.message);
-    } finally {
-      setSavingProfile(false);
-    }
-  }
-
-  async function handleDeleteAccount() {
-    const confirmDelete = window.confirm('Are you sure you want to delete this account? Profile data will be cleared.');
-    if (!confirmDelete) return;
-
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      setAvatarUrl('');
-      setUsername('');
-      setNickname('');
-      setGrade('');
-      setGender('');
-      setBio('');
-      setShowEditProfileModal(false);
-      setActiveTab('resources');
-      alert('Account signed out and metadata cleared.');
-    } catch (err: any) {
-      alert('Error during account deletion: ' + err.message);
-    }
-  }
-
-  // LIKE
-  function handleLikeResource(id: string, e?: React.MouseEvent) {
-    e?.stopPropagation();
-    setResources(prev => prev.map(res => {
-      if (res.id === id) {
-        const isLiked = res.likedByMe;
-        return {
-          ...res,
-          likes: isLiked ? res.likes - 1 : res.likes + 1,
-          likedByMe: !isLiked
-        };
-      }
-      return res;
-    }));
-
-    if (previewResource && previewResource.id === id) {
-      const isLiked = previewResource.likedByMe;
-      setPreviewResource(prev => prev ? {
-        ...prev,
-        likes: isLiked ? prev.likes - 1 : prev.likes + 1,
-        likedByMe: !isLiked
-      } : null);
-    }
-  }
-
-  // BOOKMARK
-  function handleBookmarkResource(id: string, e?: React.MouseEvent) {
-    e?.stopPropagation();
-    if (!user) {
-      alert('Please sign in first to save notes to your profile.');
-      setShowAuthModal(true);
-      return;
-    }
-
-    setResources(prev => prev.map(res => {
-      if (res.id === id) {
-        const isBookmarked = res.bookmarkedByMe;
-        return {
-          ...res,
-          bookmarks: isBookmarked ? res.bookmarks - 1 : res.bookmarks + 1,
-          bookmarkedByMe: !isBookmarked
-        };
-      }
-      return res;
-    }));
-
-    if (previewResource && previewResource.id === id) {
-      const isBookmarked = previewResource.bookmarkedByMe;
-      setPreviewResource(prev => prev ? {
-        ...prev,
-        bookmarks: isBookmarked ? prev.bookmarks - 1 : prev.bookmarks + 1,
-        bookmarkedByMe: !isBookmarked
-      } : null);
-    }
-  }
-
-  function handleAddComment(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) {
-      alert('Please sign in first to post a comment.');
-      setShowAuthModal(true);
-      return;
-    }
-    if (!newCommentText.trim() || !previewResource) return;
-
-    const commentObj: CommentItem = {
-      id: Date.now().toString(),
-      authorName: nickname || user?.email?.split('@')[0] || 'Student',
-      authorAvatar: avatarUrl,
-      text: newCommentText,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      likes: 0,
-      likedByMe: false
-    };
-
-    const updatedResource = {
-      ...previewResource,
-      comments: [...previewResource.comments, commentObj]
-    };
-
-    setPreviewResource(updatedResource);
-    setResources(prev => prev.map(r => r.id === previewResource.id ? updatedResource : r));
-    setNewCommentText('');
-  }
-
-  function handleLikeComment(commentId: string) {
-    if (!previewResource) return;
-    const updatedComments = previewResource.comments.map(c => {
-      if (c.id === commentId) {
-        const isLiked = c.likedByMe;
-        return { ...c, likes: isLiked ? c.likes - 1 : c.likes + 1, likedByMe: !isLiked };
-      }
-      return c;
-    });
-
-    const updatedResource = { ...previewResource, comments: updatedComments };
-    setPreviewResource(updatedResource);
-    setResources(prev => prev.map(r => r.id === previewResource.id ? updatedResource : r));
-  }
-
-  function triggerReportModal(targetType: 'resource' | 'comment', targetId: string, targetTitle: string, userEmail?: string, e?: React.MouseEvent) {
-    e?.stopPropagation();
-    if (!user) {
-      alert('Please sign in first to report content.');
-      setShowAuthModal(true);
-      return;
-    }
-    setReportTarget({ type: targetType, id: targetId, title: targetTitle, userEmail });
-    setShowReportModal(true);
-  }
-
-  function handleSubmitReport(e: React.FormEvent) {
-    e.preventDefault();
-    if (!reportTarget || !user) return;
-
-    const newReport: ReportItem = {
-      id: Date.now().toString(),
-      targetType: reportTarget.type,
-      targetId: reportTarget.id,
-      targetTitle: reportTarget.title,
-      reason: reportReason,
-      details: reportDetails,
-      reporterEmail: user.email || 'Anonymous',
-      targetUserEmail: reportTarget.userEmail || 'Unknown User',
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      status: 'pending'
-    };
-
-    setReports([newReport, ...reports]);
-
-    const mailtoUrl = `mailto:northsynapse@gmail.com?subject=[REPORT SUBMITTED] ${reportTarget.type.toUpperCase()} - ${reportReason}&body=Reporter: ${user.email}%0D%0ATarget ID: ${reportTarget.id}%0D%0ATarget Title: ${encodeURIComponent(reportTarget.title)}%0D%0AReason: ${encodeURIComponent(reportReason)}%0D%0ADetails:%0D%0A${encodeURIComponent(reportDetails)}`;
-    window.open(mailtoUrl, '_blank');
-
-    setShowReportModal(false);
-    setReportDetails('');
-    alert('Report submitted successfully! Direct email sent to northsynapse@gmail.com.');
-  }
-
-  function handleAdminResolveReport(reportId: string, action: 'delete' | 'dismiss') {
-    const report = reports.find(r => r.id === reportId);
-    if (!report) return;
-
-    if (action === 'delete') {
-      if (report.targetType === 'resource') {
-        setResources(prev => prev.filter(r => r.id !== report.targetId));
-        if (previewResource?.id === report.targetId) setPreviewResource(null);
-      } else if (report.targetType === 'comment' && previewResource) {
-        const updatedComments = previewResource.comments.filter(c => c.id !== report.targetId);
-        const updatedResource = { ...previewResource, comments: updatedComments };
-        setPreviewResource(updatedResource);
-        setResources(prev => prev.map(r => r.id === previewResource.id ? updatedResource : r));
-      }
-
-      const notifyMail = `mailto:${report.targetUserEmail}?subject=[North Synapse Moderation] Content Removed&body=Dear User,%0D%0A%0D%0AYour recent ${report.targetType} "${report.targetTitle}" was reported and flagged. After review, it has been removed.%0D%0A%0D%0ANorth Synapse Admin Team`;
-      window.open(notifyMail, '_blank');
-
-      setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'resolved_deleted' } : r));
-      alert('Content deleted and email notice drafted.');
-    } else {
-      setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'resolved_dismissed' } : r));
-      alert('Report dismissed.');
-    }
-  }
-
-  function handleAddFeedback(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) {
-      alert('Please sign in first before submitting feedback.');
-      setShowAuthModal(true);
-      return;
-    }
-    if (!feedbackComment.trim()) return;
-
-    const newFb: FeedbackItem = {
-      id: Date.now().toString(),
-      rating: feedbackRating,
-      category: feedbackCategory,
-      comment: feedbackComment,
-      userEmail: user?.email || 'Anonymous Student',
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    };
-
-    setFeedbacks([newFb, ...feedbacks]);
-    setFeedbackComment('');
-
-    const mailtoUrl = `mailto:northsynapse@gmail.com?subject=[North Synapse Feedback] ${feedbackCategory} - ${feedbackRating} Stars&body=User: ${user.email}%0D%0ARating: ${feedbackRating} Stars%0D%0ACategory: ${feedbackCategory}%0D%0A%0D%0AComment:%0D%0A${encodeURIComponent(feedbackComment)}`;
-    window.open(mailtoUrl, '_blank');
-
-    alert('Thank you for your feedback! Sent directly to northsynapse@gmail.com.');
-  }
-
-  /* ==========================================================================
-     5. THEME & CATEGORY DEFINITION
-     ========================================================================== */
-  const theme = {
-    bg: isDarkMode ? '#0E1117' : '#F8FAFC',
-    cardBg: isDarkMode ? '#161B22' : '#FFFFFF',
-    border: isDarkMode ? '#21262D' : '#E2E8F0',
-    textMain: isDarkMode ? '#F0F6FC' : '#0F172A',
-    textMuted: isDarkMode ? '#8B949E' : '#64748B',
-    accent: '#8B5CF6',
-  };
-
-  const subjectsList = [
-    'Mathematics', 'Science', 'ESL & Languages', 'French', 
-    'History & Social Sciences', 'Geography', 'Business & Economics', 
-    'Art & Music', 'Computer Science & Tech'
-  ];
-
-  const gradesList = ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'AP Courses', 'Academic Competitions'];
-
-  const filteredResources = resources.filter(res => {
-    const matchesSubject = selectedSubjects.length === 0 || selectedSubjects.includes(res.subject);
-    const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(res.grade);
-    const matchesSearch = searchQuery === '' || res.title.toLowerCase().includes(searchQuery.toLowerCase()) || res.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSubject && matchesGrade && matchesSearch;
-  });
-
-  const myResources = resources.filter(r => r.authorEmail === user?.email);
-  const myDiscussions = discussions.filter(d => d.authorEmail === user?.email);
-  const bookmarkedResources = resources.filter(r => r.bookmarkedByMe);
-  const pendingReports = reports.filter(r => r.status === 'pending');
+// ==========================================
+// SECTION 3: 基础工具组件 (UTILITY COMPONENTS)
+// ==========================================
+function SearchBar({ 
+  query, 
+  onSearchChange,
+  selectedCategory,
+  onCategoryChange 
+}: { 
+  query: string; 
+  onSearchChange: (q: string) => void;
+  selectedCategory: string;
+  onCategoryChange: (c: string) => void;
+}) {
+  const categories = ['All', 'Computer Science', 'Physics', 'Biology', 'Medicine', 'Mathematics'];
 
   return (
-    <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+    <div className="w-full max-w-4xl mx-auto space-y-4">
+      <div className="relative w-full">
+        <input
+          type="text"
+          value={query}
+          placeholder="搜索学术论文、DOI、研究员或知识图谱..."
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="w-full px-6 py-4 pl-14 pr-12 rounded-2xl bg-slate-900/90 border border-slate-700/80 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-xl transition-all shadow-2xl text-base"
+        />
+        <Search className="absolute left-5 top-5 text-purple-400 w-5 h-5" />
+        {query && (
+          <button 
+            onClick={() => onSearchChange('')} 
+            className="absolute right-4 top-4 text-slate-400 hover:text-white p-1"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center justify-center gap-2 flex-wrap pt-1">
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => onCategoryChange(cat)}
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+              selectedCategory === cat
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30 font-semibold'
+                : 'bg-slate-900/70 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-800'
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// SECTION 4: 功能卡片与弹窗组件 (FEATURE & CARDS COMPONENTS)
+// ==========================================
+function ResourceCard({ 
+  resource, 
+  onSelect,
+  isBookmarked,
+  onToggleBookmark
+}: { 
+  resource: Resource; 
+  onSelect: (r: Resource) => void;
+  isBookmarked: boolean;
+  onToggleBookmark: (id: string, e: React.MouseEvent) => void;
+}) {
+  return (
+    <div 
+      onClick={() => onSelect(resource)}
+      className="group bg-slate-900/70 border border-slate-800/80 hover:border-purple-500/60 rounded-2xl p-6 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 flex flex-col justify-between backdrop-blur-md cursor-pointer relative overflow-hidden"
+    >
+      <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity" />
       
-      {/* HEADER & NAVIGATION */}
-      <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-purple-950/90 text-purple-300 border border-purple-800/60">
+            {resource.category}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={(e) => onToggleBookmark(resource.id, e)}
+              className={`p-1.5 rounded-lg border transition-all ${
+                isBookmarked 
+                  ? 'bg-purple-600 text-white border-purple-500' 
+                  : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:text-white'
+              }`}
+              title={isBookmarked ? '取消收藏' : '收藏论文'}
+            >
+              <Bookmark className="w-3.5 h-3.5 fill-current" />
+            </button>
+            <div className="flex items-center text-amber-400 text-xs font-semibold gap-1 bg-amber-950/30 px-2.5 py-1 rounded-full border border-amber-800/30">
+              <Star className="w-3.5 h-3.5 fill-amber-400" />
+              {resource.rating.toFixed(1)}
+            </div>
+          </div>
+        </div>
+
+        <h3 className="text-lg font-bold text-slate-100 mb-2 group-hover:text-purple-300 transition-colors line-clamp-2 leading-snug">
+          {resource.title}
+        </h3>
+
+        <p className="text-slate-400 text-xs leading-relaxed mb-4 line-clamp-3">
+          {resource.abstract}
+        </p>
+
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {resource.tags.slice(0, 3).map((tag) => (
+            <span key={tag} className="text-[10px] bg-slate-800/80 text-slate-300 px-2 py-0.5 rounded border border-slate-700/50">
+              #{tag}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
+        <div className="flex items-center gap-2">
+          <img src={resource.author.avatar} alt={resource.author.name} className="w-6 h-6 rounded-full object-cover border border-purple-500/30" />
+          <span className="text-slate-300 truncate max-w-[120px]">{resource.author.name}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px]">
+          <span className="flex items-center gap-1" title="阅读量"><Eye className="w-3.5 h-3.5" />{resource.views}</span>
+          <span className="flex items-center gap-1" title="被引次数"><Quote className="w-3.5 h-3.5" />{resource.citationCount}</span>
+          <span className="flex items-center gap-1" title="下载量"><Download className="w-3.5 h-3.5" />{resource.downloads}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 论文详情与互动模态弹窗组件
+function ResourceDetailModal({ 
+  resource, 
+  onClose,
+  discussions,
+  onAddDiscussion,
+  onNotify
+}: { 
+  resource: Resource; 
+  onClose: () => void;
+  discussions: Discussion[];
+  onAddDiscussion: (resourceId: string, comment: string) => void;
+  onNotify: (msg: string) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'paper' | 'citations' | 'discussion'>('paper');
+  const [citationFormat, setCitationFormat] = useState<'APA' | 'IEEE' | 'MLA' | 'BibTeX'>('APA');
+  const [copied, setCopied] = useState(false);
+  const [newComment, setNewComment] = useState('');
+
+  // 格式化生成引用文本
+  const citationText = useMemo(() => {
+    const year = resource.publishedAt.split('-')[0];
+    switch (citationFormat) {
+      case 'APA':
+        return `${resource.author.name}. (${year}). ${resource.title}. North Synapse Open Science. https://doi.org/${resource.doi}`;
+      case 'IEEE':
+        return `[1] ${resource.author.name}, "${resource.title}," North Synapse Pub., vol. 4, ${year}, doi: ${resource.doi}.`;
+      case 'MLA':
+        return `${resource.author.name}. "${resource.title}." North Synapse, ${year}, doi:${resource.doi}.`;
+      case 'BibTeX':
+        return `@article{${resource.id.replace('-', '_')}_${year},\n  author = {${resource.author.name}},\n  title = {${resource.title}},\n  journal = {North Synapse Platform},\n  year = {${year}},\n  doi = {${resource.doi}}\n}`;
+      default:
+        return '';
+    }
+  }, [resource, citationFormat]);
+
+  const handleCopyCitation = () => {
+    navigator.clipboard.writeText(citationText);
+    setCopied(true);
+    onNotify('引用剪贴板复制成功！');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCommentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    onAddDiscussion(resource.id, newComment);
+    setNewComment('');
+    onNotify('发表讨论成功！');
+  };
+
+  const resourceDiscussions = discussions.filter(d => d.resourceId === resource.id);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 relative shadow-2xl flex flex-col">
+        <button 
+          onClick={onClose} 
+          className="absolute top-6 right-6 text-slate-400 hover:text-white p-2 rounded-full bg-slate-800/50 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-purple-950 text-purple-300 border border-purple-800">
+            {resource.category}
+          </span>
+          {resource.isPeerReviewed && (
+            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" /> Peer Reviewed
+            </span>
+          )}
+          <span className="text-xs text-slate-500 font-mono">DOI: {resource.doi}</span>
+        </div>
+
+        <h2 className="text-2xl font-bold text-white mb-4 leading-snug">{resource.title}</h2>
+
+        <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-800/80">
+          <img src={resource.author.avatar} alt={resource.author.name} className="w-12 h-12 rounded-full object-cover border-2 border-purple-500" />
+          <div>
+            <p className="text-sm font-semibold text-slate-200">{resource.author.name}</p>
+            <p className="text-xs text-slate-400">{resource.author.institution} • h-index: {resource.author.hIndex}</p>
+            <p className="text-[11px] text-purple-400 font-mono">ORCID: {resource.author.orcid}</p>
+          </div>
+        </div>
+
+        {/* 选项卡切换 */}
+        <div className="flex border-b border-slate-800 gap-6 mb-6">
+          <button 
+            onClick={() => setActiveTab('paper')}
+            className={`pb-3 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === 'paper' ? 'border-purple-500 text-purple-300' : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            全文与摘要
+          </button>
+          <button 
+            onClick={() => setActiveTab('citations')}
+            className={`pb-3 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === 'citations' ? 'border-purple-500 text-purple-300' : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            生成引用 (Cite)
+          </button>
+          <button 
+            onClick={() => setActiveTab('discussion')}
+            className={`pb-3 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === 'discussion' ? 'border-purple-500 text-purple-300' : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            学术讨论 ({resourceDiscussions.length})
+          </button>
+        </div>
+
+        {/* 选项卡内容 */}
+        <div className="flex-1 space-y-6 text-slate-300 text-sm">
+          {activeTab === 'paper' && (
+            <>
+              <div>
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">摘要 (Abstract)</h4>
+                <p className="leading-relaxed text-slate-300 bg-slate-950/50 p-4 rounded-2xl border border-slate-800/80">{resource.abstract}</p>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">论文正文预览 (Full-text Preview)</h4>
+                <pre className="whitespace-pre-wrap font-sans leading-relaxed text-slate-400 bg-slate-950/30 p-5 rounded-2xl border border-slate-800/60 text-xs">
+                  {resource.fullText}
+                </pre>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'citations' && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                {(['APA', 'IEEE', 'MLA', 'BibTeX'] as const).map((fmt) => (
+                  <button
+                    key={fmt}
+                    onClick={() => setCitationFormat(fmt)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                      citationFormat === fmt 
+                        ? 'bg-purple-600 text-white' 
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {fmt}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative">
+                <textarea
+                  readOnly
+                  rows={4}
+                  value={citationText}
+                  className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-slate-200 font-mono text-xs focus:outline-none"
+                />
+                <button
+                  onClick={handleCopyCitation}
+                  className="absolute right-3 top-3 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium flex items-center gap-1.5 transition-all shadow-md"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? '已复制' : '复制引用'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'discussion' && (
+            <div className="space-y-6">
+              <form onSubmit={handleCommentSubmit} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="针对该论文提出学术质疑或讨论..."
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+                <button 
+                  type="submit" 
+                  className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1 transition-all"
+                >
+                  <Send className="w-3.5 h-3.5" /> 发表
+                </button>
+              </form>
+
+              <div className="space-y-3">
+                {resourceDiscussions.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-6">暂无讨论，成为第一个发起同行讨论的学者吧。</p>
+                ) : (
+                  resourceDiscussions.map((disc) => (
+                    <div key={disc.id} className="p-4 rounded-2xl bg-slate-950/40 border border-slate-800/80 flex items-start gap-3">
+                      <img src={disc.avatar} alt={disc.user} className="w-8 h-8 rounded-full object-cover" />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold text-slate-200">{disc.user}</span>
+                          <span className="text-[10px] text-slate-500">{disc.createdAt}</span>
+                        </div>
+                        <p className="text-xs text-slate-300 leading-relaxed">{disc.comment}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => onNotify('PDF 下载流程已启动')}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium transition-all shadow-lg shadow-purple-600/30"
+            >
+              <Download className="w-4 h-4" /> 下载完整 PDF
+            </button>
+          </div>
+          <button onClick={onClose} className="text-xs text-slate-400 hover:text-white">关闭弹窗</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// SECTION 5: 横幅与统计区域 (HERO & STATS SECTIONS)
+// ==========================================
+function HeroSection({ 
+  query, 
+  onSearchChange, 
+  selectedCategory, 
+  onCategoryChange 
+}: { 
+  query: string; 
+  onSearchChange: (q: string) => void; 
+  selectedCategory: string; 
+  onCategoryChange: (c: string) => void; 
+}) {
+  return (
+    <section className="relative pt-28 pb-20 px-4 text-center overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-purple-950/30 via-slate-950 to-slate-950 -z-10" />
+      <div className="max-w-5xl mx-auto">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-900/40 border border-purple-700/50 text-purple-300 text-xs font-semibold mb-8 shadow-inner">
+          <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+          新一代去中心化学术知识节点与协同平台
+        </div>
         
-        {/* LOGO AREA WITH IMAGE LOADER & CRISP SVG FALLBACK */}
-        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.4rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', letterSpacing: '-0.02em' }}>
+        <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-tight mb-8 leading-tight">
+          连接智慧，汇聚于 <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-300 to-purple-200">North Synapse</span>
+        </h1>
+        
+        <p className="text-base sm:text-lg md:text-xl text-slate-300 mb-12 max-w-3xl mx-auto font-light leading-relaxed">
+          探索同行评审论文，实时进行跨学科算法演练，消除学术壁垒，加速全球科学研究的突破进程。
+        </p>
+
+        <SearchBar 
+          query={query} 
+          onSearchChange={onSearchChange} 
+          selectedCategory={selectedCategory} 
+          onCategoryChange={onCategoryChange} 
+        />
+      </div>
+
+      <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 pt-12 border-t border-slate-800/60">
+        {PLATFORM_STATS.map((stat) => (
+          <div key={stat.label} className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/50 backdrop-blur-sm">
+            <p className="text-2xl font-bold text-white">{stat.value}</p>
+            <p className="text-xs text-slate-400 mt-1">{stat.label}</p>
+            <span className="text-[10px] text-purple-400 mt-0.5 inline-block">{stat.change}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ==========================================
+// SECTION 6: 导航栏与 Logo (HEADER & NAVIGATION)
+// ==========================================
+function Header({ bookmarkedCount }: { bookmarkedCount: number }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [useLogoImage, setUseLogoImage] = useState(false);
+
+  return (
+    <header className="sticky top-0 z-40 bg-slate-950/85 backdrop-blur-xl border-b border-slate-800/80">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="flex items-center space-x-3 cursor-pointer">
           {useLogoImage ? (
             <img 
               src="/logo.png" 
               alt="North Synapse Logo" 
-              style={{ width: '38px', height: '38px', objectFit: 'contain' }} 
+              style={{ width: '36px', height: '42px', objectFit: 'contain' }} 
               onError={() => setUseLogoImage(false)} 
             />
           ) : (
-            <svg width="34" height="38" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M 75,20 C 75,10 25,10 25,35 C 25,60 75,60 75,85 C 75,100 25,100 25,90" stroke="#A78BFA" strokeWidth="6" strokeLinecap="round" fill="none" />
-              <path d="M 25,20 C 25,10 75,10 75,35 C 75,60 25,60 25,85 C 25,100 75,100 75,90" stroke="#A78BFA" strokeWidth="6" strokeLinecap="round" strokeDasharray="3 7" fill="none" />
+            /* 纯 SVG 代码绘制的 S 型双螺旋/神经突触 Logo */
+            <svg 
+              width="36" 
+              height="42" 
+              viewBox="0 0 100 115" 
+              fill="none" 
+              xmlns="http://www.w3.org/2000/svg"
+              className="drop-shadow-[0_0_10px_rgba(167,139,250,0.5)]"
+            >
+              {/* S 型外侧主轨道 */}
+              <path
+                d="M 75,20 C 75,8 25,8 25,35 C 25,62 75,62 75,88 C 75,102 25,102 25,90"
+                stroke="#A78BFA"
+                strokeWidth="7"
+                strokeLinecap="round"
+                fill="none"
+              />
+
+              {/* 上半环内部 - DNA 阶梯/突触虚线 */}
+              <line x1="38" y1="20" x2="62" y2="30" stroke="#A78BFA" strokeWidth="4" strokeDasharray="2 4" strokeLinecap="round" />
+              <line x1="30" y1="28" x2="55" y2="38" stroke="#A78BFA" strokeWidth="4" strokeDasharray="2 4" strokeLinecap="round" />
+              <line x1="26" y1="38" x2="48" y2="46" stroke="#A78BFA" strokeWidth="4" strokeDasharray="2 4" strokeLinecap="round" />
+
+              {/* 下半环内部 - DNA 阶梯/突触虚线 */}
+              <line x1="52" y1="64" x2="74" y2="72" stroke="#A78BFA" strokeWidth="4" strokeDasharray="2 4" strokeLinecap="round" />
+              <line x1="45" y1="72" x2="70" y2="82" stroke="#A78BFA" strokeWidth="4" strokeDasharray="2 4" strokeLinecap="round" />
+              <line x1="38" y1="80" x2="62" y2="90" stroke="#A78BFA" strokeWidth="4" strokeDasharray="2 4" strokeLinecap="round" />
+
+              {/* 端点突触节点圆点 */}
               <circle cx="75" cy="20" r="4.5" fill="#A78BFA" />
               <circle cx="25" cy="35" r="4.5" fill="#A78BFA" />
-              <circle cx="50" cy="60" r="5" fill="#A78BFA" />
-              <circle cx="75" cy="85" r="4.5" fill="#A78BFA" />
+              <circle cx="75" cy="88" r="4.5" fill="#A78BFA" />
               <circle cx="25" cy="90" r="4.5" fill="#A78BFA" />
             </svg>
           )}
-          <span>North Synapse</span>
-          {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>OFFICIAL ADMIN</span>}
+          <span className="text-xl font-black tracking-tight bg-gradient-to-r from-white via-slate-100 to-purple-200 bg-clip-text text-transparent">
+            North Synapse
+          </span>
         </div>
 
-        <nav style={{ display: 'flex', gap: '1.6rem' }}>
-          {(['resources', 'lounges', 'announcements', 'discussions', 'feedback'] as NavTab[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: activeTab === tab ? theme.accent : theme.textMuted,
-                fontWeight: activeTab === tab ? '700' : '500',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                paddingBottom: '0.3rem',
-                borderBottom: activeTab === tab ? `2px solid ${theme.accent}` : '2px solid transparent',
-                textTransform: 'capitalize'
-              }}
-            >
-              {tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounge' : tab}
-            </button>
-          ))}
-          {user && (
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              style={{ background: 'none', border: 'none', color: activeTab === 'dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', paddingBottom: '0.3rem', borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}
-            >
-              Dashboard
-            </button>
-          )}
+        <nav className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-300">
+          <a href="#discover" className="hover:text-purple-400 transition-colors">发现论文</a>
+          <a href="#publications" className="hover:text-purple-400 transition-colors">学术出版</a>
+          <a href="#network" className="hover:text-purple-400 transition-colors">学者网络</a>
+          <a href="#about" className="hover:text-purple-400 transition-colors">关于我们</a>
         </nav>
 
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button onClick={() => setIsDarkMode(!isDarkMode)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}>
-            {isDarkMode ? 'Light Mode' : 'Dark Mode'}
-          </button>
-
-          {user ? (
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <div onClick={() => setActiveTab('dashboard')} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
-                <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: theme.accent, backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none', backgroundSize: 'cover', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem', color: '#FFF' }}>
-                  {!avatarUrl && (nickname ? nickname[0].toUpperCase() : 'U')}
-                </div>
-                <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{nickname || 'User'}</span>
-              </div>
-              <button onClick={() => { supabase.auth.signOut(); setUser(null); setActiveTab('resources'); }} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>
-                Sign Out
-              </button>
-            </div>
-          ) : (
-            <button type="button" onClick={() => setShowAuthModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem 1.4rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}>
-              Sign In
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* MAIN CONTENT AREA */}
-      <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
-        
-        {/* Banner */}
-        <div style={{ 
-          backgroundColor: 'rgba(139, 92, 246, 0.08)', 
-          border: `1px solid ${theme.accent}`, 
-          borderRadius: '12px', 
-          padding: '0 1.5rem', 
-          marginBottom: '2rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          height: '52px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, overflow: 'hidden' }}>
-            <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
-              NOTICE ({currentBannerIndex + 1}/{announcements.length})
-            </span>
-
-            <div style={{ flex: 1, overflow: 'hidden', height: '52px', position: 'relative' }}>
-              {announcements.map((item, idx) => (
-                <div 
-                  key={item.id} 
-                  style={{ 
-                    position: 'absolute', 
-                    top: 0, 
-                    left: 0, 
-                    width: '100%', 
-                    height: '52px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '0.8rem',
-                    opacity: idx === currentBannerIndex ? 1 : 0,
-                    transform: idx === currentBannerIndex ? 'translateY(0)' : 'translateY(15px)',
-                    transition: 'all 0.4s ease-in-out'
-                  }}
-                >
-                  <span style={{ fontSize: '0.9rem', color: theme.textMain, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {item.title}
-                  </span>
-                  <span style={{ fontSize: '0.8rem', color: theme.textMuted, flexShrink: 0 }}>• {item.date}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <button onClick={() => setActiveTab('announcements')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', flexShrink: 0 }}>
-            View All
-          </button>
-        </div>
-
-        {/* RESOURCE HUB TAB */}
-        {activeTab === 'resources' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            
-            <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
-              <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '700', display: 'inline-block', marginBottom: '1rem' }}>
-                Academic Platform for NTCI
+        <div className="hidden md:flex items-center space-x-4">
+          <div className="relative cursor-pointer p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors">
+            <Bookmark className="w-4 h-4" />
+            {bookmarkedCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-purple-600 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                {bookmarkedCount}
               </span>
-              <h1 style={{ fontSize: '2.5rem', fontWeight: '900', letterSpacing: '-0.03em', marginBottom: '0.8rem' }}>North Synapse Resource Hub</h1>
-            </div>
-
-            {/* Search Bar */}
-            <div style={{ position: 'relative', width: '100%' }}>
-              <input 
-                type="text" 
-                placeholder="Search notes, topics, or study guide titles..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box', outline: 'none' }}
-              />
-            </div>
-
-            {/* Filter Tags */}
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              <div>
-                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>LEVEL &amp; TRACK:</span>
-                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  {gradesList.map((grd) => (
-                    <button key={grd} onClick={() => toggleGradeFilter(grd)} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedGrades.includes(grd) ? theme.accent : theme.border}`, backgroundColor: selectedGrades.includes(grd) ? theme.accent : theme.bg, color: selectedGrades.includes(grd) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
-                      {grd}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
-                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  {subjectsList.map((sub) => (
-                    <button key={sub} onClick={() => toggleSubjectFilter(sub)} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedSubjects.includes(sub) ? theme.accent : theme.border}`, backgroundColor: selectedSubjects.includes(sub) ? theme.accent : theme.bg, color: selectedSubjects.includes(sub) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
-                      {sub}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Resource Cards */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {filteredResources.map((res) => (
-                <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.6rem' }}>
-                    <div style={{ display: 'flex', gap: '0.6rem' }}>
-                      <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px' }}>{res.subject}</span>
-                      <span style={{ backgroundColor: theme.bg, color: theme.textMuted, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>{res.grade}</span>
-                    </div>
-
-                    <button onClick={(e) => triggerReportModal('resource', res.id, res.title, res.authorName, e)} style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '0.8rem', cursor: 'pointer' }}>
-                      Report
-                    </button>
-                  </div>
-
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
-                  <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '1rem' }}>{res.description}</p>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${theme.border}`, paddingTop: '0.8rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: theme.accent, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.75rem' }}>
-                        {res.authorName[0].toUpperCase()}
-                      </div>
-                      <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by {res.authorName}</span>
-                      <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>• {res.date}</span>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                      <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, fontWeight: res.likedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.85rem' }}>
-                        {res.likedByMe ? 'Liked' : 'Like'} ({res.likes})
-                      </button>
-
-                      <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.bookmarkedByMe ? theme.accent : theme.textMuted, fontWeight: res.bookmarkedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.85rem' }}>
-                        {res.bookmarkedByMe ? 'Saved' : 'Save'} ({res.bookmarks})
-                      </button>
-
-                      <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                        Preview
-                      </button>
-                    </div>
-                  </div>
-
-                </div>
-              ))}
-            </div>
-
+            )}
           </div>
-        )}
+          <button className="text-sm font-medium text-slate-300 hover:text-white transition-colors px-3 py-2">
+            登录
+          </button>
+          <button className="bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-purple-600/30 font-semibold">
+            免费注册
+          </button>
+        </div>
 
-        {/* OTHER TABS */}
-        {activeTab === 'lounges' && <div style={{ textAlign: 'center', padding: '4rem 2rem' }}><h2>Study Lounge</h2><p style={{ color: theme.textMuted }}>Virtual study rooms coming soon.</p></div>}
-        {activeTab === 'discussions' && <div style={{ textAlign: 'center', padding: '4rem 2rem' }}><h2>Discussions</h2><p style={{ color: theme.textMuted }}>Academic discussion board coming soon.</p></div>}
+        <button 
+          className="md:hidden text-slate-400 hover:text-white p-2"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        >
+          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </div>
 
-        {/* ANNOUNCEMENTS TAB */}
-        {activeTab === 'announcements' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Official Announcements</h1>
-            {announcements.map((item) => (
-              <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
-                  <strong style={{ color: theme.accent }}>{item.authorName}</strong>
-                  <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
-                </div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{item.title}</h3>
-                <p style={{ marginTop: '0.5rem', color: theme.textMain }}>{item.content}</p>
-              </div>
+      {mobileMenuOpen && (
+        <div className="md:hidden bg-slate-900 border-b border-slate-800 px-6 pt-4 pb-6 space-y-4 shadow-2xl">
+          <a href="#discover" className="block text-slate-200 hover:text-purple-400 font-medium">发现论文</a>
+          <a href="#publications" className="block text-slate-200 hover:text-purple-400 font-medium">学术出版</a>
+          <a href="#network" className="block text-slate-200 hover:text-purple-400 font-medium">学者网络</a>
+          <a href="#about" className="block text-slate-200 hover:text-purple-400 font-medium">关于我们</a>
+          <div className="pt-4 border-t border-slate-800 flex flex-col gap-3">
+            <button className="w-full text-center text-slate-300 py-2.5 font-medium border border-slate-700 rounded-xl">登录</button>
+            <button className="w-full bg-purple-600 text-white py-2.5 rounded-xl font-semibold shadow-lg shadow-purple-600/30">免费注册</button>
+          </div>
+        </div>
+      )}
+    </header>
+  );
+}
+
+// ==========================================
+// SECTION 7: 主页面入口与页脚 (MAIN PAGE & FOOTER)
+// ==========================================
+export default function Page() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
+  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
+  const [discussions, setDiscussions] = useState<Discussion[]>(INITIAL_DISCUSSIONS);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // 显示 Toast 简短提示框
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // 切换书签收藏状态
+  const handleToggleBookmark = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setBookmarkedIds(prev => {
+      const isBookmarked = prev.includes(id);
+      if (isBookmarked) {
+        showToast('已从收藏夹移除');
+        return prev.filter(item => item !== id);
+      } else {
+        showToast('已添加至个人收藏夹');
+        return [...prev, id];
+      }
+    });
+  };
+
+  // 添加新讨论
+  const handleAddDiscussion = (resourceId: string, comment: string) => {
+    const newDisc: Discussion = {
+      id: `d-${Date.now()}`,
+      resourceId,
+      user: 'Anonymous Researcher',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100',
+      comment,
+      createdAt: '刚刚',
+      likes: 0
+    };
+    setDiscussions(prev => [newDisc, ...prev]);
+  };
+
+  // 论文检索过滤逻辑
+  const filteredResources = useMemo(() => {
+    try {
+      return MOCK_RESOURCES.filter((res) => {
+        const matchesCategory = selectedCategory === 'All' || res.category === selectedCategory;
+        const matchesQuery = !searchQuery.trim() || 
+          res.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          res.abstract.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          res.author.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          res.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        return matchesCategory && matchesQuery;
+      });
+    } catch (err: unknown) {
+      console.error('搜索计算产生异常:', err);
+      return [];
+    }
+  }, [searchQuery, selectedCategory]);
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-purple-500 selection:text-white font-sans">
+      <Header bookmarkedCount={bookmarkedIds.length} />
+      
+      <main className="flex-1">
+        <HeroSection 
+          query={searchQuery} 
+          onSearchChange={setSearchQuery} 
+          selectedCategory={selectedCategory} 
+          onCategoryChange={setSelectedCategory} 
+        />
+
+        <section id="discover" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-10">
+            <div>
+              <h2 className="text-3xl font-bold text-white tracking-tight">精选出版物 (Featured Publications)</h2>
+              <p className="text-slate-400 text-sm mt-1">由 North Synapse 分布式节点实时索引的高影响学术文献。</p>
+            </div>
+            
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <span className="text-xs text-slate-500">找到 {filteredResources.length} 项成果</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
+            {filteredResources.map((res) => (
+              <ResourceCard 
+                key={res.id} 
+                resource={res} 
+                onSelect={(r) => setSelectedResource(r)}
+                isBookmarked={bookmarkedIds.includes(res.id)}
+                onToggleBookmark={handleToggleBookmark}
+              />
             ))}
           </div>
-        )}
 
-        {/* FEEDBACK TAB */}
-        {activeTab === 'feedback' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Issue Reporting</h1>
-            <form onSubmit={handleAddFeedback} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Type of Feedback</label>
-                <select value={feedbackCategory} onChange={(e) => setFeedbackCategory(e.target.value)} style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}>
-                  <option value="General Suggestion">General Suggestion</option>
-                  <option value="Report Issue / Bug">Report Issue / Bug</option>
-                  <option value="Content Request">Content Request</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Overall Experience Rating</label>
-                <div style={{ display: 'flex', gap: '0.6rem' }}>
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <button key={s} type="button" onClick={() => setFeedbackRating(s)} style={{ padding: '0.3rem 0.8rem', borderRadius: '6px', border: `1px solid ${s <= feedbackRating ? theme.accent : theme.border}`, backgroundColor: s <= feedbackRating ? theme.accent : theme.bg, color: s <= feedbackRating ? '#FFF' : theme.textMain, fontWeight: 'bold', cursor: 'pointer' }}>
-                      {s} Star
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Details / Problem Description</label>
-                <textarea required rows={4} placeholder="Describe your bug report or suggestion here..." value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>Submit Feedback / Bug Report</button>
-            </form>
-          </div>
-        )}
-
-        {/* DASHBOARD TAB WITH REAL ADMIN STATS */}
-        {activeTab === 'dashboard' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            
-            {/* PROFILE CARD */}
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                <div style={{ width: '70px', height: '70px', borderRadius: '50%', backgroundColor: theme.accent, backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none', backgroundSize: 'cover', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.8rem', color: '#FFF' }}>
-                  {!avatarUrl && (nickname ? nickname[0].toUpperCase() : 'U')}
-                </div>
-                <div>
-                  <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{nickname || 'Student Profile'}</h1>
-                  <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem' }}>
-                    @{username || 'username'} • <span style={{ color: theme.accent, fontWeight: '600' }}>{grade || 'Grade Not Set'}</span> • Gender: {gender || 'Not Set'}
-                  </p>
-                  <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem' }}>
-                    Member since: <strong>{createdAt}</strong>
-                  </p>
-                  {bio && <p style={{ fontSize: '0.85rem', marginTop: '0.6rem', color: theme.textMain, fontStyle: 'italic' }}>&quot;{bio}&quot;</p>}
-                </div>
-              </div>
-              <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.6rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Edit Profile</button>
+          {filteredResources.length === 0 && (
+            <div className="text-center py-24 bg-slate-900/40 rounded-3xl border border-slate-800/80">
+              <AlertCircle className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+              <p className="text-slate-200 text-lg font-semibold">未找到符合条件的论文成果</p>
+              <p className="text-slate-500 text-sm mt-1 max-w-md mx-auto">请尝试重置关键词或在分类选项卡中切换至 "All" 查看更多文献。</p>
+              <button 
+                onClick={() => { setSearchQuery(''); setSelectedCategory('All'); }}
+                className="mt-6 px-4 py-2 rounded-xl bg-purple-950 text-purple-300 border border-purple-800 text-xs font-semibold hover:bg-purple-900 transition-colors"
+              >
+                重置搜索条件
+              </button>
             </div>
-
-            {/* IF REGULAR USER (NON-ADMIN) */}
-            {!isAdmin ? (
-              <>
-                {/* FRIENDS LIST */}
-                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Study Friends ({friends.length})</h2>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
-                    {friends.map((f) => (
-                      <div key={f.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: theme.accent, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                          {f.name[0]}
-                        </div>
-                        <div>
-                          <strong style={{ display: 'block', fontSize: '0.9rem' }}>{f.name}</strong>
-                          <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{f.grade} • {f.status}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* MY PUBLISHED RESOURCES */}
-                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>My Published Resources ({myResources.length})</h2>
-                  {myResources.length > 0 ? (
-                    myResources.map((res) => (
-                      <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-                        <div>
-                          <span style={{ fontSize: '0.75rem', color: theme.accent, fontWeight: 'bold' }}>{res.subject}</span>
-                          <h4 style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>{res.title}</h4>
-                        </div>
-                        <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{res.likes} Likes • {res.bookmarks} Saves</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t shared any resources yet.</p>
-                  )}
-                </div>
-
-                {/* MY DISCUSSIONS */}
-                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>My Discussion Topics ({myDiscussions.length})</h2>
-                  {myDiscussions.length > 0 ? (
-                    myDiscussions.map((d) => (
-                      <div key={d.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <h4 style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>{d.title}</h4>
-                          <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted on {d.date}</span>
-                        </div>
-                        <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{d.repliesCount} Replies</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>No active discussions started yet.</p>
-                  )}
-                </div>
-
-                {/* MY BOOKMARKED RESOURCES LIST */}
-                <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>My Saved Bookmarks ({bookmarkedResources.length})</h2>
-                  {bookmarkedResources.length > 0 ? (
-                    bookmarkedResources.map((bm) => (
-                      <div key={bm.id} onClick={() => setPreviewResource(bm)} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-                        <div>
-                          <span style={{ fontSize: '0.75rem', color: theme.accent, fontWeight: 'bold' }}>{bm.subject} • {bm.grade}</span>
-                          <h4 style={{ fontSize: '0.95rem', fontWeight: 'bold', marginTop: '0.2rem' }}>{bm.title}</h4>
-                          <p style={{ fontSize: '0.8rem', color: theme.textMuted }}>Shared by {bm.authorName} on {bm.date}</p>
-                        </div>
-                        <button style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                          Open Note
-                        </button>
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t bookmarked any notes yet.</p>
-                  )}
-                </div>
-              </>
-            ) : (
-              /* REAL ADMIN DASHBOARD (NO FAKE DATA) */
-              <>
-                {/* PLATFORM ANALYTICS STATS */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.2rem' }}>
-                  
-                  <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.85rem', color: theme.textMuted, fontWeight: '600' }}>TOTAL REGISTERED USERS (REAL)</span>
-                    <div style={{ fontSize: '2rem', fontWeight: '900', color: theme.accent }}>{realUserCount}</div>
-                    <span style={{ fontSize: '0.75rem', color: '#10B981', fontWeight: 'bold' }}>Live from Supabase</span>
-                  </div>
-
-                  <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.85rem', color: theme.textMuted, fontWeight: '600' }}>PUBLISHED RESOURCES</span>
-                    <div style={{ fontSize: '2rem', fontWeight: '900', color: theme.textMain }}>{resources.length}</div>
-                    <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Across 9 Subject Categories</span>
-                  </div>
-
-                  <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.85rem', color: theme.textMuted, fontWeight: '600' }}>COMMUNITY DISCUSSIONS</span>
-                    <div style={{ fontSize: '2rem', fontWeight: '900', color: theme.textMain }}>{discussions.length}</div>
-                    <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Active Peer Topics</span>
-                  </div>
-
-                </div>
-
-                {/* MODERATION PANEL */}
-                <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.05)', border: '1px solid #EF4444', borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#EF4444' }}>Admin Moderation Panel ({pendingReports.length} Pending Reports)</h2>
-                  </div>
-
-                  {pendingReports.length > 0 ? (
-                    pendingReports.map((rep) => (
-                      <div key={rep.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <span style={{ fontSize: '0.75rem', backgroundColor: '#EF4444', color: '#FFF', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 'bold' }}>{rep.targetType.toUpperCase()}</span>
-                          <h4 style={{ fontSize: '1rem', fontWeight: 'bold', marginTop: '0.4rem' }}>Target: {rep.targetTitle}</h4>
-                          <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>Reason: <strong>{rep.reason}</strong> | Details: {rep.details || 'None provided'}</p>
-                          <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Reported by: {rep.reporterEmail} • {rep.date}</span>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '0.8rem' }}>
-                          <button onClick={() => handleAdminResolveReport(rep.id, 'delete')} style={{ backgroundColor: '#EF4444', color: '#FFF', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>
-                            Confirm &amp; Delete
-                          </button>
-                          <button onClick={() => handleAdminResolveReport(rep.id, 'dismiss')} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                            Dismiss
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{ color: theme.textMuted, fontSize: '0.9rem' }}>No pending reports to review.</p>
-                  )}
-                </div>
-              </>
-            )}
-
-          </div>
-        )}
-
+          )}
+        </section>
       </main>
 
-      {/* PREVIEW MODAL */}
-      {previewResource && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '960px', height: '80vh', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
-            <div style={{ padding: '1.2rem 2rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: 'bold' }}>{previewResource.subject}</span>
-                <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', marginTop: '0.2rem' }}>{previewResource.title}</h2>
-              </div>
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                <button onClick={() => setShowCommentsArea(!showCommentsArea)} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}>
-                  {showCommentsArea ? 'Hide Comments' : 'Show Comments'}
-                </button>
-                <button onClick={() => setPreviewResource(null)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.4rem' }}>X</button>
-              </div>
-            </div>
+      {/* 论文详情模态弹窗 */}
+      {selectedResource && (
+        <ResourceDetailModal 
+          resource={selectedResource} 
+          onClose={() => setSelectedResource(null)}
+          discussions={discussions}
+          onAddDiscussion={handleAddDiscussion}
+          onNotify={showToast}
+        />
+      )}
 
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-              <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', borderRight: showCommentsArea ? `1px solid ${theme.border}` : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: `1px solid ${theme.border}` }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: theme.accent, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                    {previewResource.authorName[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <strong style={{ display: 'block', fontSize: '0.95rem' }}>{previewResource.authorName}</strong>
-                    <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Posted on {previewResource.date}</span>
-                  </div>
-                </div>
-
-                <div style={{ fontSize: '0.95rem', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}>
-                  {previewResource.content}
-                </div>
-              </div>
-
-              {showCommentsArea && (
-                <div style={{ width: '360px', backgroundColor: theme.bg, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Comments ({previewResource.comments.length})</h3>
-
-                  <form onSubmit={handleAddComment} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                    <textarea 
-                      rows={3} 
-                      placeholder="Write a comment..." 
-                      value={newCommentText}
-                      onChange={(e) => setNewCommentText(e.target.value)}
-                      style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box' }}
-                    />
-                    <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end', fontSize: '0.85rem' }}>Post Comment</button>
-                  </form>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
-                    {previewResource.comments.map((c) => (
-                      <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                          <strong style={{ fontSize: '0.85rem' }}>{c.authorName}</strong>
-                          <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{c.date}</span>
-                        </div>
-                        <p style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>{c.text}</p>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <button onClick={() => handleLikeComment(c.id)} style={{ background: 'none', border: 'none', color: c.likedByMe ? theme.accent : theme.textMuted, fontWeight: c.likedByMe ? 'bold' : 'normal', cursor: 'pointer', fontSize: '0.75rem' }}>
-                            {c.likedByMe ? 'Liked' : 'Like'} ({c.likes})
-                          </button>
-                          <button onClick={(e) => triggerReportModal('comment', c.id, c.text, c.authorName, e)} style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '0.75rem', cursor: 'pointer' }}>
-                            Report
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-          </div>
+      {/* Toast 提示框 */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-purple-600 text-white px-5 py-3 rounded-2xl shadow-2xl text-xs font-semibold flex items-center gap-2 animate-bounce">
+          <CheckCircle className="w-4 h-4" />
+          {toastMessage}
         </div>
       )}
 
-      {/* REPORT MODAL */}
-      {showReportModal && reportTarget && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#EF4444' }}>Report Content</h2>
-              <button onClick={() => setShowReportModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+      {/* 底部页脚 */}
+      <footer className="bg-slate-950 border-t border-slate-800/80 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-8 border-b border-slate-800/60">
+            <div className="flex items-center space-x-3">
+              <span className="text-lg font-bold text-white">North Synapse</span>
+              <span className="text-xs text-slate-500 border-l border-slate-800 pl-3">学术知识网络平台</span>
             </div>
-
-            <form onSubmit={handleSubmitReport} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Report Reason</label>
-                <select value={reportReason} onChange={(e) => setReportReason(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}>
-                  <option value="Academic Dishonesty">Academic Dishonesty / Unreleased Exam</option>
-                  <option value="Insulting / Harassment">Insulting Language / Harassment</option>
-                  <option value="Spam / Inappropriate">Spam / Inappropriate Content</option>
-                  <option value="Other">Other Issues</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Additional Details (Optional)</label>
-                <textarea rows={3} placeholder="Provide specific context if needed..." value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              <button type="submit" style={{ backgroundColor: '#EF4444', color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                Submit Report
-              </button>
-            </form>
+            <div className="flex space-x-8 text-xs text-slate-400">
+              <a href="#" className="hover:text-purple-400 transition-colors">节点分布</a>
+              <a href="#" className="hover:text-purple-400 transition-colors">API 接口文档</a>
+              <a href="#" className="hover:text-purple-400 transition-colors">开源协议</a>
+              <a href="#" className="hover:text-purple-400 transition-colors">安全性验证</a>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* EDIT PROFILE MODAL */}
-      {showEditProfileModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}`, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Edit Profile Settings</h2>
-              <button onClick={() => setShowEditProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
-            </div>
-
-            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                <input type="file" ref={fileInputRef} accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
-                <div onClick={() => fileInputRef.current?.click()} style={{ width: '75px', height: '75px', borderRadius: '50%', backgroundColor: theme.bg, border: `2px dashed ${theme.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', backgroundImage: avatarUrl ? `url(${avatarUrl})` : 'none', backgroundSize: 'cover' }}>
-                  {!avatarUrl && <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>Upload</span>}
-                </div>
-                <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}>Change Image</button>
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username (3-20 chars)</label>
-                  <input type="text" required minLength={3} maxLength={20} value={username} onChange={(e) => setUsername(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname (2-30 chars)</label>
-                  <input type="text" required minLength={2} maxLength={30} value={nickname} onChange={(e) => setNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade</label>
-                  <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
-                    <option value="">Select Grade (Optional)</option>
-                    <option value="Grade 9">Grade 9</option>
-                    <option value="Grade 10">Grade 10</option>
-                    <option value="Grade 11">Grade 11</option>
-                    <option value="Grade 12">Grade 12</option>
-                    <option value="Alumni">Alumni</option>
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (Optional)</label>
-                  <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
-                    <option value="">Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Non-binary">Non-binary</option>
-                    <option value="Prefer not to say">Prefer not to say</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio</label>
-                <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', fontFamily: 'inherit' }} />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-                <button type="submit" disabled={savingProfile} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>{savingProfile ? 'Saving...' : 'Save Profile Changes'}</button>
-                <button type="button" onClick={handleDeleteAccount} style={{ background: 'none', border: '1px solid #EF4444', color: '#EF4444', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer' }}>Delete Account</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* AUTHENTICATION & RESET MODALS */}
-      {showAuthModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{isSignUp ? 'Sign Up' : 'Sign In'}</h2>
-              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
-            </div>
-
-            <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Email</label>
-                <input type="email" required placeholder="350403596@tdsb.ca" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                  <label style={{ fontSize: '0.85rem', color: theme.textMuted }}>Password</label>
-                  {!isSignUp && (
-                    <span onClick={() => { setShowAuthModal(false); setShowForgotPasswordModal(true); }} style={{ fontSize: '0.8rem', color: theme.accent, cursor: 'pointer' }}>Forgot Password?</span>
-                  )}
-                </div>
-                <input type="password" required placeholder="••••••••" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              {isSignUp && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '0.2rem' }}>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                    <input type="checkbox" id="studentConfirm" required checked={isStudentConfirmed} onChange={(e) => setIsStudentConfirmed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
-                    <label htmlFor="studentConfirm" style={{ fontSize: '0.8rem', color: theme.textMuted, lineHeight: '1.3' }}>I confirm that I am a current student or alumni.</label>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                    <input type="checkbox" id="termsConfirm" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} style={{ marginTop: '0.2rem' }} />
-                    <label htmlFor="termsConfirm" style={{ fontSize: '0.8rem', color: theme.textMuted, lineHeight: '1.3' }}>
-                      I agree to the <span onClick={() => setShowTermsModal(true)} style={{ color: theme.accent, textDecoration: 'underline', cursor: 'pointer', fontWeight: 'bold' }}>Terms of Service</span>.
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              <button type="submit" disabled={loading} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', opacity: loading ? 0.6 : 1, marginTop: '0.5rem' }}>
-                {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
-              </button>
-            </form>
-
-            <p onClick={() => { setIsSignUp(!isSignUp); setIsStudentConfirmed(false); setHasAgreedTerms(false); }} style={{ color: theme.accent, marginTop: '1.2rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}>
-              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Forgot Password Modal */}
-      {showForgotPasswordModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Reset Password</h2>
-              <button onClick={() => setShowForgotPasswordModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
-            </div>
-
-            <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Enter your email address</label>
-                <input type="email" required placeholder="your_email@tdsb.ca" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                Send Reset Link
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Set New Password Modal */}
-      {showResetNewPasswordModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.accent }}>Set New Password</h2>
-              <button onClick={() => setShowResetNewPasswordModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
-            </div>
-
-            <form onSubmit={handleUpdateNewPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color theme.textMuted, marginBottom: '0.3rem' }}>Enter Your New Password</label>
-                <input 
-                  type="password" 
-                  required 
-                  placeholder="••••••••" 
-                  value={newPassword} 
-                  onChange={(e) => setNewPassword(e.target.value)} 
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} 
-                />
-              </div>
-
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                Update Password
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ORIGINAL FULL TERMS OF SERVICE MODAL */}
-      {showTermsModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '16px', width: '90%', maxWidth: '580px', border: `1px solid ${theme.border}`, maxHeight: '80vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.8rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.accent }}>Terms of Service &amp; Community Guidelines</h2>
-              <button onClick={() => setShowTermsModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
-            </div>
-
-            <div style={{ fontSize: '0.85rem', color: theme.textMuted, lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <p>Welcome to <strong>North Synapse</strong>, an academic peer-to-peer resource platform dedicated to verified high school students and alumni.</p>
-              
-              <div>
-                <strong style={{ color: theme.textMain, display: 'block', marginBottom: '0.2rem' }}>1. Academic Integrity Standard</strong>
-                <p>Users must not upload unreleased exam materials, live test papers, or materials that violate institutional academic integrity policies. Shared resources should be study notes, guides, and practice materials created for educational collaboration.</p>
-              </div>
-
-              <div>
-                <strong style={{ color: theme.textMain, display: 'block', marginBottom: '0.2rem' }}>2. Respectful Communication</strong>
-                <p>Harassment, abusive language, discrimination, and spam within comments or discussions are strictly forbidden. Users flagging inappropriate content can submit direct moderation tickets to system administrators.</p>
-              </div>
-
-              <div>
-                <strong style={{ color: theme.textMain, display: 'block', marginBottom: '0.2rem' }}>3. User Account Accountability</strong>
-                <p>You are responsible for maintaining the confidentiality of your credentials and all activities occurring under your registered user profile.</p>
-              </div>
-            </div>
-
-            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => { setHasAgreedTerms(true); setShowTermsModal(false); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.5rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>
-                I Accept &amp; Agree
-              </button>
+          <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+            <p>© {new Date().getFullYear()} North Synapse Open Science. All rights reserved.</p>
+            <div className="flex space-x-6">
+              <a href="#" className="hover:text-slate-400">隐私政策</a>
+              <a href="#" className="hover:text-slate-400">服务条款</a>
+              <a href="#" className="hover:text-slate-400">联系支持</a>
             </div>
           </div>
         </div>
-      )}
-
+      </footer>
     </div>
   );
 }
