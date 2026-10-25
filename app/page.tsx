@@ -43,9 +43,6 @@ const supabase = {
         localStorage.removeItem('ns_local_user');
       }
       return { error: null };
-    },
-    onAuthStateChange: (callback: any) => {
-      return { data: { subscription: { unsubscribe: () => {} } } };
     }
   }
 };
@@ -107,9 +104,17 @@ interface AnnouncementItem {
   authorName: string;
 }
 
+interface FriendItem {
+  id: string;
+  name: string;
+  grade: string;
+  avatarUrl: string;
+  status: 'online' | 'offline';
+}
+
 export default function Home() {
   /* ==========================================================================
-     2. 全局状态 (GLOBAL STATES)
+     2. 全局状态定义 (GLOBAL STATES)
      ========================================================================== */
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [activeTab, setActiveTab] = useState<NavTab>('resources');
@@ -120,7 +125,7 @@ export default function Home() {
   const [showCreateResourceModal, setShowCreateResourceModal] = useState(false);
   const [showCreateDiscussionModal, setShowCreateDiscussionModal] = useState(false);
 
-  // 登录表单状态
+  // 认证与注册表单状态
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -128,7 +133,7 @@ export default function Home() {
   const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // 个人资料表单状态
+  // 个人资料设置状态
   const [avatarUrl, setAvatarUrl] = useState('');
   const [username, setUsername] = useState('');
   const [nickname, setNickname] = useState('');
@@ -137,34 +142,44 @@ export default function Home() {
   const [bio, setBio] = useState('');
   const [createdAt, setCreatedAt] = useState('');
 
-  // 筛选过滤状态
+  // 筛选与搜索状态
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Logo 图片加载失败降级方案
+  // Logo 图片降级机制
   const [useLogoImage, setUseLogoImage] = useState(true);
 
-  // 新建资源表单状态
+  // 新建笔记与话题状态
   const [newResTitle, setNewResTitle] = useState('');
   const [newResSubject, setNewResSubject] = useState('Mathematics');
   const [newResGrade, setNewResGrade] = useState('Grade 12');
   const [newResDescription, setNewResDescription] = useState('');
   const [newResContent, setNewResContent] = useState('');
 
-  // 新建讨论表单状态
   const [newDiscTitle, setNewDiscTitle] = useState('');
   const [newDiscContent, setNewDiscContent] = useState('');
 
   // 虚拟自习室与番茄钟状态
   const [joinedRoom, setJoinedRoom] = useState<LoungeRoom | null>(null);
-  const [pomodoroTime, setPomodoroTime] = useState(1500); // 25 分钟
+  const [pomodoroTime, setPomodoroTime] = useState(1500); // 25分钟
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
-  // 学术引用格式生成状态
+  // 引用生成器格式状态
   const [citationFormat, setCitationFormat] = useState<'APA' | 'IEEE' | 'MLA' | 'BibTeX'>('APA');
 
-  // 初始模拟数据集
+  // 反馈表单状态
+  const [feedbackCategory, setFeedbackCategory] = useState('General Suggestion');
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackComment, setFeedbackComment] = useState('');
+
+  // 模拟好友数据
+  const [friends] = useState<FriendItem[]>([
+    { id: 'f1', name: 'Alex Smith', grade: 'Grade 12', avatarUrl: '', status: 'online' },
+    { id: 'f2', name: 'Jordan Lee', grade: 'Grade 11', avatarUrl: '', status: 'offline' }
+  ]);
+
+  // 全量论文与学习资源数据
   const [resources, setResources] = useState<ResourceItem[]>([
     {
       id: '1',
@@ -172,7 +187,7 @@ export default function Home() {
       subject: 'Mathematics',
       grade: 'AP Courses',
       description: 'Comprehensive prep guide covering AP exam series convergence tests, Taylor polynomials, and parametric equations.',
-      content: 'Detailed derivatives rules: (1) Product Rule: (uv)\' = u\'v + uv\'. (2) Quotient Rule: (u/v)\' = (u\'v - uv\') / v^2. Taylor Series Expansion for e^x = 1 + x + x^2/2! + x^3/3! + ... Make sure to practice ratio tests for interval of convergence!',
+      content: 'Detailed derivatives rules:\n(1) Product Rule: (uv)\' = u\'v + uv\'.\n(2) Quotient Rule: (u/v)\' = (u\'v - uv\') / v^2.\n\nTaylor Series Expansion for e^x = 1 + x + x^2/2! + x^3/3! + ... Make sure to practice ratio tests for interval of convergence!',
       authorName: 'Alex Smith',
       authorEmail: 'alex.smith@tdsb.ca',
       authorAvatar: '',
@@ -191,7 +206,7 @@ export default function Home() {
       subject: 'Mathematics',
       grade: 'Academic Competitions',
       description: 'Step-by-step solutions for past Waterloo contest papers with key shortcut tricks.',
-      content: 'Key geometry theorem: In any right triangle, a^2 + b^2 = c^2. For modular arithmetic problems, always check remainder patterns mod 10 for unit digits!',
+      content: 'Key geometry theorem: In any right triangle, a^2 + b^2 = c^2.\nFor modular arithmetic problems, always check remainder patterns mod 10 for unit digits!',
       authorName: 'Jordan Lee',
       authorEmail: 'jordan.lee@tdsb.ca',
       authorAvatar: '',
@@ -201,9 +216,27 @@ export default function Home() {
       likedByMe: false,
       bookmarkedByMe: false,
       comments: []
+    },
+    {
+      id: '3',
+      title: 'Grade 12 Physics Kinematics & Momentum Cheatsheet',
+      subject: 'Science',
+      grade: 'Grade 12',
+      description: 'Quick reference sheet for 2D projectile motion, conservation of momentum, and elastic vs inelastic collisions.',
+      content: 'Kinematics Formulas:\n1. v_f = v_i + a*t\n2. d = v_i*t + 0.5*a*t^2\n3. v_f^2 = v_i^2 + 2*a*d\n\nMomentum: p = m*v. In isolated systems, total momentum before collision equals total momentum after collision.',
+      authorName: 'Dr. Elena Rostova',
+      authorEmail: 'elena.rostova@tdsb.ca',
+      authorAvatar: '',
+      date: 'Oct 22, 2026',
+      likes: 25,
+      bookmarks: 18,
+      likedByMe: false,
+      bookmarkedByMe: false,
+      comments: []
     }
   ]);
 
+  // 全量讨论话题数据
   const [discussions, setDiscussions] = useState<DiscussionItem[]>([
     {
       id: 'd1',
@@ -219,17 +252,16 @@ export default function Home() {
     }
   ]);
 
+  // 自习室列表
   const [lounges] = useState<LoungeRoom[]>([
     { id: 'l1', name: 'AP Calculus & Advanced Math Focus', subject: 'Mathematics', activeUsers: 8, description: 'Silent study & problem solving for AP Calculus and Fermat/Euclid contest prep.' },
     { id: 'l2', name: 'Grade 11 & 12 Physics / Chemistry Lab', subject: 'Science', activeUsers: 5, description: 'Discussion & peer review for physics problem sets and chemistry labs.' },
     { id: 'l3', name: 'Computer Science & Algorithmic Practice', subject: 'Computer Science & Tech', activeUsers: 12, description: 'CCC Contest coding practice and Python/Java algorithm discussions.' }
   ]);
 
-  // 预览模态框状态
+  // 预览与话题弹窗状态
   const [previewResource, setPreviewResource] = useState<ResourceItem | null>(null);
   const [newCommentText, setNewCommentText] = useState('');
-
-  // 讨论详情模态框状态
   const [selectedDiscussion, setSelectedDiscussion] = useState<DiscussionItem | null>(null);
   const [newReplyText, setNewReplyText] = useState('');
 
@@ -256,7 +288,7 @@ export default function Home() {
   const isAdmin = user?.email?.toLowerCase().includes('northsynapse');
 
   /* ==========================================================================
-     3. 会话初始化与计时器逻辑
+     3. 会话管理与定时器逻辑
      ========================================================================== */
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
@@ -298,7 +330,7 @@ export default function Home() {
   }, [isTimerRunning, pomodoroTime]);
 
   /* ==========================================================================
-     4. 交互逻辑函数
+     4. 交互处理函数
      ========================================================================== */
   function toggleSubjectFilter(sub: string) {
     setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
@@ -386,6 +418,58 @@ export default function Home() {
     alert('Resource note published successfully!');
   }
 
+  function handleCreateDiscussionSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) {
+      alert('Please sign in first.');
+      setShowAuthModal(true);
+      return;
+    }
+    if (!newDiscTitle.trim() || !newDiscContent.trim()) return;
+
+    const newDisc: DiscussionItem = {
+      id: 'd_' + Date.now(),
+      title: newDiscTitle.trim(),
+      content: newDiscContent.trim(),
+      authorEmail: user.email || 'student@tdsb.ca',
+      authorName: nickname || username || 'Student',
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      repliesCount: 0,
+      replies: []
+    };
+
+    setDiscussions([newDisc, ...discussions]);
+    setShowCreateDiscussionModal(false);
+    setNewDiscTitle('');
+    setNewDiscContent('');
+    alert('Discussion topic posted!');
+  }
+
+  function handleAddComment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) {
+      alert('Please sign in first to comment.');
+      setShowAuthModal(true);
+      return;
+    }
+    if (!newCommentText.trim() || !previewResource) return;
+
+    const commentObj: CommentItem = {
+      id: Date.now().toString(),
+      authorName: nickname || user?.email?.split('@')[0] || 'Student',
+      authorAvatar: avatarUrl,
+      text: newCommentText,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      likes: 0,
+      likedByMe: false
+    };
+
+    const updatedResource = { ...previewResource, comments: [...previewResource.comments, commentObj] };
+    setPreviewResource(updatedResource);
+    setResources(prev => prev.map(r => r.id === previewResource.id ? updatedResource : r));
+    setNewCommentText('');
+  }
+
   function handleLikeResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
     setResources(prev => prev.map(res => {
@@ -400,7 +484,7 @@ export default function Home() {
   function handleBookmarkResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
     if (!user) {
-      alert('Please sign in first to save notes to your profile.');
+      alert('Please sign in first to save notes.');
       setShowAuthModal(true);
       return;
     }
@@ -420,7 +504,7 @@ export default function Home() {
   }
 
   /* ==========================================================================
-     5. 样式主题定义
+     5. 样式主题控制
      ========================================================================== */
   const theme = {
     bg: isDarkMode ? '#0E1117' : '#F8FAFC',
@@ -458,20 +542,24 @@ export default function Home() {
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
-      {/* 头部导航 */}
+      {/* 顶部导航栏 */}
       <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.4rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer' }}>
           {useLogoImage ? (
             <img src="/logo.png" alt="North Synapse Logo" style={{ width: '38px', height: '38px', objectFit: 'contain' }} onError={() => setUseLogoImage(false)} />
           ) : (
+            /* 纯代码 SVG S 型双螺旋 Logo */
             <svg width="34" height="38" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M 75,20 C 75,10 25,10 25,35 C 25,60 75,60 75,85 C 75,100 25,100 25,90" stroke="#A78BFA" strokeWidth="6" strokeLinecap="round" fill="none" />
+              <line x1="38" y1="20" x2="62" y2="30" stroke="#A78BFA" strokeWidth="4" strokeDasharray="2 4" strokeLinecap="round" />
+              <line x1="30" y1="28" x2="55" y2="38" stroke="#A78BFA" strokeWidth="4" strokeDasharray="2 4" strokeLinecap="round" />
               <circle cx="75" cy="20" r="4.5" fill="#A78BFA" />
               <circle cx="25" cy="35" r="4.5" fill="#A78BFA" />
               <circle cx="75" cy="85" r="4.5" fill="#A78BFA" />
             </svg>
           )}
           <span>North Synapse</span>
+          {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>ADMIN</span>}
         </div>
 
         <nav style={{ display: 'flex', gap: '1.6rem' }}>
@@ -516,10 +604,32 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 主体页面内容 */}
+      {/* 页面主内容区 */}
       <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
         
-        {/* RESOURCE HUB TAB */}
+        {/* 顶部公告轮播 */}
+        <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', border: `1px solid ${theme.accent}`, borderRadius: '12px', padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, overflow: 'hidden' }}>
+            <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
+              NOTICE ({currentBannerIndex + 1}/{announcements.length})
+            </span>
+
+            <div style={{ flex: 1, overflow: 'hidden', height: '52px', position: 'relative' }}>
+              {announcements.map((item, idx) => (
+                <div key={item.id} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '52px', display: 'flex', alignItems: 'center', gap: '0.8rem', opacity: idx === currentBannerIndex ? 1 : 0, transform: idx === currentBannerIndex ? 'translateY(0)' : 'translateY(15px)', transition: 'all 0.4s ease-in-out' }}>
+                  <span style={{ fontSize: '0.9rem', color: theme.textMain, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</span>
+                  <span style={{ fontSize: '0.8rem', color: theme.textMuted, flexShrink: 0 }}>• {item.date}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button onClick={() => setActiveTab('announcements')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', flexShrink: 0 }}>
+            View All
+          </button>
+        </div>
+
+        {/* RESOURCE HUB 模块 */}
         {activeTab === 'resources' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -535,7 +645,7 @@ export default function Home() {
               </button>
             </div>
 
-            {/* 搜索框 */}
+            {/* 搜索框与过滤器 */}
             <input 
               type="text" 
               placeholder="Search notes, topics, or study guide titles..."
@@ -544,7 +654,31 @@ export default function Home() {
               style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, outline: 'none' }}
             />
 
-            {/* 资源列表 */}
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              <div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>LEVEL &amp; TRACK:</span>
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  {gradesList.map((grd) => (
+                    <button key={grd} onClick={() => toggleGradeFilter(grd)} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedGrades.includes(grd) ? theme.accent : theme.border}`, backgroundColor: selectedGrades.includes(grd) ? theme.accent : theme.bg, color: selectedGrades.includes(grd) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
+                      {grd}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  {subjectsList.map((sub) => (
+                    <button key={sub} onClick={() => toggleSubjectFilter(sub)} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedSubjects.includes(sub) ? theme.accent : theme.border}`, backgroundColor: selectedSubjects.includes(sub) ? theme.accent : theme.bg, color: selectedSubjects.includes(sub) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
+                      {sub}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 论文与笔记列表 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {filteredResources.map((res) => (
                 <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
@@ -567,7 +701,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* STUDY LOUNGE TAB */}
+        {/* STUDY LOUNGE 模块 */}
         {activeTab === 'lounges' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Virtual Study Lounge Rooms</h1>
@@ -594,7 +728,149 @@ export default function Home() {
           </div>
         )}
 
+        {/* DISCUSSIONS 模块 */}
+        {activeTab === 'discussions' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Academic Peer Discussions</h1>
+              <button onClick={() => { if (!user) { alert('Please sign in first.'); setShowAuthModal(true); return; } setShowCreateDiscussionModal(true); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
+                + Start New Topic
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {discussions.map((disc) => (
+                <div key={disc.id} onClick={() => setSelectedDiscussion(disc)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <strong style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{disc.title}</strong>
+                    <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{disc.repliesCount} Replies</span>
+                  </div>
+                  <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem' }}>{disc.content}</p>
+                  <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by {disc.authorName} on {disc.date}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ANNOUNCEMENTS 模块 */}
+        {activeTab === 'announcements' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Official Announcements</h1>
+            {announcements.map((item) => (
+              <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
+                  <strong style={{ color: theme.accent }}>{item.authorName}</strong>
+                  <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
+                </div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{item.title}</h3>
+                <p style={{ marginTop: '0.5rem', color: theme.textMain }}>{item.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* FEEDBACK 模块 */}
+        {activeTab === 'feedback' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Issue Reporting</h1>
+            <form onSubmit={(e) => { e.preventDefault(); alert('Feedback recorded!'); setFeedbackComment(''); }} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Type of Feedback</label>
+                <select value={feedbackCategory} onChange={(e) => setFeedbackCategory(e.target.value)} style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}>
+                  <option value="General Suggestion">General Suggestion</option>
+                  <option value="Report Issue / Bug">Report Issue / Bug</option>
+                  <option value="Content Request">Content Request</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Details / Problem Description</label>
+                <textarea required rows={4} placeholder="Describe your bug report or suggestion here..." value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>Submit Feedback</button>
+            </form>
+          </div>
+        )}
+
+        {/* DASHBOARD 模块 */}
+        {activeTab === 'dashboard' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{nickname || 'Student Profile'}</h1>
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem' }}>@{username || 'username'} • {grade || 'Grade 12'}</p>
+              </div>
+              <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.6rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Edit Profile</button>
+            </div>
+
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Published Resources ({myResources.length})</h2>
+              {myResources.length > 0 ? (
+                myResources.map(res => (
+                  <div key={res.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem' }}>
+                    <strong>{res.title}</strong>
+                  </div>
+                ))
+              ) : (
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t shared any resources yet.</p>
+              )}
+            </div>
+
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Saved Bookmarks ({bookmarkedResources.length})</h2>
+              {bookmarkedResources.length > 0 ? (
+                bookmarkedResources.map(bm => (
+                  <div key={bm.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem' }}>
+                    <strong>{bm.title}</strong>
+                  </div>
+                ))
+              ) : (
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t bookmarked any notes yet.</p>
+              )}
+            </div>
+          </div>
+        )}
+
       </main>
+
+      {/* 预览笔记与引用生成弹窗 */}
+      {previewResource && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '960px', height: '80vh', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '1.2rem 2rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2>{previewResource.title}</h2>
+              <button onClick={() => setPreviewResource(null)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.4rem' }}>X</button>
+            </div>
+
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+              <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', borderRight: `1px solid ${theme.border}` }}>
+                <div style={{ fontSize: '0.95rem', lineHeight: '1.7', whiteSpace: 'pre-wrap', marginBottom: '2rem' }}>
+                  {previewResource.content}
+                </div>
+                <div style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1.2rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: theme.accent }}>ACADEMIC CITATION</span>
+                  <p style={{ fontSize: '0.8rem', fontFamily: 'monospace', backgroundColor: theme.cardBg, padding: '0.6rem', borderRadius: '6px', marginTop: '0.5rem' }}>
+                    {citationText}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ width: '360px', backgroundColor: theme.bg, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Comments ({previewResource.comments.length})</h3>
+                <form onSubmit={handleAddComment} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <textarea rows={3} placeholder="Write a comment..." value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain }} />
+                  <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end' }}>Post Comment</button>
+                </form>
+                {previewResource.comments.map((c) => (
+                  <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
+                    <strong>{c.authorName}</strong>
+                    <p style={{ fontSize: '0.85rem', marginTop: '0.3rem' }}>{c.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 登录弹窗 */}
       {showAuthModal && (
@@ -624,7 +900,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* 创建资源弹窗 */}
+      {/* 发布笔记弹窗 */}
       {showCreateResourceModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '540px', border: `1px solid ${theme.border}` }}>
@@ -636,6 +912,23 @@ export default function Home() {
               <input type="text" required placeholder="Title" value={newResTitle} onChange={(e) => setNewResTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
               <textarea required rows={5} placeholder="Content" value={newResContent} onChange={(e) => setNewResContent(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
               <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Publish Resource Note</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 发起讨论弹窗 */}
+      {showCreateDiscussionModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
+              <h2>Start Discussion Topic</h2>
+              <button onClick={() => setShowCreateDiscussionModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+            </div>
+            <form onSubmit={handleCreateDiscussionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <input type="text" required placeholder="Topic Title" value={newDiscTitle} onChange={(e) => setNewDiscTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
+              <textarea required rows={4} placeholder="Content" value={newDiscContent} onChange={(e) => setNewDiscContent(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
+              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Post Topic</button>
             </form>
           </div>
         </div>
