@@ -1,7 +1,24 @@
-/* app/globals.css */
-@layer base {
-  body {
-    background-color: #020617;
-    color: #f8fafc;
-  }
+/* app/globals.css - 纯 CSS 规则，无需 PostCSS/Tailwind 插件依赖 */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background-color: #0e1117;
+  color: #f0f6fc;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
 }
