@@ -1332,3 +1332,634 @@ export default function HomePage() {
     );
   }
   
+  // 16. 反馈页面
+  function renderFeedback() {
+    return (
+      <div className="page-enter">
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">HELP US IMPROVE</div>
+            <h1>Feedback<span className="gradient-text">.</span></h1>
+            <p className="page-subtitle">
+              Share your ideas and help improve North Synapse.
+            </p>
+          </div>
+        </div>
+
+        <div className="panel">
+          <h2>Rate your experience</h2>
+          <p>Your feedback helps us build a better learning community.</p>
+
+          <div style={{ display: "flex", gap: 10, margin: "20px 0" }}>
+            {[1, 2, 3, 4, 5].map((rating) => (
+              <button
+                key={rating}
+                className="icon-button"
+                onClick={() => setFeedbackRating(rating)}
+                aria-label={`Rate ${rating} out of 5`}
+                style={{
+                  color:
+                    rating <= feedbackRating
+                      ? "var(--purple)"
+                      : "var(--muted)",
+                  fontSize: 22,
+                }}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+
+          <label className="field-label">Your feedback</label>
+          <textarea
+            className="text-area"
+            value={feedbackText}
+            onChange={(event) => setFeedbackText(event.target.value)}
+            placeholder="Tell us what works well or what we could improve..."
+            rows={5}
+          />
+
+          <button
+            className="button button-primary"
+            style={{ marginTop: 15 }}
+            onClick={() => {
+              if (!requireLogin()) return;
+
+              if (!feedbackRating || !feedbackText.trim()) {
+                notify("Please select a rating and enter your feedback.");
+                return;
+              }
+
+              notify("Feedback submitted in this demo session.");
+              setFeedbackRating(0);
+              setFeedbackText("");
+            }}
+          >
+            <Send size={14} /> Submit feedback
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 17. 个人主页
+  function renderDashboard() {
+    return (
+      <div className="page-enter">
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">YOUR SPACE</div>
+            <h1>Dashboard<span className="gradient-text">.</span></h1>
+            <p className="page-subtitle">
+              Your learning activity and community profile.
+            </p>
+          </div>
+        </div>
+
+        {loggedIn ? (
+          <div className="panel">
+            <div className="resource-card-top">
+              <span className="avatar" style={{ width: 56, height: 56 }}>
+                {username.charAt(0).toUpperCase()}
+              </span>
+              <span className="badge">Student</span>
+            </div>
+
+            <h2 style={{ marginTop: 18 }}>{username}</h2>
+            <p className="page-subtitle">North Synapse member</p>
+
+            <div className="stats-grid" style={{ marginTop: 25 }}>
+              <div className="stat-card">
+                <span>PUBLISHED RESOURCES</span>
+                <strong>
+                  {resources.filter((item) => item.author === username).length}
+                </strong>
+              </div>
+              <div className="stat-card">
+                <span>LIKED RESOURCES</span>
+                <strong>{likedIds.length}</strong>
+              </div>
+              <div className="stat-card">
+                <span>SAVED RESOURCES</span>
+                <strong>{savedIds.length}</strong>
+              </div>
+              <div className="stat-card">
+                <span>DISCUSSIONS</span>
+                <strong>
+                  {discussions.filter((item) => item.author === username).length}
+                </strong>
+              </div>
+            </div>
+
+            <button
+              className="button button-secondary"
+              style={{ marginTop: 20 }}
+              onClick={handleLogout}
+            >
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <div className="panel empty-dashboard">
+            <Users size={28} />
+            <h2>Your profile starts here.</h2>
+            <p>Sign in to view your community activity.</p>
+            <button
+              className="button button-primary"
+              onClick={() => {
+                setAuthMode("login");
+                setAuthOpen(true);
+              }}
+            >
+              Sign in
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 18. 主页面与弹窗
+  return (
+    <div className={`app-shell ${darkMode ? "dark-mode" : "light-mode"}`}>
+      {renderSidebar()}
+
+      <main className="main-area">
+        {renderTopbar()}
+
+        <div className="page-content">
+          {section === "Overview" && renderOverview()}
+          {section === "Research Hub" && renderResearchHub()}
+          {section === "Study Lounge" && renderStudyLounge()}
+          {section === "Discussions" && renderDiscussions()}
+          {section === "Announcements" && renderAnnouncements()}
+          {section === "Feedback" && renderFeedback()}
+          {section === "Dashboard" && renderDashboard()}
+        </div>
+      </main>
+
+      {toast && (
+        <div className="toast-message" role="status">
+          <Check size={15} />
+          <span>{toast}</span>
+          <button
+            className="icon-button"
+            aria-label="Dismiss notification"
+            onClick={() => setToast("")}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {authOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <button
+              className="modal-close icon-button"
+              aria-label="Close"
+              onClick={() => setAuthOpen(false)}
+            >
+              <X size={17} />
+            </button>
+
+            <div className="eyebrow">NORTH SYNAPSE ACCOUNT</div>
+            <h2>{authMode === "login" ? "Welcome back." : "Join the community."}</h2>
+            <p className="page-subtitle">
+              Use your account to participate in the student community.
+            </p>
+
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleAuth();
+              }}
+            >
+              <label className="field-label">Email address</label>
+              <input
+                className="text-input"
+                type="email"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+                placeholder="you@example.com"
+                required
+              />
+
+              <label className="field-label">Password</label>
+              <input
+                className="text-input"
+                type="password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                placeholder="Enter your password"
+                minLength={6}
+                required
+              />
+
+              {authMode === "register" && (
+                <>
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={isStudent}
+                      onChange={(event) => setIsStudent(event.target.checked)}
+                    />
+                    I confirm that I am eligible to join the NTCI student community.
+                  </label>
+
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={acceptedTerms}
+                      onChange={(event) => setAcceptedTerms(event.target.checked)}
+                    />
+                    I agree to the Terms of Service.
+                  </label>
+
+                  <button
+                    type="button"
+                    className="inline-link"
+                    onClick={() => setTermsOpen(true)}
+                  >
+                    Read Terms of Service
+                  </button>
+                </>
+              )}
+
+              <button
+                className="button button-primary button-wide"
+                type="submit"
+                style={{ marginTop: 18 }}
+              >
+                {authMode === "login" ? "Sign in" : "Create account"}
+                <ArrowRight size={14} />
+              </button>
+            </form>
+
+            <p className="modal-switch">
+              {authMode === "login"
+                ? "New to North Synapse?"
+                : "Already have an account?"}{" "}
+              <button
+                className="inline-link"
+                onClick={() =>
+                  setAuthMode(authMode === "login" ? "register" : "login")
+                }
+              >
+                {authMode === "login" ? "Create an account" : "Sign in"}
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {termsOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <button
+              className="modal-close icon-button"
+              aria-label="Close terms"
+              onClick={() => setTermsOpen(false)}
+            >
+              <X size={17} />
+            </button>
+
+            <h2>Terms of Service</h2>
+            <p>
+              North Synapse is intended for eligible NTCI students. Use the
+              platform respectfully, share only content you have permission
+              to share, protect personal information, and do not harass other
+              users or post harmful or misleading material.
+            </p>
+            <p>
+              Content submitted by users may be reviewed by authorized
+              administrators. Please report content that violates community
+              guidelines.
+            </p>
+            <button
+              className="button button-primary"
+              onClick={() => {
+                setAcceptedTerms(true);
+                setTermsOpen(false);
+              }}
+            >
+              I agree
+            </button>
+          </div>
+        </div>
+      )}
+
+      {resourceModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <button
+              className="modal-close icon-button"
+              aria-label="Close"
+              onClick={() => setResourceModalOpen(false)}
+            >
+              <X size={17} />
+            </button>
+
+            <h2>Publish a resource</h2>
+            <p className="page-subtitle">
+              Share useful learning materials with other students.
+            </p>
+
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                publishResource();
+              }}
+            >
+              <label className="field-label">Resource title</label>
+              <input
+                className="text-input"
+                value={resourceTitle}
+                onChange={(event) => setResourceTitle(event.target.value)}
+                placeholder="Give your resource a clear title"
+                required
+              />
+
+              <label className="field-label">Description</label>
+              <textarea
+                className="text-area"
+                value={resourceDescription}
+                onChange={(event) => setResourceDescription(event.target.value)}
+                placeholder="What will students learn from this resource?"
+                rows={4}
+                required
+              />
+
+              <label className="field-label">Subject</label>
+              <select
+                className="text-input"
+                value={resourceSubject}
+                onChange={(event) => setResourceSubject(event.target.value)}
+              >
+                {subjects.filter((item) => item !== "All Subjects").map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+
+              <label className="field-label">Grade</label>
+              <select
+                className="text-input"
+                value={resourceGrade}
+                onChange={(event) => setResourceGrade(event.target.value)}
+              >
+                {grades.filter((item) => item !== "All Grades").map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+
+              <button
+                className="button button-primary button-wide"
+                type="submit"
+                style={{ marginTop: 18 }}
+              >
+                Publish resource
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {discussionModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <button
+              className="modal-close icon-button"
+              aria-label="Close"
+              onClick={() => setDiscussionModalOpen(false)}
+            >
+              <X size={17} />
+            </button>
+
+            <h2>Start a discussion</h2>
+
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                publishDiscussion();
+              }}
+            >
+              <label className="field-label">Title</label>
+              <input
+                className="text-input"
+                value={discussionTitle}
+                onChange={(event) => setDiscussionTitle(event.target.value)}
+                placeholder="What would you like to discuss?"
+                required
+              />
+
+              <label className="field-label">Category</label>
+              <select
+                className="text-input"
+                value={discussionCategory}
+                onChange={(event) => setDiscussionCategory(event.target.value)}
+              >
+                <option>Study Tips</option>
+                <option>Course Selection</option>
+                <option>Computer Science</option>
+                <option>School Life</option>
+                <option>Questions</option>
+              </select>
+
+              <label className="field-label">Details</label>
+              <textarea
+                className="text-area"
+                value={discussionBody}
+                onChange={(event) => setDiscussionBody(event.target.value)}
+                placeholder="Share some context..."
+                rows={5}
+                required
+              />
+
+              <button
+                className="button button-primary button-wide"
+                type="submit"
+                style={{ marginTop: 18 }}
+              >
+                Publish discussion
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {roomModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <button
+              className="modal-close icon-button"
+              aria-label="Close"
+              onClick={() => setRoomModalOpen(false)}
+            >
+              <X size={17} />
+            </button>
+
+            <h2>Create a study room</h2>
+
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                createRoom();
+              }}
+            >
+              <label className="field-label">Room name</label>
+              <input
+                className="text-input"
+                value={roomName}
+                onChange={(event) => setRoomName(event.target.value)}
+                placeholder="e.g. Evening Math Focus"
+                required
+              />
+
+              <label className="field-label">Subject</label>
+              <select
+                className="text-input"
+                value={roomSubject}
+                onChange={(event) => setRoomSubject(event.target.value)}
+              >
+                <option>General Study</option>
+                <option>Mathematics</option>
+                <option>Science</option>
+                <option>English</option>
+                <option>Computer Science</option>
+              </select>
+
+              <label className="field-label">Room privacy</label>
+              <select
+                className="text-input"
+                value={roomPrivacy}
+                onChange={(event) =>
+                  setRoomPrivacy(event.target.value as "Public" | "Private")
+                }
+              >
+                <option value="Public">Public</option>
+                <option value="Private">Private</option>
+              </select>
+
+              <button
+                className="button button-primary button-wide"
+                type="submit"
+                style={{ marginTop: 18 }}
+              >
+                Create room
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {previewResource && (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <button
+              className="modal-close icon-button"
+              aria-label="Close resource"
+              onClick={() => {
+                setPreviewResource(null);
+                setCommentText("");
+              }}
+            >
+              <X size={17} />
+            </button>
+
+            <span className="badge">{previewResource.subject}</span>
+            <h2 style={{ marginTop: 15 }}>{previewResource.title}</h2>
+            <p>{previewResource.description}</p>
+            <p className="muted-small">
+              {previewResource.grade} · by {previewResource.author}
+            </p>
+
+            <div className="section-title-row">
+              <h3>Comments</h3>
+            </div>
+
+            {(resourceComments[previewResource.id] ?? []).map((comment, index) => (
+              <p className="panel" key={`${previewResource.id}-${index}`}>
+                {comment}
+              </p>
+            ))}
+
+            <textarea
+              className="text-area"
+              value={commentText}
+              onChange={(event) => setCommentText(event.target.value)}
+              placeholder="Write a comment..."
+              rows={3}
+            />
+
+            <button
+              className="button button-primary"
+              style={{ marginTop: 12 }}
+              onClick={() => {
+                if (!requireLogin()) return;
+                if (!commentText.trim()) {
+                  notify("Please enter a comment.");
+                  return;
+                }
+
+                setResourceComments((current) => ({
+                  ...current,
+                  [previewResource.id]: [
+                    ...(current[previewResource.id] ?? []),
+                    `${username}: ${commentText.trim()}`,
+                  ],
+                }));
+                setCommentText("");
+                notify("Comment added to this demo session.");
+              }}
+            >
+              <Send size={14} /> Add comment
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 19. 自习计时器组件
+function FocusTimer() {
+  const [minutes, setMinutes] = useState(25);
+
+  return (
+    <div className="panel">
+      <div className="eyebrow">FOCUS SESSION</div>
+      <div
+        style={{
+          fontSize: 42,
+          fontWeight: 700,
+          letterSpacing: "-0.04em",
+          margin: "15px 0",
+        }}
+      >
+        {String(minutes).padStart(2, "0")}:00
+      </div>
+      <p className="muted-small">
+        Choose a session length. A live countdown will be added later.
+      </p>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: 8,
+          flexWrap: "wrap",
+          marginTop: 15,
+        }}
+      >
+        {[15, 25, 45, 60].map((value) => (
+          <button
+            key={value}
+            className={`chip ${minutes === value ? "selected" : ""}`}
+            onClick={() => setMinutes(value)}
+          >
+            {value} min
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
