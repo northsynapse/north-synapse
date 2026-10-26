@@ -1,13 +1,10 @@
 
+import type { Metadata } from "next";
 import "./globals.css";
 
-export const metadata = {
-  title: {
-    default: "North Synapse",
-    template: "%s | North Synapse",
-  },
-  description:
-    "A student learning community for sharing academic resources, joining study rooms, and exchanging ideas.",
+export const metadata: Metadata = {
+  title: "North Synapse",
+  description: "A learning community built for curious minds.",
 };
 
 export default function RootLayout({
@@ -17,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="antialiased">
+        {children}
+      </body>
     </html>
   );
 }
