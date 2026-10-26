@@ -72,30 +72,18 @@ const courses = [
   },
 ];
 
-const discussions = [
-  {
-    initials: "JL",
-    name: "Jason Liu",
-    time: "12 min ago",
-    color: "#dce8ff",
-    title: "A different way to understand transformations",
-    text: "I made a quick visual explanation of function transformations. Sharing it here in case anyone finds it useful!",
-    tag: "Mathematics",
-    replies: 8,
-    likes: 14,
-  },
-  {
-    initials: "AM",
-    name: "Ava Martin",
-    time: "36 min ago",
-    color: "#f8e3d9",
-    title: "Useful resources for learning Python",
-    text: "Collected a few practice websites and notes for anyone starting with functions and object-oriented programming.",
-    tag: "Computer Science",
-    replies: 12,
-    likes: 21,
-  },
-];
+type Discussion = {
+  id: string;
+  title: string;
+  category: string | null;
+  content: string;
+  author: string;
+  replies_count: number;
+  is_solved: boolean;
+  created_at: string;
+};
+
+const discussionColors = ["#dce8ff", "#f8e3d9", "#e2f5f0", "#f0ebff"];
 
 const announcements = [
   {
@@ -148,38 +136,42 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(true);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [discussions, setDiscussions] = useState<Discussion[]>([]);
+  const [discussionsLoading, setDiscussionsLoading] = useState(true);
+  const [discussionError, setDiscussionError] = useState("");
 
   useEffect(() => {
-    let mounted = true;
+  let mounted = true;
 
-    async function loadSession() {
-      const { data, error } = await supabase.auth.getSession();
+  async function loadDiscussions() {
+    setDiscussionsLoading(true);
+    setDiscussionError("");
 
-      if (!mounted) return;
+    const { data, error } = await supabase
+      .from("discussions")
+      .select(
+        "id, title, category, content, author, replies_count, is_solved, created_at"
+      )
+      .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Unable to load session:", error.message);
-      }
+    if (!mounted) return;
 
-      setUserEmail(data.session?.user.email ?? null);
-      setAuthLoading(false);
+    if (error) {
+      console.error("Unable to load discussions:", error.message);
+      setDiscussionError("Unable to load discussions. Please try again later.");
+    } else {
+      setDiscussions(data ?? []);
     }
 
-    loadSession();
+    setDiscussionsLoading(false);
+  }
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserEmail(session?.user.email ?? null);
-      setAuthLoading(false);
-    });
+  loadDiscussions();
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
+  return () => {
+    mounted = false;
+  };
+}, []);
   async function handleSignOut() {
     if (signingOut) return;
 
