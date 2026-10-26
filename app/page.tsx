@@ -835,15 +835,14 @@ export default function Home() {
                           </div>
                         </button>
                       ))}
-                    </div> 
-                   </div>
-                  
-                  <section>
-                    <SectionHeading
-                      title="Community discussions"
-                      action="Explore all"
-                      onAction={() => setActiveNav("Discussions")}
-                    />
+                    </div>
+
+                    <section>
+                      <SectionHeading
+                        title="Community discussions"
+                        action="Explore all"
+                        onAction={() => setActiveNav("Discussions")}
+                      />
                   
                     <div className="space-y-4">
                       {discussionsLoading ? (
