@@ -1049,13 +1049,17 @@ td {
   }
 }
 
+
 @media (max-width: 760px) {
   :root {
     --sidebar-width: 0px;
   }
 
+  /* 手机端侧边栏默认隐藏 */
   .sidebar {
+    z-index: 100;
     width: 260px;
+    max-width: 85vw;
     transform: translateX(-100%);
     transition: transform 0.25s ease;
   }
@@ -1064,46 +1068,82 @@ td {
     transform: translateX(0);
   }
 
+  /* 手机端主内容占满屏幕 */
   .main-shell {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
     margin-left: 0;
     padding: 0 16px 32px;
+    overflow-x: clip;
   }
 
+  /* 顶部导航适配窄屏 */
   .topbar {
-    min-height: 64px;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: flex;
+    min-height: 62px;
     margin: 0 -16px 18px;
-    padding: 0 16px;
+    padding: 0 12px;
+    gap: 8px;
   }
 
   .mobile-menu {
     display: inline-flex;
+    flex: 0 0 auto;
   }
 
   .breadcrumb {
-    gap: 6px;
+    min-width: 0;
+    gap: 5px;
+    overflow: hidden;
     font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .breadcrumb strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .top-actions {
-    gap: 7px;
+    flex: 0 0 auto;
+    gap: 6px;
   }
 
+  .top-actions .button {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .icon-button {
+    width: 34px;
+    height: 34px;
+  }
+
+  /* 页面标题与操作按钮 */
   .page-heading {
     align-items: flex-start;
     flex-direction: column;
     gap: 15px;
-    margin-top: 20px;
+    margin: 20px 0 22px;
   }
 
   .page-heading h1 {
-    font-size: 30px;
+    font-size: clamp(26px, 7vw, 32px);
+    letter-spacing: -0.8px;
+    overflow-wrap: anywhere;
   }
 
-  .resource-grid {
-    grid-template-columns: 1fr;
+  .page-subtitle {
+    font-size: 12px;
   }
 
+  /* 首页和资源卡片 */
   .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
 
@@ -1113,6 +1153,42 @@ td {
 
   .stat-card strong {
     font-size: 23px;
+  }
+
+  .resource-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .panel,
+  .resource-card,
+  .discussion-card,
+  .notice-card,
+  .room-card,
+  .feedback-card {
+    padding: 16px;
+  }
+
+  .section-title-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* 搜索与筛选 */
+  .hub-search {
+    min-width: 0;
+    gap: 8px;
+    padding: 0 10px;
+  }
+
+  .hub-search input {
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .hub-search .muted-small {
+    display: none;
   }
 
   .filter-row {
@@ -1125,8 +1201,48 @@ td {
     padding-top: 0;
   }
 
-  .hub-search .muted-small {
-    display: none;
+  .filter-chips {
+    width: 100%;
+  }
+
+  .filter-bottom {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  /* 公告与空状态 */
+  .announcement-strip {
+    gap: 7px;
+    margin-bottom: 18px;
+  }
+
+  .announcement-title {
+    min-width: 0;
+    font-size: 10px;
+  }
+
+  .empty-dashboard {
+    min-height: 190px;
+    padding: 24px 14px;
+  }
+
+  /* 弹窗 */
+  .modal-overlay {
+    align-items: center;
+    padding: 12px;
+  }
+
+  .modal,
+  .modal-content {
+    width: 100%;
+    max-height: 88vh;
+    padding: 19px;
+  }
+
+  /* 防止表格撑破手机屏幕 */
+  .panel {
+    max-width: 100%;
+    overflow-x: auto;
   }
 }
 
