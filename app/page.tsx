@@ -1,110 +1,712 @@
-            <span className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#8250ed] text-white"><Activity size={23} /></span>
-            <span><span className="block text-[17px] font-extrabold">North Synapse</span><span className="block text-[10px] font-semibold uppercase tracking-[2px] text-[var(--muted)]">Learn together</span></span>
-          </button>
-          <button aria-label="Close menu" className="rounded-lg p-2 lg:hidden" onClick={() => setMobileMenu(false)}><X size={18} /></button>
-        </div>
-        <div className="px-4 pt-5 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return <button key={item.label} onClick={() => { setActiveNav(item.label); setMobileMenu(false); }} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${activeNav === item.label ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--muted)] hover:bg-[var(--surface-secondary)]"}`}><Icon size={18} />{item.label}</button>;
-          })}
-        </div>
-        <div className="mx-4 mt-7 border-t border-[var(--border)] pt-5">
-          <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[1.8px] text-[var(--muted)]">Personal</p>
-          <button onClick={() => setActiveNav("My Profile")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${activeNav === "My Profile" ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--muted)] hover:bg-[var(--surface-secondary)]"}`}><UserRound size={17} />My Profile</button>
-          <button onClick={() => setActiveNav("Settings")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${activeNav === "Settings" ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--muted)] hover:bg-[var(--surface-secondary)]"}`}><Settings size={17} />Settings</button>
-        </div>
-        <div className="mt-auto p-4">
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--background)] p-4"><div className="mb-2 flex items-center gap-2 text-xs font-bold"><Sparkles size={16} className="text-[var(--primary)]" />A space to grow</div><p className="text-[11px] leading-relaxed text-[var(--muted)]">Share what you know. Discover what you don&apos;t.</p></div>
-          <div className="mt-4 border-t border-[var(--border)] pt-4">
-            {authLoading ? <p className="px-2 py-3 text-xs text-[var(--muted)]">Checking account...</p> : userId ? <div className="flex items-center gap-3 px-2 py-2"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e7e0ff] text-sm font-bold text-[#6941c6]">{initials(displayName)}</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{displayName}</p><p className="text-[10px] text-[var(--muted)]">Signed in</p></div><button aria-label="Sign out" onClick={signOut} className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--surface-secondary)]"><LogOut size={16} /></button></div> : <div className="space-y-2"><Link href="/login" className="flex justify-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-xs font-semibold">Log In</Link><Link href="/register" className="flex justify-center rounded-xl bg-[#8250ed] px-4 py-2.5 text-xs font-semibold text-white">Sign Up</Link></div>}
-          </div>
-        </div>
-      </aside>
 
-      <div className="min-h-screen lg:pl-[248px]">
-        <header className="sticky top-0 z-30 flex h-[74px] items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface)]/95 px-4 backdrop-blur-xl sm:px-7 xl:px-10">
-          <div className="flex min-w-0 items-center gap-3">
-            <button aria-label="Open navigation" onClick={() => setMobileMenu(true)} className="rounded-xl p-2 lg:hidden"><Menu size={20} /></button>
-            <div className="relative hidden w-[min(36vw,380px)] sm:block"><Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${activeNav.toLowerCase()}...`} className={`${inputClass} h-10 pl-10 pr-4 text-xs`} /></div>
-            <span className="truncate text-sm font-bold sm:hidden">{activeNav}</span>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button aria-label="Toggle theme" onClick={toggleTheme} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)]">{darkMode ? <Sun size={17} /> : <Moon size={17} />}</button>
-            {!authLoading && (userId ? <button onClick={() => setActiveNav("My Profile")} className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-[var(--surface-secondary)]"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e7e0ff] text-xs font-bold text-[#6941c6]">{initials(displayName)}</span><span className="hidden max-w-[140px] truncate text-xs font-bold sm:block">{displayName}</span></button> : <div className="flex gap-2"><Link href="/login" className="rounded-xl px-3 py-2 text-xs font-semibold text-[var(--muted)]">Log In</Link><Link href="/register" className="rounded-xl bg-[#8250ed] px-3 py-2 text-xs font-semibold text-white">Sign Up</Link></div>)}
-          </div>
-        </header>
+"use client";
 
-        <main className="mx-auto max-w-[1500px] p-4 sm:p-7 xl:p-10">
-          {notice && <div className="mb-5 flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss message"><X size={16} /></button></div>}
+import { useEffect, useMemo, useState } from "react";
+import {
+  BookOpen,
+  MessageSquare,
+  Users,
+  Megaphone,
+  MessageCircle,
+  Search,
+  Plus,
+  GraduationCap,
+  Bookmark,
+  Heart,
+  Clock3,
+  LogIn,
+  LogOut,
+  Menu,
+  X,
+} from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
 
-          {activeNav === "Resources" && <>
-            <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-              <div><p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[1.6px] text-[var(--muted)]"><BookOpen size={14} />Student knowledge library</p><h1 className="text-3xl font-extrabold tracking-tight">Shared notes<span className="text-[#8250ed]">.</span></h1><p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">Notes, study guides, and resources created by students, for students.</p></div>
-              <button onClick={() => { if (!userId) { setNotice("Please log in to publish a note."); return; } setShowPublish(true); }} className={buttonPrimary}><Plus size={16} />Publish a note</button>
-            </div>
-            <div className={`${shellClass} mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-3`}>
-              <label className="text-xs font-semibold text-[var(--muted)]">Grade<select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className={`${inputClass} mt-2 text-sm font-normal`}>{grades.map((g) => <option key={g}>{g}</option>)}</select></label>
-              <label className="text-xs font-semibold text-[var(--muted)]">Subject<select value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)} className={`${inputClass} mt-2 text-sm font-normal`}>{subjects.map((s) => <option key={s}>{s}</option>)}</select></label>
-              <label className="text-xs font-semibold text-[var(--muted)]">Sort by<select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={`${inputClass} mt-2 text-sm font-normal`}>{sortOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</select></label>
-            </div>
-            <div className="mb-4 flex items-center justify-between"><p className="text-sm text-[var(--muted)]">{filteredResources.length} {filteredResources.length === 1 ? "resource" : "resources"}</p><button onClick={() => { setSearch(""); setGradeFilter("All grades"); setSubjectFilter("All subjects"); setSortBy("date"); }} className="flex items-center gap-1.5 text-xs font-semibold text-[var(--primary)]"><RefreshCw size={13} />Reset filters</button></div>
-            {resourcesLoading ? <div className={`${shellClass} p-12 text-center text-sm text-[var(--muted)]`}>Loading shared notes...</div> : resourceError ? <div className={`${shellClass} p-8 text-center`}><p className="font-semibold">Notes are unavailable</p><p className="mt-2 text-sm text-[var(--muted)]">{resourceError}</p><button onClick={() => window.location.reload()} className={`${buttonPrimary} mt-4`}><RefreshCw size={15} />Retry</button></div> : filteredResources.length === 0 ? <div className={`${shellClass} px-6 py-16 text-center`}><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary)]"><FileText size={25} /></div><h2 className="mt-4 text-lg font-bold">{search || gradeFilter !== "All grades" || subjectFilter !== "All subjects" ? "No matching notes" : "The library is waiting for its first note"}</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--muted)]">Share your notes or study guides so another student can learn from them.</p><button onClick={() => { if (userId) setShowPublish(true); else setNotice("Please log in to publish a note."); }} className={`${buttonPrimary} mt-5`}><Plus size={15} />Publish a note</button></div> : <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              {filteredResources.map((resource) => <article key={resource.id} className={`${shellClass} flex min-w-0 flex-col p-5 transition hover:border-[var(--primary)]/40 sm:p-6`}>
-                <div className="flex items-start gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary)]"><FileText size={20} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap gap-2">{resource.subject && <span className="rounded-md bg-[var(--primary-soft)] px-2 py-1 text-[10px] font-semibold text-[var(--primary)]">{resource.subject}</span>}{resource.grade && <span className="rounded-md bg-[var(--surface-secondary)] px-2 py-1 text-[10px] font-semibold">{resource.grade}</span>}{resource.resource_type && <span className="rounded-md bg-[var(--surface-secondary)] px-2 py-1 text-[10px]">{resource.resource_type}</span>}</div><h2 className="mt-2 break-words text-base font-bold leading-snug">{resource.title}</h2>{resource.course_code && <p className="mt-1 text-xs font-medium text-[var(--muted)]">{resource.course_code}</p>}</div></div>
-                {resource.description && <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--muted)]">{resource.description}</p>}
-                {resource.tags && <div className="mt-3 flex flex-wrap gap-1.5">{(Array.isArray(resource.tags) ? resource.tags : String(resource.tags).split(",")).map((tag, i) => <span key={`${tag}-${i}`} className="rounded-md border border-[var(--border)] px-2 py-1 text-[10px] text-[var(--muted)]">#{String(tag).trim()}</span>)}</div>}
-                <div className="mt-5 flex items-center gap-2 border-t border-[var(--border)] pt-4"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e7e0ff] text-[10px] font-bold text-[#6941c6]">{initials(resource.author || "Student")}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{resource.author || "Student"}</p><p className="text-[10px] text-[var(--muted)]">{prettyDate(resource.created_at)}</p></div>{resource.file_url && <a href={resource.file_url} target="_blank" rel="noreferrer" className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold hover:bg-[var(--surface-secondary)]">Open file <ArrowUp size={13} className="ml-1 inline" /></a>}</div>
-                <div className="mt-3 flex flex-wrap items-center gap-2"><button onClick={() => toggleReaction("resource_likes", resource.id)} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold ${likedIds.includes(resource.id) ? "bg-rose-50 text-rose-600" : "bg-[var(--surface-secondary)] text-[var(--muted)]"}`}><Heart size={14} fill={likedIds.includes(resource.id) ? "currentColor" : "none"} />{resourceLikes[resource.id] ?? 0} Like</button><button onClick={() => toggleReaction("resource_bookmarks", resource.id)} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold ${savedIds.includes(resource.id) ? "bg-[#eee8ff] text-[#7040d9]" : "bg-[var(--surface-secondary)] text-[var(--muted)]"}`}><Bookmark size={14} fill={savedIds.includes(resource.id) ? "currentColor" : "none"} />{resourceSaves[resource.id] ?? 0} Save</button><button onClick={async () => { const next = openComments === resource.id ? null : resource.id; setOpenComments(next); if (next && !resourceComments[resource.id]) await loadComments(resource.id); }} className="flex items-center gap-1.5 rounded-lg bg-[var(--surface-secondary)] px-3 py-2 text-xs font-semibold text-[var(--muted)]"><MessageCircle size={14} />Comments</button></div>
-                {openComments === resource.id && <div className="mt-4 border-t border-[var(--border)] pt-4"><div className="space-y-3">{(resourceComments[resource.id] ?? []).map((comment: any) => <div key={comment.id} className="rounded-xl bg-[var(--background)] p-3"><p className="text-sm leading-5">{comment.body}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{prettyDate(comment.created_at)}</p></div>)}{(resourceComments[resource.id] ?? []).length === 0 && <p className="text-xs text-[var(--muted)]">No comments yet. Start the conversation.</p>}</div><form onSubmit={(e) => { e.preventDefault(); submitComment(resource.id); }} className="mt-3 flex gap-2"><input value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Write a comment..." className={`${inputClass} min-w-0 text-xs`} /><button aria-label="Post comment" className={buttonPrimary} type="submit"><Send size={14} /></button></form></div>}
-              </article>)}
-            </div>}
-          </>}
+type Resource = {
+  id: string;
+  title: string;
+  subject: string | null;
+  grade: string | null;
+  resource_type: string | null;
+  description: string | null;
+  author: string | null;
+  created_at: string;
+  tags: string[] | null;
+};
 
-          {activeNav === "Discussions" && <section><div className="mb-7"><p className="mb-2 text-xs font-semibold uppercase tracking-[1.6px] text-[var(--muted)]">Student-led conversations</p><h1 className="text-3xl font-extrabold">Discussions<span className="text-[#8250ed]">.</span></h1><p className="mt-2 text-sm text-[var(--muted)]">Course choices, university pathways, teacher insights, and everything students want to talk about.</p></div>
-            <form onSubmit={publishDiscussion} className={`${shellClass} mb-6 p-5 sm:p-6`}><h2 className="mb-4 text-base font-bold">Start a discussion</h2><div className="grid gap-3 sm:grid-cols-2"><input value={discussionDraft.title} onChange={(e) => setDiscussionDraft({ ...discussionDraft, title: e.target.value })} placeholder="Discussion title" className={inputClass} /><select value={discussionDraft.category} onChange={(e) => setDiscussionDraft({ ...discussionDraft, category: e.target.value })} className={inputClass}><option>Course selection</option><option>University & majors</option><option>Teacher & course reviews</option><option>Study advice</option><option>General</option></select></div><textarea value={discussionDraft.content} onChange={(e) => setDiscussionDraft({ ...discussionDraft, content: e.target.value })} placeholder="What's on your mind?" rows={3} className={`${inputClass} mt-3 resize-y`} /><div className="mt-3 flex items-center justify-between gap-3">{discussionError && <p className="text-xs text-red-500">{discussionError}</p>}<button type="submit" disabled={postingDiscussion} className={`${buttonPrimary} ml-auto`}>{postingDiscussion ? "Posting..." : "Post discussion"}<Send size={14} /></button></div></form>
-            {discussionsLoading ? <div className={`${shellClass} p-8 text-center text-sm text-[var(--muted)]`}>Loading discussions...</div> : filteredDiscussions.length === 0 ? <div className={`${shellClass} p-10 text-center`}><MessageCircle className="mx-auto text-[var(--muted)]" size={25} /><p className="mt-3 font-semibold">No discussions found</p><p className="mt-1 text-sm text-[var(--muted)]">Be the first to start a conversation.</p></div> : <div className="space-y-4">{filteredDiscussions.map((item) => <article key={item.id} className={`${shellClass} p-5 sm:p-6`}><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e7e0ff] text-xs font-bold text-[#6941c6]">{initials(item.author || "Student")}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold">{item.author || "Student"}</span><span className="text-[10px] text-[var(--muted)]">{prettyDate(item.created_at)}</span>{item.is_solved && <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Solved</span>}</div><h2 className="mt-2 text-base font-bold">{item.title}</h2><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--muted)]">{item.content || item.body}</p><div className="mt-3 flex items-center gap-3"><span className="rounded-lg bg-[var(--primary-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--primary)]">{item.category || "General"}</span><span className="flex items-center gap-1 text-xs text-[var(--muted)]"><MessageCircle size={13} />{item.replies_count ?? 0} replies</span></div></div></div></article>)}</div>}
-          </section>}
+type Discussion = {
+  id: string;
+  title: string;
+  category: string | null;
+  content: string | null;
+  author: string | null;
+  replies_count: number | null;
+  is_solved: boolean | null;
+  created_at: string;
+};
 
-          {activeNav === "Study Rooms" && <section><div className="mb-7"><p className="mb-2 text-xs font-semibold uppercase tracking-[1.6px] text-[var(--muted)]">Focus together</p><h1 className="text-3xl font-extrabold">Study Rooms<span className="text-[#8250ed]">.</span></h1><p className="mt-2 text-sm text-[var(--muted)]">Find a room, study alongside other students, and build a shared focus routine.</p></div><div className={`${shellClass} mb-6 flex flex-col items-start justify-between gap-3 p-5 sm:flex-row sm:items-center`}><div><h2 className="font-bold">Live study sessions</h2><p className="mt-1 text-sm text-[var(--muted)]">Room listings are connected. Live presence, timers, and chat need the Realtime setup next.</p></div><button onClick={() => setNotice(userId ? "Room creation will be enabled after we confirm the study_rooms column names and policies." : "Please log in to create a study room.")} className={buttonPrimary}><Plus size={15} />Create room</button></div>{roomsLoading ? <div className={`${shellClass} p-8 text-center text-sm text-[var(--muted)]`}>Loading rooms...</div> : rooms.length === 0 ? <div className={`${shellClass} p-10 text-center`}><Users size={26} className="mx-auto text-[var(--muted)]" /><p className="mt-3 font-semibold">No study rooms yet</p><p className="mt-1 text-sm text-[var(--muted)]">Create the first room when room creation is connected.</p></div> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{rooms.map((room) => <article key={room.id} className={`${shellClass} p-5`}><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><Users size={19} /></span><h2 className="mt-4 font-bold">{room.name || "Study room"}</h2><p className="mt-1 text-sm text-[var(--muted)]">{room.subject || "General study"}</p><p className="mt-3 text-xs text-[var(--muted)]">Created {prettyDate(room.created_at)}</p><button onClick={() => setNotice("Joining a room requires the membership, message, and Realtime policies to be wired up next.")} className="mt-4 w-full rounded-xl border border-[var(--border)] px-3 py-2.5 text-xs font-semibold hover:bg-[var(--surface-secondary)]">View room</button></article>)}</div>}</section>}
+const navigation = [
+  { name: "Home", icon: BookOpen },
+  { name: "Resources", icon: GraduationCap },
+  { name: "Discussions", icon: MessageSquare },
+  { name: "Study Rooms", icon: Users },
+  { name: "Announcements", icon: Megaphone },
+  { name: "Feedback", icon: MessageCircle },
+];
 
-          {activeNav === "My Profile" && <section><div className="mb-7"><p className="mb-2 text-xs font-semibold uppercase tracking-[1.6px] text-[var(--muted)]">Your community identity</p><h1 className="text-3xl font-extrabold">My Profile<span className="text-[#8250ed]">.</span></h1></div>{!userId ? <div className={`${shellClass} p-10 text-center`}><UserRound size={28} className="mx-auto text-[var(--muted)]" /><p className="mt-3 font-semibold">Log in to view your profile</p><Link href="/login" className={`${buttonPrimary} mt-4`}>Log in</Link></div> : <><div className={`${shellClass} p-6 sm:p-8`}><div className="flex flex-col gap-5 sm:flex-row sm:items-center"><div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-[#e7e0ff] text-2xl font-bold text-[#6941c6]">{profile?.avatar_url ? <img src={profile.avatar_url} alt="Profile avatar" className="h-full w-full object-cover" /> : initials(displayName)}</div><div className="min-w-0 flex-1"><h2 className="text-xl font-extrabold">{displayName}</h2><p className="mt-1 text-sm text-[var(--muted)]">@{profile?.username || "student"}</p><p className="mt-2 text-sm text-[var(--muted)]">{profile?.bio || "A member of the North Synapse learning community."}</p>{profile?.grade_level && <p className="mt-2 text-xs font-semibold text-[var(--primary)]">{profile.grade_level}</p>}</div><button onClick={() => setActiveNav("Settings")} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-xs font-semibold"><Settings size={14} className="mr-1 inline" />Profile settings</button></div></div><div className="mt-5 grid gap-4 sm:grid-cols-3"><div className={`${shellClass} p-5`}><p className="text-xs text-[var(--muted)]">My notes</p><p className="mt-2 text-2xl font-extrabold">{resources.filter((r) => r.author_id === userId).length}</p></div><div className={`${shellClass} p-5`}><p className="text-xs text-[var(--muted)]">My saved notes</p><p className="mt-2 text-2xl font-extrabold">{savedIds.length}</p></div><div className={`${shellClass} p-5`}><p className="text-xs text-[var(--muted)]">Account</p><p className="mt-2 truncate text-sm font-bold">{userEmail}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{profileLoading ? "Loading profile..." : "Member"}</p></div></div><div className="mt-7 grid gap-6 xl:grid-cols-2"><div><h2 className="mb-3 font-bold">My published notes</h2>{resources.filter((r) => r.author_id === userId).length === 0 ? <div className={`${shellClass} p-5 text-sm text-[var(--muted)]`}>You haven&apos;t published a note yet.</div> : resources.filter((r) => r.author_id === userId).map((r) => <button key={r.id} onClick={() => setActiveNav("Resources")} className={`${shellClass} mb-3 block w-full p-4 text-left`}><p className="font-semibold">{r.title}</p><p className="mt-1 text-xs text-[var(--muted)]">{r.subject} · {prettyDate(r.created_at)}</p></button>)}</div><div><h2 className="mb-3 font-bold">My saved notes</h2>{savedIds.length === 0 ? <div className={`${shellClass} p-5 text-sm text-[var(--muted)]`}>Saved notes will appear here when you bookmark them.</div> : resources.filter((r) => savedIds.includes(r.id)).map((r) => <button key={r.id} onClick={() => setActiveNav("Resources")} className={`${shellClass} mb-3 block w-full p-4 text-left`}><p className="font-semibold">{r.title}</p><p className="mt-1 text-xs text-[var(--muted)]">{r.subject} · {prettyDate(r.created_at)}</p></button>)}</div></div></>}</section>}
+export default function HomePage() {
+  const [activeNav, setActiveNav] = useState("Home");
+  const [search, setSearch] = useState("");
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [discussions, setDiscussions] = useState<Discussion[]>([]);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-          {activeNav === "Announcements" && <section><div className="mb-7"><h1 className="text-3xl font-extrabold">Announcements<span className="text-[#8250ed]">.</span></h1><p className="mt-2 text-sm text-[var(--muted)]">Community updates and important notices.</p></div><div className={`${shellClass} p-6`}><h2 className="font-bold">Welcome to North Synapse</h2><p className="mt-2 text-sm leading-6 text-[var(--muted)]">Share helpful notes, ask thoughtful questions, and make this a supportive space for students.</p><div className="mt-4 flex items-center gap-2 text-xs text-[var(--muted)]"><Check size={14} className="text-emerald-600" />Community-first learning</div></div></section>}
+  useEffect(() => {
+    let mounted = true;
 
-          {activeNav === "Feedback" && <section><div className="mb-7"><h1 className="text-3xl font-extrabold">Feedback<span className="text-[#8250ed]">.</span></h1><p className="mt-2 text-sm text-[var(--muted)]">Help improve the learning community.</p></div><FeedbackForm userId={userId} /></section>}
+    async function loadPage() {
+      setLoading(true);
+      setErrorMessage("");
 
-          {activeNav === "Settings" && <section><div className="mb-7"><h1 className="text-3xl font-extrabold">Settings<span className="text-[#8250ed]">.</span></h1><p className="mt-2 text-sm text-[var(--muted)]">Account and profile preferences.</p></div><div className={`${shellClass} max-w-2xl p-6`}><p className="font-semibold">Profile editing</p><p className="mt-2 text-sm leading-6 text-[var(--muted)]">Your current profile is displayed from the existing profiles table. We can add safe profile editing after confirming its RLS policies and required fields.</p><button onClick={() => setActiveNav("My Profile")} className={`${buttonPrimary} mt-4`}>Back to profile</button></div></section>}
+      const [resourceResult, discussionResult, sessionResult] =
+        await Promise.all([
+          supabase
+            .from("resources")
+            .select(
+              "id, title, subject, grade, resource_type, description, author, created_at, tags"
+            )
+            .order("created_at", { ascending: false })
+            .limit(12),
 
-          <footer className="mt-12 flex flex-col justify-between gap-2 border-t border-[var(--border)] py-5 text-[10px] text-[var(--muted)] sm:flex-row sm:items-center"><p>© 2026 North Synapse. Built for curious minds.</p><span>Community-first learning · Version 2.0</span></footer>
-        </main>
-      </div>
+          supabase
+            .from("discussions")
+            .select(
+              "id, title, category, content, author, replies_count, is_solved, created_at"
+            )
+            .order("created_at", { ascending: false })
+            .limit(12),
 
-      {showPublish && <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/40 p-4"><div className="my-8 w-full max-w-2xl rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl sm:p-7"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-[var(--primary)]">Contribute to the library</p><h2 className="mt-1 text-xl font-extrabold">Publish a note</h2></div><button onClick={() => setShowPublish(false)} aria-label="Close publish dialog" className="rounded-lg p-2 hover:bg-[var(--surface-secondary)]"><X size={18} /></button></div><form onSubmit={publishResource} className="mt-5 space-y-4"><label className="block text-xs font-semibold">Title<input required value={noteForm.title} onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })} className={`${inputClass} mt-1.5`} placeholder="e.g. Functions — Trigonometry Summary" /></label><label className="block text-xs font-semibold">Description<textarea value={noteForm.description} onChange={(e) => setNoteForm({ ...noteForm, description: e.target.value })} className={`${inputClass} mt-1.5`} rows={4} placeholder="What does this note cover?" /></label><div className="grid gap-3 sm:grid-cols-2"><label className="block text-xs font-semibold">Subject<select value={noteForm.subject} onChange={(e) => setNoteForm({ ...noteForm, subject: e.target.value })} className={`${inputClass} mt-1.5`}>{subjects.filter((s) => s !== "All subjects").map((s) => <option key={s}>{s}</option>)}</select></label><label className="block text-xs font-semibold">Grade<select value={noteForm.grade} onChange={(e) => setNoteForm({ ...noteForm, grade: e.target.value })} className={`${inputClass} mt-1.5`}>{grades.filter((g) => g !== "All grades").map((g) => <option key={g}>{g}</option>)}</select></label><label className="block text-xs font-semibold">Course code<input value={noteForm.course_code} onChange={(e) => setNoteForm({ ...noteForm, course_code: e.target.value })} className={`${inputClass} mt-1.5`} placeholder="e.g. MCR3U" /></label><label className="block text-xs font-semibold">Resource type<select value={noteForm.resource_type} onChange={(e) => setNoteForm({ ...noteForm, resource_type: e.target.value })} className={`${inputClass} mt-1.5`}><option>Notes</option><option>Study guide</option><option>Practice questions</option><option>Summary</option><option>Reference sheet</option><option>Other</option></select></label></div><label className="block text-xs font-semibold">File link (optional)<input type="url" value={noteForm.file_url} onChange={(e) => setNoteForm({ ...noteForm, file_url: e.target.value })} className={`${inputClass} mt-1.5`} placeholder="Link to a document or resource" /></label><label className="block text-xs font-semibold">Tags (comma-separated)<input value={noteForm.tags} onChange={(e) => setNoteForm({ ...noteForm, tags: e.target.value })} className={`${inputClass} mt-1.5`} placeholder="quadratics, exam review, formulas" /></label>{publishError && <p className="text-xs text-red-500">{publishError}</p>}<div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowPublish(false)} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold">Cancel</button><button type="submit" disabled={publishing} className={buttonPrimary}>{publishing ? "Publishing..." : "Publish note"}<Plus size={15} /></button></div></form></div></div>}
-    </div>
-  );
-}
+          supabase.auth.getSession(),
+        ]);
 
-function FeedbackForm({ userId }: { userId: string | null }) {
-  const [category, setCategory] = useState("Suggestion");
-  const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
-  const [status, setStatus] = useState("");
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!userId) { setStatus("Please log in to send feedback."); return; }
-    if (!message.trim()) return;
-    setSending(true);
-    const { error } = await supabase.from("feedback").insert({ user_id: userId, category, message: message.trim() });
-    setSending(false);
+      if (!mounted) return;
+
+      if (resourceResult.error || discussionResult.error) {
+        console.error(
+          "Loading error:",
+          resourceResult.error?.message,
+          discussionResult.error?.message
+        );
+        setErrorMessage(
+          "Some community content could not be loaded. Please check your connection or permissions."
+        );
+      }
+
+      setResources(resourceResult.data ?? []);
+      setDiscussions(discussionResult.data ?? []);
+      setUserEmail(sessionResult.data.session?.user.email ?? null);
+      setLoading(false);
+    }
+
+    loadPage();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user.email ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const filteredResources = useMemo(() => {
+    const keyword = search.toLowerCase().trim();
+
+    if (!keyword) return resources;
+
+    return resources.filter((item) =>
+      [
+        item.title,
+        item.subject,
+        item.grade,
+        item.resource_type,
+        item.description,
+        item.author,
+        ...(item.tags ?? []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword)
+    );
+  }, [resources, search]);
+
+  const filteredDiscussions = useMemo(() => {
+    const keyword = search.toLowerCase().trim();
+
+    if (!keyword) return discussions;
+
+    return discussions.filter((item) =>
+      [
+        item.title,
+        item.category,
+        item.content,
+        item.author,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword)
+    );
+  }, [discussions, search]);
+
+  async function handleSignOut() {
+    const { error } = await supabase.auth.signOut();
+
     if (error) {
-      console.error(error.message);
-      setStatus("Feedback could not be sent. The feedback table may use different column names or policies.");
+      window.alert("Unable to sign out. Please try again.");
     } else {
-      setMessage("");
-      setStatus("Thank you — your feedback was sent.");
+      setUserEmail(null);
     }
   }
-  const inputClass = "w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--primary)]";
-  return <form onSubmit={submit} className="max-w-2xl rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow)]"><label className="block text-xs font-semibold">Feedback type<select value={category} onChange={(e) => setCategory(e.target.value)} className={`${inputClass} mt-2`}><option>Suggestion</option><option>Bug report</option><option>Other</option></select></label><label className="mt-4 block text-xs font-semibold">Your feedback<textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} required className={`${inputClass} mt-2`} placeholder="What would you like us to improve?" /></label>{status && <p className="mt-3 text-xs text-[var(--muted)]">{status}</p>}<button disabled={sending} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#8250ed] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{sending ? "Sending..." : "Send feedback"}<Send size={14} /></button></form>;
+
+  function changeSection(name: string) {
+    setActiveNav(name);
+    setMobileMenuOpen(false);
+    setSearch("");
+  }
+
+  function formatDate(date: string) {
+    return new Date(date).toLocaleDateString("en-CA", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+
+  function openLogin() {
+    window.location.href = "/login";
+  }
+
+  function openRegister() {
+    window.location.href = "/register";
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f7f8fb] text-slate-800">
+      <div className="flex min-h-screen">
+        {mobileMenuOpen && (
+          <button
+            aria-label="Close menu"
+            onClick={() => setMobileMenuOpen(false)}
+            className="fixed inset-0 z-40 bg-black/30 md:hidden"
+          />
+        )}
+
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white px-5 py-6 transition-transform md:static md:translate-x-0 ${
+            mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div className="mb-10 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white">
+                <BookOpen size={22} />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold tracking-tight">
+                  North Synapse
+                </h1>
+                <p className="text-xs text-slate-500">
+                  Learn together.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-lg p-2 hover:bg-slate-100 md:hidden"
+              aria-label="Close navigation"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Community
+          </p>
+
+          <nav className="space-y-1">
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              const active = activeNav === item.name;
+
+              return (
+                <button
+                  key={item.name}
+                  onClick={() => changeSection(item.name)}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
+                    active
+                      ? "bg-indigo-50 text-indigo-700"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <Icon size={19} />
+                  {item.name}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="mt-auto rounded-2xl bg-slate-50 p-4">
+            <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
+              <Users size={19} />
+            </div>
+            <p className="text-sm font-semibold">A community for learners</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Share notes, exchange ideas, and study together.
+            </p>
+          </div>
+        </aside>
+
+        <main className="min-w-0 flex-1">
+          <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+            <div className="flex h-[76px] items-center gap-4 px-5 md:px-9">
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                className="rounded-lg p-2 hover:bg-slate-100 md:hidden"
+                aria-label="Open navigation"
+              >
+                <Menu size={21} />
+              </button>
+
+              <div className="relative max-w-xl flex-1">
+                <Search
+                  size={18}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search notes and discussions..."
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-indigo-400 focus:bg-white"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                {userEmail ? (
+                  <>
+                    <span className="hidden max-w-40 truncate text-sm text-slate-500 lg:block">
+                      {userEmail}
+                    </span>
+                    <button
+                      onClick={handleSignOut}
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium hover:bg-slate-50"
+                    >
+                      <LogOut size={16} />
+                      <span className="hidden sm:inline">Sign out</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={openLogin}
+                      className="rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                    >
+                      Sign in
+                    </button>
+                    <button
+                      onClick={openRegister}
+                      className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+                    >
+                      Join us
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </header>
+
+          <div className="mx-auto max-w-7xl px-5 py-8 md:px-9 md:py-10">
+            {activeNav === "Home" && (
+              <>
+                <section className="mb-9 overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 px-7 py-9 text-white md:px-10 md:py-12">
+                  <div className="max-w-2xl">
+                    <p className="mb-3 text-sm font-medium text-indigo-100">
+                      NORTH SYNAPSE COMMUNITY
+                    </p>
+                    <h2 className="text-3xl font-bold leading-tight tracking-tight md:text-4xl">
+                      Better learning starts
+                      <br className="hidden sm:block" /> with sharing.
+                    </h2>
+                    <p className="mt-4 max-w-xl text-sm leading-6 text-indigo-100 md:text-base">
+                      Discover student-made notes, ask questions, and
+                      exchange ideas with a community that learns together.
+                    </p>
+                    <div className="mt-7 flex flex-wrap gap-3">
+                      <button
+                        onClick={() => changeSection("Resources")}
+                        className="flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+                      >
+                        <BookOpen size={17} />
+                        Explore resources
+                      </button>
+                      <button
+                        onClick={() => changeSection("Discussions")}
+                        className="flex items-center gap-2 rounded-xl border border-white/40 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"
+                      >
+                        <MessageSquare size={17} />
+                        Join discussions
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                {errorMessage && (
+                  <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    {errorMessage}
+                  </div>
+                )}
+
+                <section className="mb-10">
+                  <div className="mb-5 flex items-end justify-between gap-4">
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-indigo-600">
+                        Shared knowledge
+                      </p>
+                      <h2 className="text-xl font-bold">Latest resources</h2>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Notes and study materials shared by students.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => changeSection("Resources")}
+                      className="shrink-0 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+                    >
+                      View all
+                    </button>
+                  </div>
+
+                  {loading ? (
+                    <p className="py-8 text-sm text-slate-500">
+                      Loading resources...
+                    </p>
+                  ) : filteredResources.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+                      <BookOpen
+                        size={28}
+                        className="mx-auto mb-3 text-slate-400"
+                      />
+                      <p className="font-semibold text-slate-700">
+                        No resources to show yet
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Shared notes will appear here once available.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      {filteredResources.slice(0, 6).map((item) => (
+                        <article
+                          key={item.id}
+                          className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-md"
+                        >
+                          <div className="mb-4 flex items-start justify-between gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                              <BookOpen size={20} />
+                            </div>
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                              {item.resource_type || "Study notes"}
+                            </span>
+                          </div>
+
+                          <h3 className="line-clamp-2 font-semibold leading-6 text-slate-900">
+                            {item.title}
+                          </h3>
+                          <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
+                            {item.description || "No description provided."}
+                          </p>
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {item.subject && (
+                              <span className="rounded-lg bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700">
+                                {item.subject}
+                              </span>
+                            )}
+                            {item.grade && (
+                              <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+                                {item.grade}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500">
+                            <span className="truncate">
+                              By {item.author || "Community member"}
+                            </span>
+                            <span className="shrink-0">
+                              {formatDate(item.created_at)}
+                            </span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section>
+                  <div className="mb-5 flex items-end justify-between gap-4">
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-indigo-600">
+                        Exchange ideas
+                      </p>
+                      <h2 className="text-xl font-bold">
+                        Community discussions
+                      </h2>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Questions, advice, and conversations from students.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => changeSection("Discussions")}
+                      className="shrink-0 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+                    >
+                      View all
+                    </button>
+                  </div>
+
+                  {loading ? (
+                    <p className="py-8 text-sm text-slate-500">
+                      Loading discussions...
+                    </p>
+                  ) : filteredDiscussions.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+                      <MessageSquare
+                        size={28}
+                        className="mx-auto mb-3 text-slate-400"
+                      />
+                      <p className="font-semibold text-slate-700">
+                        No discussions to show yet
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Community conversations will appear here.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredDiscussions.slice(0, 5).map((item) => (
+                        <article
+                          key={item.id}
+                          className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-indigo-200 hover:shadow-sm"
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600 sm:flex">
+                              <MessageSquare size={19} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                {item.category && (
+                                  <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                                    {item.category}
+                                  </span>
+                                )}
+                                {item.is_solved && (
+                                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                                    Solved
+                                  </span>
+                                )}
+                              </div>
+                              <h3 className="mt-2 font-semibold leading-6 text-slate-900">
+                                {item.title}
+                              </h3>
+                              <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-500">
+                                {item.content || "Open discussion"}
+                              </p>
+                              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
+                                <span>
+                                  {item.author || "Community member"}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <MessageCircle size={14} />
+                                  {item.replies_count ?? 0} replies
+                                </span>
+                                <span>{formatDate(item.created_at)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </>
+            )}
+
+            {activeNav === "Resources" && (
+              <section>
+                <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold">Resources</h2>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Browse notes and study materials shared by students.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!userEmail) {
+                        openLogin();
+                      } else {
+                        window.alert(
+                          "The resource submission form will be added next."
+                        );
+                      }
+                    }}
+                    className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
+                  >
+                    <Plus size={17} />
+                    Share a resource
+                  </button>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {filteredResources.map((item) => (
+                    <article
+                      key={item.id}
+                      className="rounded-2xl border border-slate-200 bg-white p-5"
+                    >
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <BookOpen className="text-indigo-600" size={22} />
+                        <span className="text-xs text-slate-500">
+                          {formatDate(item.created_at)}
+                        </span>
+                      </div>
+                      <h3 className="font-semibold">{item.title}</h3>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {item.description || "No description provided."}
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {item.subject && (
+                          <span className="rounded-lg bg-indigo-50 px-2 py-1 text-xs text-indigo-700">
+                            {item.subject}
+                          </span>
+                        )}
+                        {item.grade && (
+                          <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                            {item.grade}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-4 text-xs text-slate-500">
+                        Shared by {item.author || "Community member"}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+
+                {!loading && filteredResources.length === 0 && (
+                  <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+                    No matching resources found.
+                  </p>
+                )}
+              </section>
+            )}
+
+            {activeNav === "Discussions" && (
+              <section>
+                <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold">Discussions</h2>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Ask questions and exchange ideas with other students.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!userEmail) {
+                        openLogin();
+                      } else {
+                        window.alert(
+                          "The discussion creation form will be added next."
+                        );
+                      }
+                    }}
+                    className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
+                  >
+                    <Plus size={17} />
+                    Start a discussion
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {filteredDiscussions.map((item) => (
+                    <article
+                      key={item.id}
+                      className="rounded-2xl border border-slate-200 bg-white p-5"
+                    >
+                      <div className="flex flex-wrap gap-2">
+                        {item.category && (
+                          <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700">
+                            {item.category}
+                          </span>
+                        )}
+                        {item.is_solved && (
+                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700">
+                            Solved
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="mt-3 font-semibold">{item.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">
+                        {item.content || "Open discussion"}
+                      </p>
+                      <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                        <span>
+                          By {item.author || "Community member"}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <MessageCircle size={14} />
+                          {item.replies_count ?? 0} replies
+                        </span>
+                        <span>{formatDate(item.created_at)}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                {!loading && filteredDiscussions.length === 0 && (
+                  <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+                    No matching discussions found.
+                  </p>
+                )}
+              </section>
+            )}
+
+            {!["Home", "Resources", "Discussions"].includes(activeNav) && (
+              <section className="rounded-3xl border border-slate-200 bg-white px-6 py-14 text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+                  {activeNav === "Study Rooms" && <Users size={26} />}
+                  {activeNav === "Announcements" && <Megaphone size={26} />}
+                  {activeNav === "Feedback" && <MessageCircle size={26} />}
+                </div>
+                <h2 className="text-2xl font-bold">{activeNav}</h2>
+                <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
+                  This section will be connected to its database and interactive
+                  features in the next development steps.
+                </p>
+              </section>
+            )}
+
+            <footer className="mt-12 border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+              North Synapse · A community built around learning together.
+            </footer>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
 }
