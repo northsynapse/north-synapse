@@ -1,21 +1,23 @@
 
-import './globals.css';
+import "./globals.css";
 
 export const metadata = {
-  title: 'North Synapse Platform',
-  description: 'Next-Generation Academic Knowledge Exchange',
+  title: {
+    default: "North Synapse",
+    template: "%s | North Synapse",
+  },
+  description:
+    "A student learning community for sharing academic resources, joining study rooms, and exchanging ideas.",
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
-    <html lang="zh-CN">
-      <body className="bg-slate-950 text-slate-100 antialiased">
-        {children}
-      </body>
+    <html lang="en">
+      <body>{children}</body>
     </html>
   );
 }
