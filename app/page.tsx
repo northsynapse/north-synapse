@@ -7,7 +7,8 @@
    注意：当前为前端原型，数据暂存在页面状态中，刷新后会重置。
    ========================================================= */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import {
   Activity,
   ArrowDownUp,
@@ -309,12 +310,73 @@ export default function HomePage() {
     return true;
   }
 
-  // 5. 演示登录：下一步将接入 Supabase Auth
-  function handleAuth() {
+  
+  // 5. 使用 Supabase 处理真实注册与登录
+  async function handleAuth() {
     if (!authEmail.trim() || !authPassword.trim()) {
       notify("Please enter your email and password.");
       return;
     }
+
+    if (authMode === "register" && (!isStudent || !acceptedTerms)) {
+      notify("Please confirm student eligibility and accept the Terms.");
+      return;
+    }
+
+    if (!supabase) {
+      notify("Authentication is not configured. Please try again later.");
+      return;
+    }
+
+    try {
+      if (authMode === "register") {
+        const { data, error } = await supabase.auth.signUp({
+          email: authEmail.trim(),
+          password: authPassword,
+        });
+
+        if (error) {
+          notify(error.message);
+          return;
+        }
+
+        setAuthOpen(false);
+        setAuthEmail("");
+        setAuthPassword("");
+        setIsStudent(false);
+        setAcceptedTerms(false);
+
+        notify(
+          data.session
+            ? "Account created successfully."
+            : "Please check your email to confirm your account."
+        );
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: authEmail.trim(),
+        password: authPassword,
+      });
+
+      if (error) {
+        notify(error.message);
+        return;
+      }
+
+      setUsername(
+        data.user.email?.split("@")[0] ?? "Student"
+      );
+      setLoggedIn(true);
+      setAuthOpen(false);
+      setAuthEmail("");
+      setAuthPassword("");
+      notify("Signed in successfully.");
+    } catch {
+      notify("Something went wrong. Please try again.");
+    }
+  }
+
 
     if (authMode === "register" && (!isStudent || !acceptedTerms)) {
       notify("Please confirm student eligibility and accept the Terms.");
