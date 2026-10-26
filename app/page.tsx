@@ -835,8 +835,9 @@ export default function Home() {
                           </div>
                         </button>
                       ))}
-                    </div>   
-                    
+                    </div> 
+                   </div>
+                  
                   <section>
                     <SectionHeading
                       title="Community discussions"
