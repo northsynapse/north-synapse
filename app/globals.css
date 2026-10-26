@@ -111,11 +111,23 @@ svg {
   color: var(--text);
 }
 
+/* 页面主区域：与固定侧边栏分离 */
 .main-shell {
+  box-sizing: border-box;
+  width: calc(100% - var(--sidebar-width));
   min-width: 0;
   min-height: 100vh;
   margin-left: var(--sidebar-width);
   padding: 0 34px 48px;
+  overflow-x: clip;
+}
+
+.main-shell > .page-enter,
+.main-shell > .announcement-strip {
+  width: 100%;
+  max-width: 1440px;
+  margin-right: auto;
+  margin-left: auto;
 }
 
 .main-shell > .page-enter,
