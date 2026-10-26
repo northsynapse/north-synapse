@@ -835,76 +835,110 @@ export default function Home() {
                           </div>
                         </button>
                       ))}
-                    </div>
-                  </section>
-
+                    </div>   
+                    
                   <section>
                     <SectionHeading
                       title="Community discussions"
                       action="Explore all"
                       onAction={() => setActiveNav("Discussions")}
                     />
-
+                  
                     <div className="space-y-4">
-                      {discussions
-                        .filter((discussion) =>
-                          `${discussion.title} ${discussion.content} ${discussion.category ?? ""} ${discussion.author}`
-                            .toLowerCase()
-                            .includes(search.toLowerCase())
-                        )
-                        .map((discussion) => (
+                      {discussionsLoading ? (
+                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+                          <p className="text-sm text-[var(--muted)]">
+                            Loading discussions...
+                          </p>
+                        </div>
+                      ) : discussionError ? (
+                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+                          <p className="text-sm font-semibold">
+                            Unable to load discussions
+                          </p>
+                          <p className="mt-1 text-xs text-[var(--muted)]">
+                            Please check your connection and try again later.
+                          </p>
+                        </div>
+                      ) : filteredDiscussions.length === 0 ? (
+                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+                          <Search
+                            size={24}
+                            className="mx-auto text-[var(--muted)]"
+                          />
+                          <p className="mt-3 text-sm font-semibold">
+                            {search.trim()
+                              ? "No discussions found"
+                              : "No discussions yet"}
+                          </p>
+                          <p className="mt-1 text-xs text-[var(--muted)]">
+                            {search.trim()
+                              ? "Try another search term."
+                              : "Be the first to start a discussion."}
+                          </p>
+                        </div>
+                      ) : (
+                        filteredDiscussions.map((discussion, index) => (
                           <article
-                            key={discussion.title}
+                            key={discussion.id}
                             className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] sm:p-6"
                           >
                             <div className="flex items-start gap-3">
                               <div
                                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-slate-700"
                                 style={{
-                                  backgroundColor: discussionColors[
-                                    discussions.indexOf(discussion) % discussionColors.length
-                                  ],
+                                  backgroundColor:
+                                    discussionColors[index % discussionColors.length],
                                 }}
-                                >
-                                  {discussion.author.slice(0, 2).toUpperCase()}
+                              >
+                                {(discussion.author || "NS")
+                                  .slice(0, 2)
+                                  .toUpperCase()}
                               </div>
-
+                  
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="text-xs font-bold">
-                                    {discussion.name}
+                                    {discussion.author || "Anonymous"}
                                   </span>
-
+                  
                                   <span className="text-[10px] text-[var(--muted)]">
-                                    {discussion.time}
+                                    {new Date(
+                                      discussion.created_at
+                                    ).toLocaleDateString("en-CA", {
+                                      year: "numeric",
+                                      month: "short",
+                                      day: "numeric",
+                                    })}
                                   </span>
+                  
+                                  {discussion.is_solved && (
+                                    <span className="rounded-md bg-[#e5f6ee] px-2 py-0.5 text-[10px] font-semibold text-[#248763]">
+                                      Solved
+                                    </span>
+                                  )}
                                 </div>
-
+                  
                                 <h3 className="mt-2 text-sm font-bold leading-relaxed">
                                   {discussion.title}
                                 </h3>
-
-                                <p className="mt-1.5 text-xs leading-6 text-[var(--muted)]">
-                                  {discussion.text}
+                  
+                                <p className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-6 text-[var(--muted)]">
+                                  {discussion.content}
                                 </p>
-
+                  
                                 <div className="mt-4 flex flex-wrap items-center gap-3">
                                   <span className="rounded-lg bg-[var(--primary-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--primary)]">
-                                    {discussion.tag}
+                                    {discussion.category || "General"}
                                   </span>
-
+                  
                                   <span className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
                                     <MessageCircle size={13} />
-                                    {discussion.replies} replies
-                                  </span>
-
-                                  <span className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
-                                    <ArrowUpRight size={13} />
-                                    {discussion.likes} helpful
+                                    {discussion.replies_count ?? 0} replies
                                   </span>
                                 </div>
                               </div>
-
+                  
                               <button
                                 aria-label="Discussion options"
                                 className="rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--surface-secondary)]"
@@ -913,24 +947,11 @@ export default function Home() {
                               </button>
                             </div>
                           </article>
-                        ))}
-
-                      {filteredDiscussions.length === 0 && (
-                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
-                          <Search
-                            size={24}
-                            className="mx-auto text-[var(--muted)]"
-                          />
-                          <p className="mt-3 text-sm font-semibold">
-                            No discussions found
-                          </p>
-                          <p className="mt-1 text-xs text-[var(--muted)]">
-                            Try another search term.
-                          </p>
-                        </div>
+                        ))
                       )}
                     </div>
                   </section>
+
                 </div>
 
                 <div className="min-w-0 space-y-7">
