@@ -1,23 +1,22 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Activity,
-  ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
   Bell,
   BookOpen,
   CalendarDays,
-  Check,
-  ChevronDown,
   Clock3,
   Compass,
   FileText,
   Flame,
   GraduationCap,
   LayoutDashboard,
+  LogOut,
   Menu,
   MessageCircle,
   Moon,
@@ -30,7 +29,9 @@ import {
   Sun,
   Users,
   X,
+  ChevronDown,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
 
 const navigation = [
   { label: "Dashboard", icon: LayoutDashboard, group: "Workspace" },
@@ -143,6 +144,60 @@ export default function Home() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
 
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSession() {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      if (error) {
+        console.error("Unable to load session:", error.message);
+      }
+
+      setUserEmail(data.session?.user.email ?? null);
+      setAuthLoading(false);
+    }
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user.email ?? null);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  async function handleSignOut() {
+    if (signingOut) return;
+
+    setSigningOut(true);
+
+    const { error } = await supabase.auth.signOut();
+
+    setSigningOut(false);
+
+    if (error) {
+      window.alert("Unable to sign out. Please try again.");
+      return;
+    }
+
+    setShowAccountMenu(false);
+    setActiveNav("Dashboard");
+  }
+
   function toggleTheme() {
     const next = !darkMode;
     setDarkMode(next);
@@ -175,7 +230,10 @@ export default function Home() {
         <div className="flex h-[82px] items-center justify-between px-6">
           <button
             className="flex items-center gap-3 text-left"
-            onClick={() => setActiveNav("Dashboard")}
+            onClick={() => {
+              setActiveNav("Dashboard");
+              setMobileMenu(false);
+            }}
           >
             <span className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#8250ed] text-white shadow-md shadow-purple-200/40">
               <Activity size={23} strokeWidth={2.2} />
@@ -189,6 +247,7 @@ export default function Home() {
               </span>
             </span>
           </button>
+
           <button
             aria-label="Close menu"
             className="rounded-lg p-2 hover:bg-[var(--surface-secondary)] lg:hidden"
@@ -200,7 +259,10 @@ export default function Home() {
 
         <div className="px-4 pt-5">
           <button
-            onClick={() => setActiveNav("Dashboard")}
+            onClick={() => {
+              setActiveNav("Dashboard");
+              setMobileMenu(false);
+            }}
             className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${
               activeNav === "Dashboard"
                 ? "bg-[var(--primary-soft)] text-[var(--primary)]"
@@ -220,6 +282,7 @@ export default function Home() {
             <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[1.8px] text-[var(--muted)]">
               {group}
             </p>
+
             <div className="space-y-1">
               {navigation
                 .filter(
@@ -229,6 +292,7 @@ export default function Home() {
                 .map((item) => {
                   const Icon = item.icon;
                   const active = activeNav === item.label;
+
                   return (
                     <button
                       key={item.label}
@@ -244,6 +308,7 @@ export default function Home() {
                     >
                       <Icon size={17} />
                       {item.label}
+
                       {item.label === "Discussions" && (
                         <span className="ml-auto rounded-md bg-[var(--surface-secondary)] px-1.5 py-0.5 text-[10px]">
                           8
@@ -260,6 +325,7 @@ export default function Home() {
           <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[1.8px] text-[var(--muted)]">
             Personal
           </p>
+
           <button
             onClick={() => setActiveNav("My Profile")}
             className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium ${
@@ -271,6 +337,7 @@ export default function Home() {
             <GraduationCap size={17} />
             My Profile
           </button>
+
           <button
             onClick={() => setActiveNav("Settings")}
             className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium ${
@@ -292,31 +359,65 @@ export default function Home() {
               </span>
               <span className="text-xs font-bold">A space to grow</span>
             </div>
+
             <p className="mb-3 text-[11px] leading-relaxed text-[var(--muted)]">
               Share what you know. Discover what you don&apos;t.
             </p>
+
             <div className="h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
               <div className="h-full w-[68%] rounded-full bg-[var(--primary)]" />
             </div>
+
             <p className="mt-2 text-[10px] text-[var(--muted)]">
               Community is growing
             </p>
           </div>
-          <div className="mt-4 flex items-center gap-3 rounded-xl px-2 py-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e7e0ff] text-xs font-bold text-[#6941c6]">
-              SL
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-bold">Student Member</p>
-              <p className="text-[10px] text-[var(--muted)]">Learning account</p>
-            </div>
-            <button
-              aria-label="Account options"
-              onClick={() => setActiveNav("My Profile")}
-              className="rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--surface-secondary)]"
-            >
-              <MoreHorizontal size={18} />
-            </button>
+
+          <div className="mt-4 border-t border-[var(--border)] pt-4">
+            {authLoading ? (
+              <p className="px-2 py-3 text-xs text-[var(--muted)]">
+                Checking account...
+              </p>
+            ) : userEmail ? (
+              <div className="flex items-center gap-3 px-2 py-2">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e7e0ff] text-[#6941c6]">
+                  <GraduationCap size={18} />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-bold">{userEmail}</p>
+                  <p className="text-[10px] text-[var(--muted)]">
+                    Signed in
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleSignOut}
+                  disabled={signingOut}
+                  aria-label="Sign out"
+                  title="Sign out"
+                  className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--surface-secondary)] disabled:opacity-50"
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Link
+                  href="/login"
+                  className="flex w-full items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-xs font-semibold hover:bg-[var(--surface-secondary)]"
+                >
+                  Log In
+                </Link>
+
+                <Link
+                  href="/register"
+                  className="flex w-full items-center justify-center rounded-xl bg-[#8250ed] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#7040d9]"
+                >
+                  Sign Up
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </aside>
@@ -331,21 +432,25 @@ export default function Home() {
             >
               <Menu size={20} />
             </button>
+
             <div className="relative hidden w-[min(36vw,340px)] sm:block">
               <Search
                 size={17}
                 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
               />
+
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search discussions..."
                 className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] pl-10 pr-4 text-xs outline-none transition focus:border-[var(--primary)]"
               />
+
               <span className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--muted)] md:block">
                 /
               </span>
             </div>
+
             <span className="truncate text-sm font-bold sm:hidden">
               {activeNav}
             </span>
@@ -359,6 +464,7 @@ export default function Home() {
             >
               {darkMode ? <Sun size={17} /> : <Moon size={17} />}
             </button>
+
             <div className="relative">
               <button
                 aria-label="Notifications"
@@ -368,12 +474,13 @@ export default function Home() {
                 <Bell size={17} />
                 <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#ef8068]" />
               </button>
+
               {showNotifications && (
                 <div className="absolute right-0 top-12 z-50 w-64 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl">
                   <p className="font-bold">Notifications</p>
                   <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
-                    You&apos;re all caught up. New community notifications will
-                    appear here.
+                    You&apos;re all caught up. New community notifications
+                    will appear here.
                   </p>
                   <button
                     onClick={() => setShowNotifications(false)}
@@ -384,25 +491,78 @@ export default function Home() {
                 </div>
               )}
             </div>
+
             <div className="hidden h-8 w-px bg-[var(--border)] sm:block" />
-            <button
-              onClick={() => setActiveNav("My Profile")}
-              className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-[var(--surface-secondary)]"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e7e0ff] text-[11px] font-bold text-[#6941c6]">
-                SL
-              </span>
-              <span className="hidden text-left sm:block">
-                <span className="block text-xs font-bold">Student</span>
-                <span className="block text-[10px] text-[var(--muted)]">
-                  Member
-                </span>
-              </span>
-              <ChevronDown
-                size={14}
-                className="hidden text-[var(--muted)] sm:block"
-              />
-            </button>
+
+            <div className="relative">
+              {authLoading ? (
+                <div className="h-9 w-20 animate-pulse rounded-xl bg-[var(--surface-secondary)]" />
+              ) : userEmail ? (
+                <>
+                  <button
+                    onClick={() => setShowAccountMenu(!showAccountMenu)}
+                    className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-[var(--surface-secondary)]"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e7e0ff] text-xs font-bold text-[#6941c6]">
+                      {userEmail.charAt(0).toUpperCase()}
+                    </span>
+
+                    <span className="hidden max-w-[180px] text-left sm:block">
+                      <span className="block truncate text-xs font-bold">
+                        {userEmail}
+                      </span>
+                      <span className="block text-[10px] text-[var(--muted)]">
+                        Signed in
+                      </span>
+                    </span>
+
+                    <ChevronDown
+                      size={14}
+                      className="text-[var(--muted)]"
+                    />
+                  </button>
+
+                  {showAccountMenu && (
+                    <div className="absolute right-0 top-12 z-50 w-44 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl">
+                      <button
+                        onClick={() => {
+                          setActiveNav("My Profile");
+                          setShowAccountMenu(false);
+                        }}
+                        className="w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-[var(--surface-secondary)]"
+                      >
+                        My Profile
+                      </button>
+
+                      <button
+                        onClick={handleSignOut}
+                        disabled={signingOut}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-red-500 hover:bg-[var(--surface-secondary)] disabled:opacity-50"
+                      >
+                        <LogOut size={14} />
+                        {signingOut ? "Signing out..." : "Log Out"}
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/login"
+                    className="rounded-xl px-3 py-2 text-xs font-semibold text-[var(--muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)]"
+                  >
+                    Log In
+                  </Link>
+
+                  <Link
+                    href="/register"
+                    className="rounded-xl bg-[#8250ed] px-3 py-2 text-xs font-semibold text-white hover:bg-[#7040d9]"
+                  >
+                    Sign Up
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -415,135 +575,199 @@ export default function Home() {
                     <CalendarDays size={14} />
                     YOUR LEARNING SPACE
                   </div>
+
                   <h1 className="text-[27px] font-extrabold tracking-tight sm:text-[32px]">
-                    Good to have you here <span>✦</span>
+                    {userEmail
+                      ? "Welcome back"
+                      : "Welcome to North Synapse"}{" "}
+                    <span>✦</span>
                   </h1>
+
                   <p className="mt-1.5 text-sm text-[var(--muted)]">
-                    A little progress every day adds up to something great.
+                    {userEmail
+                      ? "A little progress every day adds up to something great."
+                      : "A learning community built for curious minds."}
                   </p>
                 </div>
+
                 <div className="relative">
-                  <button
-                    onClick={() => setShowCreateMenu(!showCreateMenu)}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-[#8250ed] px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-purple-200/30 transition hover:bg-[#7040d9]"
-                  >
-                    <Plus size={16} />
-                    Create something
-                    <ChevronDown size={14} />
-                  </button>
-                  {showCreateMenu && (
-                    <div className="absolute right-0 top-12 z-20 w-52 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl">
-                      {[
-                        ["Discussion", MessageCircle],
-                        ["Resource", FileText],
-                        ["Study room", Users],
-                      ].map(([label, Icon]) => {
-                        const ItemIcon = Icon as typeof Plus;
-                        return (
-                          <button
-                            key={label as string}
-                            onClick={() => {
-                              setActiveNav(
-                                label === "Discussion"
-                                  ? "Discussions"
-                                  : label === "Resource"
-                                    ? "Resources"
-                                    : "Study Rooms"
-                              );
-                              setShowCreateMenu(false);
-                            }}
-                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs hover:bg-[var(--surface-secondary)]"
-                          >
-                            <ItemIcon size={16} />
-                            {label as string}
-                          </button>
-                        );
-                      })}
-                    </div>
+                  {userEmail ? (
+                    <>
+                      <button
+                        onClick={() => setShowCreateMenu(!showCreateMenu)}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-[#8250ed] px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-purple-200/30 transition hover:bg-[#7040d9]"
+                      >
+                        <Plus size={16} />
+                        Create something
+                        <ChevronDown size={14} />
+                      </button>
+
+                      {showCreateMenu && (
+                        <div className="absolute right-0 top-12 z-20 w-52 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl">
+                          {[
+                            ["Discussion", MessageCircle],
+                            ["Resource", FileText],
+                            ["Study room", Users],
+                          ].map(([label, Icon]) => {
+                            const ItemIcon = Icon as typeof Plus;
+
+                            return (
+                              <button
+                                key={label as string}
+                                onClick={() => {
+                                  setActiveNav(
+                                    label === "Discussion"
+                                      ? "Discussions"
+                                      : label === "Resource"
+                                        ? "Resources"
+                                        : "Study Rooms"
+                                  );
+                                  setShowCreateMenu(false);
+                                }}
+                                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs hover:bg-[var(--surface-secondary)]"
+                              >
+                                <ItemIcon size={16} />
+                                {label as string}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <Link
+                      href="/register"
+                      className="flex items-center justify-center gap-2 rounded-xl bg-[#8250ed] px-4 py-3 text-xs font-semibold text-white shadow-lg shadow-purple-200/30 transition hover:bg-[#7040d9]"
+                    >
+                      <Sparkles size={16} />
+                      Join the community
+                      <ArrowRight size={14} />
+                    </Link>
                   )}
                 </div>
               </div>
 
+              {!userEmail && (
+                <div className="mb-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow)] sm:p-8">
+                  <div className="max-w-2xl">
+                    <p className="text-xs font-bold uppercase tracking-[1.8px] text-[var(--primary)]">
+                      LEARN · SHARE · GROW
+                    </p>
+
+                    <h2 className="mt-3 text-2xl font-extrabold tracking-tight sm:text-3xl">
+                      Your next idea could help someone else learn.
+                    </h2>
+
+                    <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                      Join North Synapse to connect with fellow students,
+                      exchange learning resources, and take part in
+                      thoughtful academic discussions.
+                    </p>
+
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <Link
+                        href="/register"
+                        className="rounded-xl bg-[#8250ed] px-5 py-3 text-sm font-semibold text-white hover:bg-[#7040d9]"
+                      >
+                        Create an account
+                      </Link>
+
+                      <Link
+                        href="/login"
+                        className="rounded-xl border border-[var(--border)] px-5 py-3 text-sm font-semibold hover:bg-[var(--surface-secondary)]"
+                      >
+                        I already have an account
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]">
-                  <div className="flex items-start justify-between">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f0eaff] text-[#8250ed]">
-                      <BookOpen size={19} />
-                    </span>
-                    <span className="flex items-center gap-1 rounded-full bg-[#e5f6ee] px-2 py-1 text-[10px] font-bold text-[#248763]">
-                      <ArrowUpRight size={12} /> 2
-                    </span>
-                  </div>
-                  <p className="mt-4 text-xs font-medium text-[var(--muted)]">
-                    Active courses
-                  </p>
-                  <p className="mt-1 text-[29px] font-extrabold tracking-tight">
-                    3
-                  </p>
-                  <p className="mt-1 text-[10px] text-[var(--muted)]">
-                    Courses in your workspace
-                  </p>
-                </div>
+                {[
+                  {
+                    title: "Active courses",
+                    value: "3",
+                    detail: "Courses in your workspace",
+                    icon: BookOpen,
+                    iconBg: "#f0eaff",
+                    iconColor: "#8250ed",
+                    change: "2",
+                  },
+                  {
+                    title: "Study time",
+                    value: "8.5",
+                    suffix: "hrs",
+                    detail: "This week",
+                    icon: Clock3,
+                    iconBg: "#e1f5f0",
+                    iconColor: "#258f82",
+                    change: "12%",
+                  },
+                  {
+                    title: "Learning streak",
+                    value: "5",
+                    suffix: "days",
+                    detail: "Your personal best is 8",
+                    icon: Flame,
+                    iconBg: "#fff0dd",
+                    iconColor: "#d78b35",
+                  },
+                  {
+                    title: "Community contributions",
+                    value: "12",
+                    detail: "Posts and shared resources",
+                    icon: Users,
+                    iconBg: "#e5efff",
+                    iconColor: "#4c82d9",
+                    change: "4",
+                  },
+                ].map((stat) => {
+                  const Icon = stat.icon;
 
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]">
-                  <div className="flex items-start justify-between">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e1f5f0] text-[#258f82]">
-                      <Clock3 size={19} />
-                    </span>
-                    <span className="flex items-center gap-1 rounded-full bg-[#e5f6ee] px-2 py-1 text-[10px] font-bold text-[#248763]">
-                      <ArrowUpRight size={12} /> 12%
-                    </span>
-                  </div>
-                  <p className="mt-4 text-xs font-medium text-[var(--muted)]">
-                    Study time
-                  </p>
-                  <p className="mt-1 text-[29px] font-extrabold tracking-tight">
-                    8.5<span className="ml-1 text-sm font-semibold">hrs</span>
-                  </p>
-                  <p className="mt-1 text-[10px] text-[var(--muted)]">
-                    This week
-                  </p>
-                </div>
+                  return (
+                    <div
+                      key={stat.title}
+                      className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]"
+                    >
+                      <div className="flex items-start justify-between">
+                        <span
+                          className="flex h-10 w-10 items-center justify-center rounded-xl"
+                          style={{
+                            backgroundColor: stat.iconBg,
+                            color: stat.iconColor,
+                          }}
+                        >
+                          <Icon size={19} />
+                        </span>
 
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]">
-                  <div className="flex items-start justify-between">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fff0dd] text-[#d78b35]">
-                      <Flame size={19} />
-                    </span>
-                    <span className="rounded-full bg-[var(--surface-secondary)] px-2 py-1 text-[10px] font-semibold text-[var(--muted)]">
-                      Keep going
-                    </span>
-                  </div>
-                  <p className="mt-4 text-xs font-medium text-[var(--muted)]">
-                    Learning streak
-                  </p>
-                  <p className="mt-1 text-[29px] font-extrabold tracking-tight">
-                    5<span className="ml-1 text-sm font-semibold">days</span>
-                  </p>
-                  <p className="mt-1 text-[10px] text-[var(--muted)]">
-                    Your personal best is 8
-                  </p>
-                </div>
+                        {stat.change && (
+                          <span className="flex items-center gap-1 rounded-full bg-[#e5f6ee] px-2 py-1 text-[10px] font-bold text-[#248763]">
+                            <ArrowUpRight size={12} />
+                            {stat.change}
+                          </span>
+                        )}
+                      </div>
 
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]">
-                  <div className="flex items-start justify-between">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e5efff] text-[#4c82d9]">
-                      <Users size={19} />
-                    </span>
-                    <span className="flex items-center gap-1 rounded-full bg-[#e5f6ee] px-2 py-1 text-[10px] font-bold text-[#248763]">
-                      <ArrowUpRight size={12} /> 4
-                    </span>
-                  </div>
-                  <p className="mt-4 text-xs font-medium text-[var(--muted)]">
-                    Community contributions
-                  </p>
-                  <p className="mt-1 text-[29px] font-extrabold tracking-tight">
-                    12
-                  </p>
-                  <p className="mt-1 text-[10px] text-[var(--muted)]">
-                    Posts and shared resources
-                  </p>
-                </div>
+                      <p className="mt-4 text-xs font-medium text-[var(--muted)]">
+                        {stat.title}
+                      </p>
+
+                      <p className="mt-1 text-[29px] font-extrabold tracking-tight">
+                        {stat.value}
+                        {stat.suffix && (
+                          <span className="ml-1 text-sm font-semibold">
+                            {stat.suffix}
+                          </span>
+                        )}
+                      </p>
+
+                      <p className="mt-1 text-[10px] text-[var(--muted)]">
+                        {stat.detail}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="grid grid-cols-1 items-start gap-7 2xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.85fr)]">
@@ -554,6 +778,7 @@ export default function Home() {
                       action="All courses"
                       onAction={() => setActiveNav("Resources")}
                     />
+
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                       {courses.map((course) => (
                         <button
@@ -571,20 +796,25 @@ export default function Home() {
                             >
                               {course.symbol}
                             </span>
+
                             <MoreHorizontal
                               size={18}
                               className="text-[var(--muted)]"
                             />
                           </div>
+
                           <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
                             {course.code}
                           </p>
+
                           <h3 className="mt-1 text-sm font-bold">
                             {course.name}
                           </h3>
+
                           <p className="mt-1 text-[11px] text-[var(--muted)]">
                             {course.detail}
                           </p>
+
                           <div className="mt-5 flex items-center justify-between text-[10px]">
                             <span className="text-[var(--muted)]">
                               Progress
@@ -593,6 +823,7 @@ export default function Home() {
                               {course.progress}%
                             </span>
                           </div>
+
                           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--surface-secondary)]">
                             <div
                               className="h-full rounded-full transition-all"
@@ -602,6 +833,7 @@ export default function Home() {
                               }}
                             />
                           </div>
+
                           <div className="mt-4 flex items-center justify-between text-[10px] font-semibold text-[var(--muted)]">
                             <span>Continue learning</span>
                             <ArrowRight
@@ -620,9 +852,15 @@ export default function Home() {
                       action="Explore all"
                       onAction={() => setActiveNav("Discussions")}
                     />
+
                     <div className="space-y-4">
-                      {filteredDiscussions.length > 0 ? (
-                        filteredDiscussions.map((discussion) => (
+                      {discussions
+                        .filter((discussion) =>
+                          `${discussion.title} ${discussion.text} ${discussion.tag} ${discussion.name}`
+                            .toLowerCase()
+                            .includes(search.toLowerCase())
+                        )
+                        .map((discussion) => (
                           <article
                             key={discussion.title}
                             className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] sm:p-6"
@@ -636,35 +874,43 @@ export default function Home() {
                               >
                                 {discussion.initials}
                               </div>
+
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="text-xs font-bold">
                                     {discussion.name}
                                   </span>
+
                                   <span className="text-[10px] text-[var(--muted)]">
                                     {discussion.time}
                                   </span>
                                 </div>
+
                                 <h3 className="mt-2 text-sm font-bold leading-relaxed">
                                   {discussion.title}
                                 </h3>
+
                                 <p className="mt-1.5 text-xs leading-6 text-[var(--muted)]">
                                   {discussion.text}
                                 </p>
+
                                 <div className="mt-4 flex flex-wrap items-center gap-3">
                                   <span className="rounded-lg bg-[var(--primary-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--primary)]">
                                     {discussion.tag}
                                   </span>
+
                                   <span className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
                                     <MessageCircle size={13} />
                                     {discussion.replies} replies
                                   </span>
+
                                   <span className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
                                     <ArrowUpRight size={13} />
                                     {discussion.likes} helpful
                                   </span>
                                 </div>
                               </div>
+
                               <button
                                 aria-label="Discussion options"
                                 className="rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--surface-secondary)]"
@@ -673,8 +919,9 @@ export default function Home() {
                               </button>
                             </div>
                           </article>
-                        ))
-                      ) : (
+                        ))}
+
+                      {filteredDiscussions.length === 0 && (
                         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
                           <Search
                             size={24}
@@ -695,6 +942,7 @@ export default function Home() {
                 <div className="min-w-0 space-y-7">
                   <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]">
                     <SectionHeading title="Weekly activity" />
+
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-[28px] font-extrabold tracking-tight">
@@ -704,10 +952,12 @@ export default function Home() {
                           Time invested this week
                         </p>
                       </div>
+
                       <span className="flex items-center gap-1 rounded-lg bg-[#e5f6ee] px-2 py-1 text-[10px] font-bold text-[#248763]">
                         <ArrowUpRight size={12} /> 12%
                       </span>
                     </div>
+
                     <div className="mt-6 flex h-[110px] items-end justify-between gap-2">
                       {[
                         { day: "M", height: 40 },
@@ -732,6 +982,7 @@ export default function Home() {
                               style={{ height: `${item.height}%` }}
                             />
                           </div>
+
                           <span className="text-[10px] text-[var(--muted)]">
                             {item.day}
                           </span>
@@ -746,6 +997,7 @@ export default function Home() {
                       action="View all"
                       onAction={() => setActiveNav("Announcements")}
                     />
+
                     <div className="space-y-5">
                       {announcements.map((announcement) => (
                         <div
@@ -758,6 +1010,7 @@ export default function Home() {
                               backgroundColor: announcement.color,
                             }}
                           />
+
                           <div>
                             <p
                               className="text-[9px] font-bold tracking-[1.2px]"
@@ -767,9 +1020,11 @@ export default function Home() {
                             >
                               {announcement.category}
                             </p>
+
                             <h3 className="mt-1 text-xs font-bold leading-relaxed">
                               {announcement.title}
                             </h3>
+
                             <p className="mt-1 text-[11px] leading-relaxed text-[var(--muted)]">
                               {announcement.detail}
                             </p>
@@ -783,16 +1038,20 @@ export default function Home() {
                     <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
                       <Compass size={21} />
                     </div>
+
                     <p className="text-[10px] font-bold uppercase tracking-[1.6px] text-white/70">
                       Discover more
                     </p>
+
                     <h3 className="mt-2 text-lg font-bold leading-snug">
                       Knowledge grows when it is shared.
                     </h3>
+
                     <p className="mt-2 text-xs leading-relaxed text-white/80">
-                      Find new perspectives, ask questions, and contribute to
-                      your learning community.
+                      Find new perspectives, ask questions, and contribute
+                      to your learning community.
                     </p>
+
                     <button
                       onClick={() => setActiveNav("Discussions")}
                       className="mt-5 flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-xs font-bold text-[#7040d9] transition hover:bg-white/90"
@@ -807,7 +1066,10 @@ export default function Home() {
             <section className="mx-auto max-w-2xl py-16 text-center sm:py-24">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary)]">
                 {section ? (
-                  <section.icon size={28} />
+                  (() => {
+                    const Icon = section.icon;
+                    return <Icon size={28} />;
+                  })()
                 ) : activeNav === "My Profile" ? (
                   <GraduationCap size={28} />
                 ) : activeNav === "Settings" ? (
@@ -816,16 +1078,26 @@ export default function Home() {
                   <ShieldCheck size={28} />
                 )}
               </div>
+
               <p className="mt-6 text-xs font-bold uppercase tracking-[2px] text-[var(--primary)]">
                 North Synapse
               </p>
+
               <h1 className="mt-2 text-3xl font-extrabold tracking-tight">
                 {activeNav}
               </h1>
+
+              {activeNav === "My Profile" && userEmail && (
+                <p className="mt-3 text-sm text-[var(--muted)]">
+                  Signed in as {userEmail}
+                </p>
+              )}
+
               <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[var(--muted)]">
-                This section is being prepared. Its full functionality will be
-                added in the next stages of the rebuild.
+                This section is being prepared. Its full functionality will
+                be added in the next stages of the rebuild.
               </p>
+
               <button
                 onClick={() => setActiveNav("Dashboard")}
                 className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#8250ed] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#7040d9]"
@@ -837,6 +1109,7 @@ export default function Home() {
 
           <footer className="mt-12 flex flex-col justify-between gap-2 border-t border-[var(--border)] py-5 text-[10px] text-[var(--muted)] sm:flex-row sm:items-center">
             <p>© 2026 North Synapse. Built for curious minds.</p>
+
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#36b58a]" />
