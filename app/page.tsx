@@ -835,7 +835,7 @@ export default function Home() {
                           </div>
                         </button>
                       ))}
-                    </div>
+                      </div>
                     </section>
 
                     <section>
