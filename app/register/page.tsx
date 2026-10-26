@@ -26,8 +26,15 @@ export default function RegisterPage() {
     setMessage("");
     setError("");
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     if (!isStudent || !acceptedNotice) {
       setError("Please complete both required confirmations.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError("Please enter a valid email address.");
       return;
     }
 
@@ -43,35 +50,54 @@ export default function RegisterPage() {
 
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-        data: {
-          is_student: true,
-          accepted_user_notice: true,
-          accepted_at: new Date().toISOString(),
-        },
-      },
-    });
+    try {
+      const { data, error: signUpError } =
+        await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`,
+            data: {
+              is_student: true,
+              accepted_user_notice: true,
+              accepted_at: new Date().toISOString(),
+            },
+          },
+        });
 
-    setLoading(false);
+      if (signUpError) {
+        const errorText = signUpError.message.toLowerCase();
 
-    if (error) {
-      setError(error.message);
-      return;
+        if (
+          errorText.includes("already registered") ||
+          errorText.includes("already exists") ||
+          errorText.includes("user already")
+        ) {
+          setError(
+            "An account may already exist for this email. Please sign in or reset your password instead."
+          );
+        } else {
+          setError(signUpError.message);
+        }
+        return;
+      }
+
+      if (data.session) {
+        router.push("/");
+        router.refresh();
+        return;
+      }
+
+      setMessage(
+        "If this email can be registered, you will receive an email with the next steps. If you already have an account, please sign in or reset your password."
+      );
+    } catch {
+      setError(
+        "Something went wrong. Please try again in a moment."
+      );
+    } finally {
+      setLoading(false);
     }
-
-    if (data.session) {
-      router.push("/");
-      router.refresh();
-      return;
-    }
-
-    setMessage(
-      "Registration received. Please check your email to confirm your account before signing in."
-    );
   }
 
   return (
@@ -127,7 +153,10 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="mb-2 block font-medium">
+            <label
+              htmlFor="confirmPassword"
+              className="mb-2 block font-medium"
+            >
               Confirm password
             </label>
             <input
@@ -137,7 +166,9 @@ export default function RegisterPage() {
               minLength={8}
               required
               value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
+              onChange={(event) =>
+                setConfirmPassword(event.target.value)
+              }
               className="w-full rounded-xl border border-[var(--border)] bg-transparent px-4 py-3"
               placeholder="Enter your password again"
             />
@@ -205,6 +236,16 @@ export default function RegisterPage() {
             className="font-medium text-[var(--primary)] hover:underline"
           >
             Sign in
+          </Link>
+        </p>
+
+        <p className="mt-3 text-center text-sm text-[var(--muted)]">
+          Forgot your password?{" "}
+          <Link
+            href="/forgot-password"
+            className="font-medium text-[var(--primary)] hover:underline"
+          >
+            Reset it
           </Link>
         </p>
       </div>
