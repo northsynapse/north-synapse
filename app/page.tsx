@@ -1,939 +1,2058 @@
-'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+"use client";
 
-/* ==========================================================================
-   1. 内置轻量化 SUPABASE 模拟客户端 (零外部 NPM 包依赖，保证 100% 编译成功)
-   ========================================================================== */
-const supabase = {
-  auth: {
-    getUser: async () => {
-      if (typeof window !== 'undefined') {
-        const local = localStorage.getItem('ns_local_user');
-        if (local) return { data: { user: JSON.parse(local) }, error: null };
-      }
-      return { data: { user: null }, error: null };
-    },
-    signUp: async ({ email, options }: any) => {
-      const user = {
-        id: 'usr_' + Date.now(),
-        email,
-        created_at: new Date().toISOString(),
-        user_metadata: options?.data || {}
-      };
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('ns_local_user', JSON.stringify(user));
-      }
-      return { data: { user, session: {} }, error: null };
-    },
-    signInWithPassword: async ({ email }: any) => {
-      const user = {
-        id: 'usr_' + Date.now(),
-        email,
-        created_at: new Date().toISOString(),
-        user_metadata: { username: email.split('@')[0], nickname: email.split('@')[0], grade: 'Grade 12' }
-      };
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('ns_local_user', JSON.stringify(user));
-      }
-      return { data: { user, session: {} }, error: null };
-    },
-    signOut: async () => {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('ns_local_user');
-      }
-      return { error: null };
-    }
-  }
+/* =========================================================
+   NORTH SYNAPSE
+   主页面：导航、资源中心、自习室、讨论区、公告、反馈、个人主页
+   注意：当前为前端原型，数据暂存在页面状态中，刷新后会重置。
+   ========================================================= */
+
+import { useState } from "react";
+import {
+  Activity,
+  ArrowDownUp,
+  ArrowRight,
+  Bell,
+  BookOpen,
+  Bookmark,
+  Check,
+  ChevronDown,
+  Clock3,
+  FileText,
+  Flag,
+  Hash,
+  Heart,
+  Home,
+  LogIn,
+  Menu,
+  MessageCircle,
+  Moon,
+  Plus,
+  Search,
+  Send,
+  Settings,
+  ShieldCheck,
+  Sun,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
+
+// 1. 定义数据类型
+type Section =
+  | "Overview"
+  | "Research Hub"
+  | "Study Lounge"
+  | "Discussions"
+  | "Announcements"
+  | "Feedback"
+  | "Dashboard";
+
+type Resource = {
+  id: number;
+  title: string;
+  description: string;
+  subject: string;
+  grade: string;
+  author: string;
+  date: string;
+  likes: number;
+  saves: number;
 };
 
-type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard';
-
-interface CommentItem {
-  id: string;
-  authorName: string;
-  authorAvatar: string;
-  text: string;
-  date: string;
-  likes: number;
-  likedByMe?: boolean;
-}
-
-interface ResourceItem {
-  id: string;
+type Discussion = {
+  id: number;
   title: string;
-  subject: string;
-  grade: string;
-  description: string;
-  content: string;
-  authorName: string;
-  authorEmail?: string;
-  authorAvatar: string;
-  date: string;
-  likes: number;
-  bookmarks: number;
-  likedByMe?: boolean;
-  bookmarkedByMe?: boolean;
-  comments: CommentItem[];
-}
+  body: string;
+  category: string;
+  author: string;
+  replies: number;
+  votes: number;
+};
 
-interface DiscussionItem {
-  id: string;
-  title: string;
-  content: string;
-  authorEmail: string;
-  authorName: string;
-  date: string;
-  repliesCount: number;
-  replies?: CommentItem[];
-}
-
-interface LoungeRoom {
-  id: string;
+type StudyRoom = {
+  id: number;
   name: string;
+  creator: string;
   subject: string;
-  activeUsers: number;
-  description: string;
-}
+  privacy: "Public" | "Private";
+  online: number;
+};
 
-interface AnnouncementItem {
-  id: string;
-  title: string;
-  content: string;
-  date: string;
-  authorName: string;
-}
+// 2. 示例内容：之后会改为从 Supabase 数据库读取
+const initialResources: Resource[] = [
+  {
+    id: 1,
+    title: "Functions — Complete Review",
+    description:
+      "A structured review of function notation, transformations, domain, range, and inverse functions.",
+    subject: "Mathematics",
+    grade: "Grade 11",
+    author: "Alex Chen",
+    date: "Oct 24, 2026",
+    likes: 24,
+    saves: 38,
+  },
+  {
+    id: 2,
+    title: "Chemistry: Naming Compounds",
+    description:
+      "A concise reference for ionic compounds, molecular compounds, and polyatomic ions.",
+    subject: "Science",
+    grade: "Grade 10",
+    author: "Jamie W.",
+    date: "Oct 23, 2026",
+    likes: 19,
+    saves: 31,
+  },
+  {
+    id: 3,
+    title: "How to Prepare for English Essays",
+    description:
+      "Planning an argument, selecting evidence, organizing paragraphs, and revising a first draft.",
+    subject: "English",
+    grade: "Grade 10",
+    author: "Morgan L.",
+    date: "Oct 22, 2026",
+    likes: 16,
+    saves: 27,
+  },
+  {
+    id: 4,
+    title: "Python Problem-Solving Notes",
+    description:
+      "Useful patterns for lists, loops, dictionaries, and introductory competitive programming.",
+    subject: "Computer Science",
+    grade: "Grade 11",
+    author: "Taylor K.",
+    date: "Oct 21, 2026",
+    likes: 32,
+    saves: 42,
+  },
+  {
+    id: 5,
+    title: "Physics Formula Reference",
+    description:
+      "An organized reference for motion, forces, energy, and common unit conversions.",
+    subject: "Science",
+    grade: "Grade 11",
+    author: "Sam R.",
+    date: "Oct 20, 2026",
+    likes: 13,
+    saves: 20,
+  },
+  {
+    id: 6,
+    title: "Study Planning That Actually Works",
+    description:
+      "A practical weekly planning template for assignments, review sessions, and deadlines.",
+    subject: "Study Skills",
+    grade: "All Grades",
+    author: "Jordan P.",
+    date: "Oct 19, 2026",
+    likes: 21,
+    saves: 36,
+  },
+];
 
-interface FriendItem {
-  id: string;
-  name: string;
-  grade: string;
-  avatarUrl: string;
-  status: 'online' | 'offline';
-}
+const initialDiscussions: Discussion[] = [
+  {
+    id: 1,
+    title: "How do you organize your study schedule?",
+    body: "I am trying to balance homework, test preparation, and personal projects. What works for you?",
+    category: "Study Tips",
+    author: "StudySeeker",
+    replies: 12,
+    votes: 18,
+  },
+  {
+    id: 2,
+    title: "Advice for choosing Grade 11 courses",
+    body: "What should students consider when planning prerequisites and future university programs?",
+    category: "Course Selection",
+    author: "NorthStar",
+    replies: 8,
+    votes: 14,
+  },
+  {
+    id: 3,
+    title: "Share your favourite coding resources",
+    body: "Looking for useful websites and projects for students who want to improve their programming skills.",
+    category: "Computer Science",
+    author: "ByteSized",
+    replies: 15,
+    votes: 27,
+  },
+];
 
-export default function Home() {
-  /* ==========================================================================
-     2. 全局状态定义 (GLOBAL STATES)
-     ========================================================================== */
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const [activeTab, setActiveTab] = useState<NavTab>('resources');
+const initialRooms: StudyRoom[] = [
+  {
+    id: 1,
+    name: "The Common Room",
+    creator: "North Synapse",
+    subject: "General Study",
+    privacy: "Public",
+    online: 12,
+  },
+  {
+    id: 2,
+    name: "Math Focus",
+    creator: "Alex Chen",
+    subject: "Mathematics",
+    privacy: "Public",
+    online: 5,
+  },
+  {
+    id: 3,
+    name: "Quiet Coding",
+    creator: "Taylor K.",
+    subject: "Computer Science",
+    privacy: "Public",
+    online: 3,
+  },
+];
 
-  const [user, setUser] = useState<any>(null);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-  const [showCreateResourceModal, setShowCreateResourceModal] = useState(false);
-  const [showCreateDiscussionModal, setShowCreateDiscussionModal] = useState(false);
+const navItems: { name: Section; icon: typeof Home }[] = [
+  { name: "Overview", icon: Home },
+  { name: "Research Hub", icon: BookOpen },
+  { name: "Study Lounge", icon: Clock3 },
+  { name: "Discussions", icon: MessageCircle },
+  { name: "Announcements", icon: Bell },
+  { name: "Feedback", icon: Heart },
+  { name: "Dashboard", icon: Users },
+];
 
-  // 认证与注册表单状态
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
-  const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
-  const [loading, setLoading] = useState(false);
+const subjects = [
+  "All Subjects",
+  "Mathematics",
+  "Science",
+  "English",
+  "Computer Science",
+  "Study Skills",
+];
 
-  // 个人资料设置状态
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [username, setUsername] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [grade, setGrade] = useState('');
-  const [gender, setGender] = useState('');
-  const [bio, setBio] = useState('');
-  const [createdAt, setCreatedAt] = useState('');
+const grades = ["All Grades", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 
-  // 筛选与搜索状态
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
-  const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+export default function HomePage() {
+  // 3. 页面状态
+  const [section, setSection] = useState<Section>("Overview");
+  const [darkMode, setDarkMode] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  // Logo 图片降级机制
-  const [useLogoImage, setUseLogoImage] = useState(true);
+  // 登录状态：当前仅为演示，不代表真实账号验证
+  const [username, setUsername] = useState("");
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [isStudent, setIsStudent] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
 
-  // 新建笔记与话题状态
-  const [newResTitle, setNewResTitle] = useState('');
-  const [newResSubject, setNewResSubject] = useState('Mathematics');
-  const [newResGrade, setNewResGrade] = useState('Grade 12');
-  const [newResDescription, setNewResDescription] = useState('');
-  const [newResContent, setNewResContent] = useState('');
+  // 资源中心状态
+  const [resources, setResources] = useState(initialResources);
+  const [query, setQuery] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState("All Subjects");
+  const [gradeFilter, setGradeFilter] = useState("All Grades");
+  const [sortBy, setSortBy] = useState("Newest");
+  const [likedIds, setLikedIds] = useState<number[]>([]);
+  const [savedIds, setSavedIds] = useState<number[]>([]);
+  const [resourceModalOpen, setResourceModalOpen] = useState(false);
+  const [resourceTitle, setResourceTitle] = useState("");
+  const [resourceDescription, setResourceDescription] = useState("");
+  const [resourceSubject, setResourceSubject] = useState("Mathematics");
+  const [resourceGrade, setResourceGrade] = useState("Grade 10");
 
-  const [newDiscTitle, setNewDiscTitle] = useState('');
-  const [newDiscContent, setNewDiscContent] = useState('');
+  // 讨论区状态
+  const [discussions, setDiscussions] = useState(initialDiscussions);
+  const [discussionModalOpen, setDiscussionModalOpen] = useState(false);
+  const [discussionTitle, setDiscussionTitle] = useState("");
+  const [discussionBody, setDiscussionBody] = useState("");
+  const [discussionCategory, setDiscussionCategory] = useState("Study Tips");
 
-  // 虚拟自习室与番茄钟状态
-  const [joinedRoom, setJoinedRoom] = useState<LoungeRoom | null>(null);
-  const [pomodoroTime, setPomodoroTime] = useState(1500); // 25分钟
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  // 自习室状态
+  const [rooms, setRooms] = useState(initialRooms);
+  const [roomModalOpen, setRoomModalOpen] = useState(false);
+  const [roomName, setRoomName] = useState("");
+  const [roomSubject, setRoomSubject] = useState("General Study");
+  const [roomPrivacy, setRoomPrivacy] = useState<"Public" | "Private">(
+    "Public"
+  );
+  const [activeRoom, setActiveRoom] = useState<number | null>(null);
 
-  // 引用生成器格式状态
-  const [citationFormat, setCitationFormat] = useState<'APA' | 'IEEE' | 'MLA' | 'BibTeX'>('APA');
+  // 公告、反馈与通用提示
+  const [announcementText, setAnnouncementText] = useState(
+    "Welcome to North Synapse — a place to learn, share, and grow together."
+  );
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [toast, setToast] = useState("");
 
-  // 反馈表单状态
-  const [feedbackCategory, setFeedbackCategory] = useState('General Suggestion');
-  const [feedbackRating, setFeedbackRating] = useState(5);
-  const [feedbackComment, setFeedbackComment] = useState('');
+  // 4. 通用辅助函数
+  function notify(message: string) {
+    setToast(message);
+  }
 
-  // 模拟好友数据
-  const [friends] = useState<FriendItem[]>([
-    { id: 'f1', name: 'Alex Smith', grade: 'Grade 12', avatarUrl: '', status: 'online' },
-    { id: 'f2', name: 'Jordan Lee', grade: 'Grade 11', avatarUrl: '', status: 'offline' }
-  ]);
+  function navigate(next: Section) {
+    setSection(next);
+    setMobileNavOpen(false);
+    setToast("");
+  }
 
-  // 全量论文与学习资源数据
-  const [resources, setResources] = useState<ResourceItem[]>([
-    {
-      id: '1',
-      title: 'AP Calculus BC Derivatives & Series Master Review',
-      subject: 'Mathematics',
-      grade: 'AP Courses',
-      description: 'Comprehensive prep guide covering AP exam series convergence tests, Taylor polynomials, and parametric equations.',
-      content: 'Detailed derivatives rules:\n(1) Product Rule: (uv)\' = u\'v + uv\'.\n(2) Quotient Rule: (u/v)\' = (u\'v - uv\') / v^2.\n\nTaylor Series Expansion for e^x = 1 + x + x^2/2! + x^3/3! + ... Make sure to practice ratio tests for interval of convergence!',
-      authorName: 'Alex Smith',
-      authorEmail: 'alex.smith@tdsb.ca',
-      authorAvatar: '',
-      date: 'Oct 24, 2026',
-      likes: 12,
-      bookmarks: 8,
-      likedByMe: false,
-      bookmarkedByMe: false,
-      comments: [
-        { id: 'c1', authorName: 'Jordan Lee', authorAvatar: '', text: 'This saved my midterm review! Thanks!', date: 'Oct 24, 2026', likes: 3, likedByMe: false }
-      ]
-    },
-    {
-      id: '2',
-      title: 'Waterloo Fermat Math Competition Past Solutions',
-      subject: 'Mathematics',
-      grade: 'Academic Competitions',
-      description: 'Step-by-step solutions for past Waterloo contest papers with key shortcut tricks.',
-      content: 'Key geometry theorem: In any right triangle, a^2 + b^2 = c^2.\nFor modular arithmetic problems, always check remainder patterns mod 10 for unit digits!',
-      authorName: 'Jordan Lee',
-      authorEmail: 'jordan.lee@tdsb.ca',
-      authorAvatar: '',
-      date: 'Oct 23, 2026',
-      likes: 19,
-      bookmarks: 14,
-      likedByMe: false,
-      bookmarkedByMe: false,
-      comments: []
-    },
-    {
-      id: '3',
-      title: 'Grade 12 Physics Kinematics & Momentum Cheatsheet',
-      subject: 'Science',
-      grade: 'Grade 12',
-      description: 'Quick reference sheet for 2D projectile motion, conservation of momentum, and elastic vs inelastic collisions.',
-      content: 'Kinematics Formulas:\n1. v_f = v_i + a*t\n2. d = v_i*t + 0.5*a*t^2\n3. v_f^2 = v_i^2 + 2*a*d\n\nMomentum: p = m*v. In isolated systems, total momentum before collision equals total momentum after collision.',
-      authorName: 'Dr. Elena Rostova',
-      authorEmail: 'elena.rostova@tdsb.ca',
-      authorAvatar: '',
-      date: 'Oct 22, 2026',
-      likes: 25,
-      bookmarks: 18,
-      likedByMe: false,
-      bookmarkedByMe: false,
-      comments: []
+  function requireLogin() {
+    if (!loggedIn) {
+      setAuthMode("login");
+      setAuthOpen(true);
+      return false;
     }
-  ]);
+    return true;
+  }
 
-  // 全量讨论话题数据
-  const [discussions, setDiscussions] = useState<DiscussionItem[]>([
-    {
-      id: 'd1',
-      title: 'How to prepare effectively for Grade 12 Physics contest?',
-      content: 'Looking for study recommendations and resources for kinematics and mechanics problems.',
-      authorEmail: 'student@tdsb.ca',
-      authorName: 'Student',
-      date: 'Oct 24, 2026',
-      repliesCount: 1,
-      replies: [
-        { id: 'r1', authorName: 'Alex Smith', authorAvatar: '', text: 'Focus on past AAPT Physics Bowl and SIN contest problems!', date: 'Oct 24, 2026', likes: 2 }
-      ]
+  // 5. 演示登录：下一步将接入 Supabase Auth
+  function handleAuth() {
+    if (!authEmail.trim() || !authPassword.trim()) {
+      notify("Please enter your email and password.");
+      return;
     }
-  ]);
 
-  // 自习室列表
-  const [lounges] = useState<LoungeRoom[]>([
-    { id: 'l1', name: 'AP Calculus & Advanced Math Focus', subject: 'Mathematics', activeUsers: 8, description: 'Silent study & problem solving for AP Calculus and Fermat/Euclid contest prep.' },
-    { id: 'l2', name: 'Grade 11 & 12 Physics / Chemistry Lab', subject: 'Science', activeUsers: 5, description: 'Discussion & peer review for physics problem sets and chemistry labs.' },
-    { id: 'l3', name: 'Computer Science & Algorithmic Practice', subject: 'Computer Science & Tech', activeUsers: 12, description: 'CCC Contest coding practice and Python/Java algorithm discussions.' }
-  ]);
-
-  // 预览与话题弹窗状态
-  const [previewResource, setPreviewResource] = useState<ResourceItem | null>(null);
-  const [newCommentText, setNewCommentText] = useState('');
-  const [selectedDiscussion, setSelectedDiscussion] = useState<DiscussionItem | null>(null);
-  const [newReplyText, setNewReplyText] = useState('');
-
-  // 公告轮播数据
-  const [announcements] = useState<AnnouncementItem[]>([
-    {
-      id: '1',
-      title: 'Welcome to North Synapse Academic Platform',
-      content: 'A centralized workspace for verified course resources, virtual study rooms, and academic peer discussions.',
-      date: 'Oct 24, 2026',
-      authorName: 'North Synapse Official'
-    },
-    {
-      id: '2',
-      title: 'AP & Competition Prep Resource Categories Added',
-      content: 'We updated our Resource Hub filter tags with AP Courses, Academic Competitions, French, and Geography!',
-      date: 'Oct 24, 2026',
-      authorName: 'North Synapse Official'
+    if (authMode === "register" && (!isStudent || !acceptedTerms)) {
+      notify("Please confirm student eligibility and accept the Terms.");
+      return;
     }
-  ]);
-  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const isAdmin = user?.email?.toLowerCase().includes('northsynapse');
+    const name = authEmail.split("@")[0];
+    setUsername(name);
+    setLoggedIn(true);
+    setAuthOpen(false);
+    setAuthEmail("");
+    setAuthPassword("");
+    notify(
+      authMode === "register"
+        ? "Demo account created. Real registration will be connected next."
+        : "Demo login successful. Real authentication will be connected next."
+    );
+  }
 
-  /* ==========================================================================
-     3. 会话管理与定时器逻辑
-     ========================================================================== */
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
-      if (currentUser) {
-        setUser(currentUser);
-        setCreatedAt(currentUser.created_at ? new Date(currentUser.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Oct 2026');
-        if (currentUser.user_metadata) {
-          setAvatarUrl(currentUser.user_metadata.avatar_url || '');
-          setUsername(currentUser.user_metadata.username || '');
-          setNickname(currentUser.user_metadata.nickname || '');
-          setGrade(currentUser.user_metadata.grade || '');
-          setGender(currentUser.user_metadata.gender || '');
-          setBio(currentUser.user_metadata.bio || '');
-        }
-      }
+  function handleLogout() {
+    setLoggedIn(false);
+    setUsername("");
+    setActiveRoom(null);
+    notify("You have signed out of this demo.");
+  }
+
+  // 6. 资源中心：搜索、筛选、排序
+  const filteredResources = resources
+    .filter((item) => {
+      const searchText =
+        `${item.title} ${item.description} ${item.author} ${item.subject}`.toLowerCase();
+
+      return (
+        searchText.includes(query.toLowerCase()) &&
+        (subjectFilter === "All Subjects" ||
+          item.subject === subjectFilter) &&
+        (gradeFilter === "All Grades" || item.grade === gradeFilter)
+      );
+    })
+    .sort((a, b) => {
+      if (sortBy === "Most Liked") return b.likes - a.likes;
+      if (sortBy === "Most Saved") return b.saves - a.saves;
+      return b.id - a.id;
     });
-  }, []);
 
-  useEffect(() => {
-    if (announcements.length <= 1) return;
-    const timer = setInterval(() => {
-      setCurrentBannerIndex((prev) => (prev + 1) % announcements.length);
-    }, 8000);
-    return () => clearInterval(timer);
-  }, [announcements]);
+  function toggleLike(id: number) {
+    if (!requireLogin()) return;
 
-  useEffect(() => {
-    let timer: any = null;
-    if (isTimerRunning && pomodoroTime > 0) {
-      timer = setInterval(() => {
-        setPomodoroTime(prev => prev - 1);
-      }, 1000);
-    } else if (pomodoroTime === 0) {
-      setIsTimerRunning(false);
-      alert('Pomodoro focus session completed! Take a 5 minute break.');
-      setPomodoroTime(1500);
-    }
-    return () => clearInterval(timer);
-  }, [isTimerRunning, pomodoroTime]);
+    const alreadyLiked = likedIds.includes(id);
 
-  /* ==========================================================================
-     4. 交互处理函数
-     ========================================================================== */
-  function toggleSubjectFilter(sub: string) {
-    setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
+    setLikedIds((current) =>
+      alreadyLiked ? current.filter((item) => item !== id) : [...current, id]
+    );
+
+    setResources((current) =>
+      current.map((item) =>
+        item.id === id
+          ? { ...item, likes: item.likes + (alreadyLiked ? -1 : 1) }
+          : item
+      )
+    );
   }
 
-  function toggleGradeFilter(grd: string) {
-    setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, grd]);
+  function toggleSave(id: number) {
+    if (!requireLogin()) return;
+
+    const alreadySaved = savedIds.includes(id);
+
+    setSavedIds((current) =>
+      alreadySaved ? current.filter((item) => item !== id) : [...current, id]
+    );
+
+    setResources((current) =>
+      current.map((item) =>
+        item.id === id
+          ? { ...item, saves: item.saves + (alreadySaved ? -1 : 1) }
+          : item
+      )
+    );
   }
 
-  async function handleAuthSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
+  function publishResource() {
+    if (!requireLogin()) return;
 
-    const cleanEmail = authEmail.trim();
-    const cleanPassword = authPassword.trim();
-    const defaultName = cleanEmail.split('@')[0].slice(0, 20);
-
-    try {
-      if (isSignUp) {
-        if (!isStudentConfirmed || !hasAgreedTerms) {
-          alert('Please check all required student confirmation boxes.');
-          setLoading(false);
-          return;
-        }
-        const { data } = await supabase.auth.signUp({
-          email: cleanEmail,
-          password: cleanPassword,
-          options: { data: { username: defaultName, nickname: defaultName, grade: 'Grade 12' } }
-        });
-        if (data.user) {
-          setUser(data.user);
-          setUsername(defaultName);
-          setNickname(defaultName);
-          alert('Account created and signed in successfully!');
-          setShowAuthModal(false);
-          setActiveTab('dashboard');
-        }
-      } else {
-        const { data } = await supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPassword });
-        if (data.user) {
-          setUser(data.user);
-          setShowAuthModal(false);
-          setActiveTab('dashboard');
-        }
-      }
-    } catch (err: any) {
-      alert('Authentication completed!');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleCreateResourceSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) {
-      alert('Please sign in first to upload notes.');
-      setShowAuthModal(true);
+    if (!resourceTitle.trim() || !resourceDescription.trim()) {
+      notify("Please complete the resource title and description.");
       return;
     }
-    if (!newResTitle.trim() || !newResContent.trim()) return;
 
-    const newRes: ResourceItem = {
-      id: Date.now().toString(),
-      title: newResTitle.trim(),
-      subject: newResSubject,
-      grade: newResGrade,
-      description: newResDescription.trim() || newResContent.slice(0, 100) + '...',
-      content: newResContent.trim(),
-      authorName: nickname || username || user.email?.split('@')[0] || 'Student Author',
-      authorEmail: user.email,
-      authorAvatar: avatarUrl,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    const newResource: Resource = {
+      id: Date.now(),
+      title: resourceTitle.trim(),
+      description: resourceDescription.trim(),
+      subject: resourceSubject,
+      grade: resourceGrade,
+      author: username,
+      date: new Date().toLocaleDateString("en-CA", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
       likes: 0,
-      bookmarks: 0,
-      likedByMe: false,
-      bookmarkedByMe: false,
-      comments: []
+      saves: 0,
     };
 
-    setResources([newRes, ...resources]);
-    setShowCreateResourceModal(false);
-    setNewResTitle('');
-    setNewResDescription('');
-    setNewResContent('');
-    alert('Resource note published successfully!');
+    setResources((current) => [newResource, ...current]);
+    setResourceTitle("");
+    setResourceDescription("");
+    setResourceModalOpen(false);
+    setSection("Research Hub");
+    notify("Resource added to this demo session.");
   }
 
-  function handleCreateDiscussionSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) {
-      alert('Please sign in first.');
-      setShowAuthModal(true);
+  // 7. 讨论区：发布与举报
+  function publishDiscussion() {
+    if (!requireLogin()) return;
+
+    if (!discussionTitle.trim() || !discussionBody.trim()) {
+      notify("Please complete your discussion title and text.");
       return;
     }
-    if (!newDiscTitle.trim() || !newDiscContent.trim()) return;
 
-    const newDisc: DiscussionItem = {
-      id: 'd_' + Date.now(),
-      title: newDiscTitle.trim(),
-      content: newDiscContent.trim(),
-      authorEmail: user.email || 'student@tdsb.ca',
-      authorName: nickname || username || 'Student',
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      repliesCount: 0,
-      replies: []
+    const item: Discussion = {
+      id: Date.now(),
+      title: discussionTitle.trim(),
+      body: discussionBody.trim(),
+      category: discussionCategory,
+      author: username,
+      replies: 0,
+      votes: 0,
     };
 
-    setDiscussions([newDisc, ...discussions]);
-    setShowCreateDiscussionModal(false);
-    setNewDiscTitle('');
-    setNewDiscContent('');
-    alert('Discussion topic posted!');
+    setDiscussions((current) => [item, ...current]);
+    setDiscussionTitle("");
+    setDiscussionBody("");
+    setDiscussionModalOpen(false);
+    notify("Discussion published in this demo session.");
   }
 
-  function handleAddComment(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) {
-      alert('Please sign in first to comment.');
-      setShowAuthModal(true);
+  function reportContent(title: string) {
+    if (!requireLogin()) return;
+    notify(`Demo report prepared for review: "${title}".`);
+  }
+
+  function voteDiscussion(id: number) {
+    if (!requireLogin()) return;
+
+    setDiscussions((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, votes: item.votes + 1 } : item
+      )
+    );
+  }
+
+  // 8. 自习室：创建、进入与退出
+  function createRoom() {
+    if (!requireLogin()) return;
+
+    if (!roomName.trim()) {
+      notify("Please enter a room name.");
       return;
     }
-    if (!newCommentText.trim() || !previewResource) return;
 
-    const commentObj: CommentItem = {
-      id: Date.now().toString(),
-      authorName: nickname || user?.email?.split('@')[0] || 'Student',
-      authorAvatar: avatarUrl,
-      text: newCommentText,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      likes: 0,
-      likedByMe: false
+    const newRoom: StudyRoom = {
+      id: Date.now(),
+      name: roomName.trim(),
+      creator: username,
+      subject: roomSubject,
+      privacy: roomPrivacy,
+      online: 1,
     };
 
-    const updatedResource = { ...previewResource, comments: [...previewResource.comments, commentObj] };
-    setPreviewResource(updatedResource);
-    setResources(prev => prev.map(r => r.id === previewResource.id ? updatedResource : r));
-    setNewCommentText('');
+    setRooms((current) => [...current, newRoom]);
+    setRoomName("");
+    setRoomModalOpen(false);
+    setActiveRoom(newRoom.id);
+    notify("Room created in this demo session.");
   }
 
-  function handleLikeResource(id: string, e?: React.MouseEvent) {
-    e?.stopPropagation();
-    setResources(prev => prev.map(res => {
-      if (res.id === id) {
-        const isLiked = res.likedByMe;
-        return { ...res, likes: isLiked ? res.likes - 1 : res.likes + 1, likedByMe: !isLiked };
-      }
-      return res;
-    }));
-  }
-
-  function handleBookmarkResource(id: string, e?: React.MouseEvent) {
-    e?.stopPropagation();
-    if (!user) {
-      alert('Please sign in first to save notes.');
-      setShowAuthModal(true);
-      return;
-    }
-    setResources(prev => prev.map(res => {
-      if (res.id === id) {
-        const isBookmarked = res.bookmarkedByMe;
-        return { ...res, bookmarks: isBookmarked ? res.bookmarks - 1 : res.bookmarks + 1, bookmarkedByMe: !isBookmarked };
-      }
-      return res;
-    }));
-  }
-
-  function handleSignOut() {
-    supabase.auth.signOut();
-    setUser(null);
-    setActiveTab('resources');
-  }
-
-  /* ==========================================================================
-     5. 样式主题控制
-     ========================================================================== */
-  const theme = {
-    bg: isDarkMode ? '#0E1117' : '#F8FAFC',
-    cardBg: isDarkMode ? '#161B22' : '#FFFFFF',
-    border: isDarkMode ? '#21262D' : '#E2E8F0',
-    textMain: isDarkMode ? '#F0F6FC' : '#0F172A',
-    textMuted: isDarkMode ? '#8B949E' : '#64748B',
-    accent: '#8B5CF6',
-  };
-
-  const subjectsList = ['Mathematics', 'Science', 'ESL & Languages', 'French', 'History & Social Sciences', 'Geography', 'Business & Economics', 'Art & Music', 'Computer Science & Tech'];
-  const gradesList = ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'AP Courses', 'Academic Competitions'];
-
-  const filteredResources = resources.filter(res => {
-    const matchesSubject = selectedSubjects.length === 0 || selectedSubjects.includes(res.subject);
-    const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(res.grade);
-    const matchesSearch = searchQuery === '' || res.title.toLowerCase().includes(searchQuery.toLowerCase()) || res.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSubject && matchesGrade && matchesSearch;
-  });
-
-  const citationText = useMemo(() => {
-    if (!previewResource) return '';
-    return `${previewResource.authorName}. (${previewResource.date.split(' ').pop()}). ${previewResource.title}. North Synapse Academic Platform.`;
-  }, [previewResource]);
-
-  const formatTimer = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const myResources = resources.filter(r => r.authorEmail === user?.email);
-  const bookmarkedResources = resources.filter(r => r.bookmarkedByMe);
-
-  return (
-    <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      
-      {/* 顶部导航栏 */}
-      <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.4rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer' }}>
-          {useLogoImage ? (
-            <img src="/logo.png" alt="North Synapse Logo" style={{ width: '38px', height: '38px', objectFit: 'contain' }} onError={() => setUseLogoImage(false)} />
-          ) : (
-            /* 纯代码 SVG S 型双螺旋 Logo */
-            <svg width="34" height="38" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M 75,20 C 75,10 25,10 25,35 C 25,60 75,60 75,85 C 75,100 25,100 25,90" stroke="#A78BFA" strokeWidth="6" strokeLinecap="round" fill="none" />
-              <line x1="38" y1="20" x2="62" y2="30" stroke="#A78BFA" strokeWidth="4" strokeDasharray="2 4" strokeLinecap="round" />
-              <line x1="30" y1="28" x2="55" y2="38" stroke="#A78BFA" strokeWidth="4" strokeDasharray="2 4" strokeLinecap="round" />
-              <circle cx="75" cy="20" r="4.5" fill="#A78BFA" />
-              <circle cx="25" cy="35" r="4.5" fill="#A78BFA" />
-              <circle cx="75" cy="85" r="4.5" fill="#A78BFA" />
-            </svg>
-          )}
-          <span>North Synapse</span>
-          {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>ADMIN</span>}
-        </div>
-
-        <nav style={{ display: 'flex', gap: '1.6rem' }}>
-          {(['resources', 'lounges', 'announcements', 'discussions', 'feedback'] as NavTab[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: activeTab === tab ? theme.accent : theme.textMuted,
-                fontWeight: activeTab === tab ? '700' : '500',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                borderBottom: activeTab === tab ? `2px solid ${theme.accent}` : '2px solid transparent',
-                textTransform: 'capitalize'
-              }}
-            >
-              {tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounge' : tab}
-            </button>
-          ))}
-          {user && (
-            <button onClick={() => setActiveTab('dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>
-              Dashboard
-            </button>
-          )}
-        </nav>
-
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button onClick={() => setIsDarkMode(!isDarkMode)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}>
-            {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+  // 9. 页面顶部
+  function renderTopbar() {
+    return (
+      <header className="topbar">
+        <div className="top-actions">
+          <button
+            className="icon-button mobile-menu"
+            aria-label="Open navigation"
+            onClick={() => setMobileNavOpen((open) => !open)}
+          >
+            <Menu size={17} />
           </button>
 
-          {user ? (
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <span onClick={() => setActiveTab('dashboard')} style={{ fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer' }}>{nickname || 'User'}</span>
-              <button onClick={handleSignOut} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>Sign Out</button>
-            </div>
+          <div className="breadcrumb">
+            <span>North Synapse</span>
+            <span>/</span>
+            <strong>{section}</strong>
+          </div>
+        </div>
+
+        <div className="top-actions">
+          <button
+            className="icon-button"
+            aria-label="Toggle theme"
+            onClick={() => setDarkMode((value) => !value)}
+          >
+            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+
+          <button
+            className="icon-button"
+            aria-label="Announcements"
+            onClick={() => navigate("Announcements")}
+          >
+            <Bell size={16} />
+          </button>
+
+          {loggedIn ? (
+            <button className="user-chip" onClick={() => navigate("Dashboard")}>
+              <span className="avatar">{username.charAt(0).toUpperCase()}</span>
+              <span>{username}</span>
+              <ChevronDown size={13} />
+            </button>
           ) : (
-            <button onClick={() => setShowAuthModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem 1.4rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}>Sign In</button>
+            <button
+              className="button button-primary"
+              onClick={() => {
+                setAuthMode("login");
+                setAuthOpen(true);
+              }}
+            >
+              <LogIn size={14} />
+              Sign in
+            </button>
           )}
         </div>
       </header>
+    );
+  }
 
-      {/* 页面主内容区 */}
-      <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
-        
-        {/* 顶部公告轮播 */}
-        <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', border: `1px solid ${theme.accent}`, borderRadius: '12px', padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, overflow: 'hidden' }}>
-            <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
-              NOTICE ({currentBannerIndex + 1}/{announcements.length})
+  // 10. 左侧导航
+  function renderSidebar() {
+    return (
+      <aside
+        className={`sidebar ${mobileNavOpen ? "sidebar-open" : ""}`}
+      >
+        <button className="brand" onClick={() => navigate("Overview")}>
+          <span className="brand-mark">
+            <svg viewBox="0 0 48 52" aria-hidden="true">
+              <path d="M8 12 L8 40 L24 40 L24 26 L40 26 L40 40" />
+              <path d="M8 12 L24 12 L24 26" />
+              <circle cx="8" cy="12" r="3" />
+              <circle cx="24" cy="12" r="3" />
+              <circle cx="24" cy="26" r="3" />
+              <circle cx="40" cy="26" r="3" />
+              <circle cx="40" cy="40" r="3" />
+            </svg>
+          </span>
+
+          <span className="brand-name">
+            North <b>Synapse</b>
+            <small>LEARN · CONNECT · GROW</small>
+          </span>
+        </button>
+
+        <div className="side-label">YOUR COMMUNITY</div>
+
+        <nav className="side-nav">
+          {navItems.map(({ name, icon: Icon }) => (
+            <button
+              key={name}
+              className={`nav-item ${section === name ? "active" : ""}`}
+              onClick={() => navigate(name)}
+            >
+              <Icon size={16} />
+              <span>{name}</span>
+              {section === name && <span className="nav-dot" />}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-bottom">
+          <div className="community-card">
+            <strong>A community that thinks.</strong>
+            <p>
+              Share knowledge, discover ideas, and make school life a little
+              easier together.
+            </p>
+            <span>
+              <i className="online-dot" /> Built for NTCI students
             </span>
-
-            <div style={{ flex: 1, overflow: 'hidden', height: '52px', position: 'relative' }}>
-              {announcements.map((item, idx) => (
-                <div key={item.id} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '52px', display: 'flex', alignItems: 'center', gap: '0.8rem', opacity: idx === currentBannerIndex ? 1 : 0, transform: idx === currentBannerIndex ? 'translateY(0)' : 'translateY(15px)', transition: 'all 0.4s ease-in-out' }}>
-                  <span style={{ fontSize: '0.9rem', color: theme.textMain, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</span>
-                  <span style={{ fontSize: '0.8rem', color: theme.textMuted, flexShrink: 0 }}>• {item.date}</span>
-                </div>
-              ))}
-            </div>
           </div>
 
-          <button onClick={() => setActiveTab('announcements')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', flexShrink: 0 }}>
-            View All
+          {loggedIn && (
+            <button className="button button-ghost button-wide" onClick={handleLogout}>
+              Sign out
+            </button>
+          )}
+
+          <div className="sidebar-foot">
+            <span className="tiny-logo">N</span>
+            <span>North Synapse</span>
+            <span className="version">BETA · 0.1</span>
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
+  // 11. 首页 Overview
+  function renderOverview() {
+    return (
+      <div className="page-enter">
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">
+              <span className="eyebrow-line" />
+              YOUR LEARNING COMMUNITY
+            </div>
+            <h1>
+              Think together.
+              <br />
+              <span className="gradient-text">Go further.</span>
+            </h1>
+            <p className="page-subtitle">
+              A space for NTCI students to exchange ideas, share resources, and
+              learn at their own pace.
+            </p>
+          </div>
+
+          <button
+            className="button button-primary"
+            onClick={() => {
+              if (requireLogin()) {
+                setSection("Research Hub");
+                setResourceModalOpen(true);
+              }
+            }}
+          >
+            <Plus size={15} />
+            Share a resource
           </button>
         </div>
 
-        {/* RESOURCE HUB 模块 */}
-        {activeTab === 'resources' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '700', display: 'inline-block', marginBottom: '0.5rem' }}>
-                  Academic Platform
+        <div className="stats-grid">
+          <div className="stat-card">
+            <span>LEARNING RESOURCES</span>
+            <strong>{resources.length}</strong>
+            <span>Notes shared by students</span>
+          </div>
+          <div className="stat-card">
+            <span>DISCUSSIONS</span>
+            <strong>{discussions.length}</strong>
+            <span>Ideas in the community</span>
+          </div>
+          <div className="stat-card">
+            <span>STUDY ROOMS</span>
+            <strong>{rooms.length}</strong>
+            <span>Spaces to focus together</span>
+          </div>
+          <div className="stat-card">
+            <span>YOUR SAVED NOTES</span>
+            <strong>{savedIds.length}</strong>
+            <span>Saved in this session</span>
+          </div>
+        </div>
+
+        <div style={{ height: 30 }} />
+
+        <div className="section-title-row">
+          <div>
+            <h2>Explore the community</h2>
+            <p>Find the right space for what you need today.</p>
+          </div>
+        </div>
+
+        <div className="resource-grid">
+          {[
+            {
+              title: "Research Hub",
+              description:
+                "Discover notes, revision guides, and student-created learning resources.",
+              icon: BookOpen,
+              target: "Research Hub" as Section,
+              label: "EXPLORE RESOURCES",
+            },
+            {
+              title: "Study Lounge",
+              description:
+                "Join a study room, set a focus goal, and work alongside others.",
+              icon: Clock3,
+              target: "Study Lounge" as Section,
+              label: "FIND YOUR SPACE",
+            },
+            {
+              title: "Discussions",
+              description:
+                "Exchange advice on courses, school life, and learning strategies.",
+              icon: MessageCircle,
+              target: "Discussions" as Section,
+              label: "JOIN THE CONVERSATION",
+            },
+          ].map(({ title, description, icon: Icon, target, label }) => (
+            <button
+              key={title}
+              className="resource-card"
+              style={{ textAlign: "left", cursor: "pointer" }}
+              onClick={() => navigate(target)}
+            >
+              <div className="resource-card-top">
+                <span className="avatar">
+                  <Icon size={18} />
                 </span>
-                <h1 style={{ fontSize: '2.2rem', fontWeight: '900' }}>North Synapse Resource Hub</h1>
+                <ArrowRight size={16} />
               </div>
-
-              <button onClick={() => { if (!user) { alert('Please sign in first.'); setShowAuthModal(true); return; } setShowCreateResourceModal(true); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem 1.6rem', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
-                + Share Notes / Resource
-              </button>
-            </div>
-
-            {/* 搜索框与过滤器 */}
-            <input 
-              type="text" 
-              placeholder="Search notes, topics, or study guide titles..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, outline: 'none' }}
-            />
-
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              <div>
-                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>LEVEL &amp; TRACK:</span>
-                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  {gradesList.map((grd) => (
-                    <button key={grd} onClick={() => toggleGradeFilter(grd)} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedGrades.includes(grd) ? theme.accent : theme.border}`, backgroundColor: selectedGrades.includes(grd) ? theme.accent : theme.bg, color: selectedGrades.includes(grd) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
-                      {grd}
-                    </button>
-                  ))}
-                </div>
+              <h3 style={{ marginTop: 20, fontSize: 17 }}>{title}</h3>
+              <p>{description}</p>
+              <div className="resource-card-actions">
+                <span className="muted-small">{label}</span>
+                <ArrowRight size={14} />
               </div>
+            </button>
+          ))}
+        </div>
 
-              <div>
-                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
-                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  {subjectsList.map((sub) => (
-                    <button key={sub} onClick={() => toggleSubjectFilter(sub)} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedSubjects.includes(sub) ? theme.accent : theme.border}`, backgroundColor: selectedSubjects.includes(sub) ? theme.accent : theme.bg, color: selectedSubjects.includes(sub) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
-                      {sub}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+        <div style={{ height: 30 }} />
 
-            {/* 论文与笔记列表 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {filteredResources.map((res) => (
-                <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.6rem' }}>
-                    <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px' }}>{res.subject}</span>
-                    <span style={{ backgroundColor: theme.bg, color: theme.textMuted, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>{res.grade}</span>
-                  </div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
-                  <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '1rem' }}>{res.description}</p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${theme.border}`, paddingTop: '0.8rem' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by {res.authorName}</span>
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                      <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>Like ({res.likes})</button>
-                      <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>Save ({res.bookmarks})</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="section-title-row">
+          <div>
+            <h2>Recently shared</h2>
+            <p>Fresh ideas from the Research Hub.</p>
           </div>
-        )}
+          <button
+            className="button button-ghost"
+            onClick={() => navigate("Research Hub")}
+          >
+            View all <ArrowRight size={14} />
+          </button>
+        </div>
 
-        {/* STUDY LOUNGE 模块 */}
-        {activeTab === 'lounges' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Virtual Study Lounge Rooms</h1>
-            {joinedRoom ? (
-              <div style={{ backgroundColor: theme.cardBg, border: `2px solid ${theme.accent}`, borderRadius: '16px', padding: '2rem', textAlign: 'center' }}>
-                <h2>{joinedRoom.name}</h2>
-                <div style={{ fontSize: '3.5rem', fontWeight: '900', color: theme.accent, margin: '1rem 0' }}>{formatTimer(pomodoroTime)}</div>
-                <button onClick={() => setIsTimerRunning(!isTimerRunning)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.5rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  {isTimerRunning ? 'Pause' : 'Start Focus Session'}
+        <div className="resource-grid">
+          {resources.slice(0, 3).map((resource) => (
+            <article className="resource-card" key={resource.id}>
+              <div className="resource-card-top">
+                <span className="badge">{resource.subject}</span>
+                <span className="muted-small">{resource.grade}</span>
+              </div>
+              <h3 style={{ marginTop: 15, fontSize: 14 }}>{resource.title}</h3>
+              <p>{resource.description}</p>
+              <div className="resource-card-actions">
+                <span className="muted-small">{resource.author}</span>
+                <span className="muted-small">{resource.likes} likes</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // 12. Research Hub
+  function renderResearchHub() {
+    return (
+      <div className="page-enter">
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">
+              <span className="eyebrow-line" />
+              THE KNOWLEDGE LIBRARY
+            </div>
+            <h1>
+              Research <span className="gradient-text">Hub.</span>
+            </h1>
+            <p className="page-subtitle">
+              Student-made notes, study guides, and ideas worth sharing.
+            </p>
+          </div>
+
+          <button
+            className="button button-primary"
+            onClick={() => {
+              if (requireLogin()) setResourceModalOpen(true);
+            }}
+          >
+            <Plus size={15} /> Publish a resource
+          </button>
+        </div>
+
+        <label className="hub-search">
+          <Search size={17} />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search notes, subjects, keywords, or authors..."
+          />
+          <span className="muted-small">{filteredResources.length} RESULTS</span>
+        </label>
+
+        <div className="filter-panel">
+          <div className="filter-row">
+            <span className="filter-label">SUBJECT</span>
+            <div className="filter-chips">
+              {subjects.map((subject) => (
+                <button
+                  key={subject}
+                  className={`chip ${subjectFilter === subject ? "selected" : ""}`}
+                  onClick={() => setSubjectFilter(subject)}
+                >
+                  {subject}
                 </button>
-                <button onClick={() => setJoinedRoom(null)} style={{ marginLeft: '1rem', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMain, padding: '0.6rem 1rem', borderRadius: '8px', cursor: 'pointer' }}>Leave Room</button>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                {lounges.map(room => (
-                  <div key={room.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem' }}>
-                    <h3>{room.name}</h3>
-                    <p style={{ fontSize: '0.85rem', color: theme.textMuted, margin: '0.5rem 0 1rem' }}>{room.description}</p>
-                    <button onClick={() => setJoinedRoom(room)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', width: '100%' }}>Join Study Room</button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* DISCUSSIONS 模块 */}
-        {activeTab === 'discussions' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Academic Peer Discussions</h1>
-              <button onClick={() => { if (!user) { alert('Please sign in first.'); setShowAuthModal(true); return; } setShowCreateDiscussionModal(true); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
-                + Start New Topic
-              </button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {discussions.map((disc) => (
-                <div key={disc.id} onClick={() => setSelectedDiscussion(disc)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <strong style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{disc.title}</strong>
-                    <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{disc.repliesCount} Replies</span>
-                  </div>
-                  <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem' }}>{disc.content}</p>
-                  <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by {disc.authorName} on {disc.date}</span>
-                </div>
               ))}
             </div>
           </div>
-        )}
 
-        {/* ANNOUNCEMENTS 模块 */}
-        {activeTab === 'announcements' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Official Announcements</h1>
-            {announcements.map((item) => (
-              <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
-                  <strong style={{ color: theme.accent }}>{item.authorName}</strong>
-                  <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
+          <div className="filter-row">
+            <span className="filter-label">GRADE</span>
+            <div className="filter-chips">
+              {grades.map((grade) => (
+                <button
+                  key={grade}
+                  className={`chip ${gradeFilter === grade ? "selected" : ""}`}
+                  onClick={() => setGradeFilter(grade)}
+                >
+                  {grade}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="filter-bottom">
+            <span>{filteredResources.length} resources found</span>
+            <label style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <ArrowDownUp size={13} />
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value)}
+                style={{ width: "auto", padding: "6px", fontSize: 10 }}
+              >
+                <option>Newest</option>
+                <option>Most Liked</option>
+                <option>Most Saved</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div className="section-title-row">
+          <div>
+            <h2>All resources</h2>
+            <p>Created by students, for students.</p>
+          </div>
+        </div>
+
+        {filteredResources.length === 0 ? (
+          <div className="panel empty-dashboard">
+            <Search size={25} />
+            <h3>No resources found</h3>
+            <p>Try another keyword or change your filters.</p>
+            <button
+              className="button button-secondary"
+              onClick={() => {
+                setQuery("");
+                setSubjectFilter("All Subjects");
+                setGradeFilter("All Grades");
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <div className="resource-grid">
+            {filteredResources.map((resource) => (
+              <article className="resource-card" key={resource.id}>
+                <div className="resource-card-top">
+                  <span className="badge">{resource.subject}</span>
+                  <button
+                    className="icon-button"
+                    aria-label="Report resource"
+                    onClick={() => reportContent(resource.title)}
+                  >
+                    <Flag size={13} />
+                  </button>
                 </div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{item.title}</h3>
-                <p style={{ marginTop: '0.5rem', color: theme.textMain }}>{item.content}</p>
-              </div>
+
+                <h3 style={{ marginTop: 16, fontSize: 15 }}>
+                  {resource.title}
+                </h3>
+                <p>{resource.description}</p>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    marginBottom: 14,
+                  }}
+                >
+                  <span className="muted-small">{resource.grade}</span>
+                  <span className="muted-small">{resource.date}</span>
+                </div>
+
+                <div className="resource-card-actions">
+                  <span className="muted-small">{resource.author}</span>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button
+                      className="icon-button"
+                      aria-label="Like resource"
+                      onClick={() => toggleLike(resource.id)}
+                      style={{
+                        color: likedIds.includes(resource.id)
+                          ? "var(--purple)"
+                          : undefined,
+                      }}
+                    >
+                      <Heart
+                        size={14}
+                        fill={
+                          likedIds.includes(resource.id)
+                            ? "currentColor"
+                            : "none"
+                        }
+                      />
+                      {resource.likes}
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label="Save resource"
+                      onClick={() => toggleSave(resource.id)}
+                      style={{
+                        color: savedIds.includes(resource.id)
+                          ? "var(--purple)"
+                          : undefined,
+                      }}
+                    >
+                      <Bookmark
+                        size={14}
+                        fill={
+                          savedIds.includes(resource.id)
+                            ? "currentColor"
+                            : "none"
+                        }
+                      />
+                      {resource.saves}
+                    </button>
+                  </div>
+                </div>
+              </article>
             ))}
           </div>
         )}
+      </div>
+    );
+  }
 
-        {/* FEEDBACK 模块 */}
-        {activeTab === 'feedback' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Issue Reporting</h1>
-            <form onSubmit={(e) => { e.preventDefault(); alert('Feedback recorded!'); setFeedbackComment(''); }} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Type of Feedback</label>
-                <select value={feedbackCategory} onChange={(e) => setFeedbackCategory(e.target.value)} style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}>
-                  <option value="General Suggestion">General Suggestion</option>
-                  <option value="Report Issue / Bug">Report Issue / Bug</option>
-                  <option value="Content Request">Content Request</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Details / Problem Description</label>
-                <textarea required rows={4} placeholder="Describe your bug report or suggestion here..." value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>Submit Feedback</button>
-            </form>
+  // 13. Study Lounge
+  function renderStudyLounge() {
+    const room = rooms.find((item) => item.id === activeRoom);
+
+    return (
+      <div className="page-enter">
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">
+              <span className="eyebrow-line" />
+              FOCUS TOGETHER
+            </div>
+            <h1>
+              Study <span className="gradient-text">Lounge.</span>
+            </h1>
+            <p className="page-subtitle">
+              Find a quiet corner, set an intention, and get things done.
+            </p>
           </div>
-        )}
-
-        {/* DASHBOARD 模块 */}
-        {activeTab === 'dashboard' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{nickname || 'Student Profile'}</h1>
-                <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem' }}>@{username || 'username'} • {grade || 'Grade 12'}</p>
-              </div>
-              <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.6rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Edit Profile</button>
-            </div>
-
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Published Resources ({myResources.length})</h2>
-              {myResources.length > 0 ? (
-                myResources.map(res => (
-                  <div key={res.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem' }}>
-                    <strong>{res.title}</strong>
-                  </div>
-                ))
-              ) : (
-                <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t shared any resources yet.</p>
-              )}
-            </div>
-
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Saved Bookmarks ({bookmarkedResources.length})</h2>
-              {bookmarkedResources.length > 0 ? (
-                bookmarkedResources.map(bm => (
-                  <div key={bm.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem' }}>
-                    <strong>{bm.title}</strong>
-                  </div>
-                ))
-              ) : (
-                <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t bookmarked any notes yet.</p>
-              )}
-            </div>
-          </div>
-        )}
-
-      </main>
-
-      {/* 预览笔记与引用生成弹窗 */}
-      {previewResource && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '960px', height: '80vh', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ padding: '1.2rem 2rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2>{previewResource.title}</h2>
-              <button onClick={() => setPreviewResource(null)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.4rem' }}>X</button>
-            </div>
-
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-              <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', borderRight: `1px solid ${theme.border}` }}>
-                <div style={{ fontSize: '0.95rem', lineHeight: '1.7', whiteSpace: 'pre-wrap', marginBottom: '2rem' }}>
-                  {previewResource.content}
-                </div>
-                <div style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1.2rem' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: theme.accent }}>ACADEMIC CITATION</span>
-                  <p style={{ fontSize: '0.8rem', fontFamily: 'monospace', backgroundColor: theme.cardBg, padding: '0.6rem', borderRadius: '6px', marginTop: '0.5rem' }}>
-                    {citationText}
-                  </p>
-                </div>
-              </div>
-
-              <div style={{ width: '360px', backgroundColor: theme.bg, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Comments ({previewResource.comments.length})</h3>
-                <form onSubmit={handleAddComment} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  <textarea rows={3} placeholder="Write a comment..." value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain }} />
-                  <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end' }}>Post Comment</button>
-                </form>
-                {previewResource.comments.map((c) => (
-                  <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
-                    <strong>{c.authorName}</strong>
-                    <p style={{ fontSize: '0.85rem', marginTop: '0.3rem' }}>{c.text}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <button
+            className="button button-primary"
+            onClick={() => {
+              if (requireLogin()) setRoomModalOpen(true);
+            }}
+          >
+            <Plus size={15} /> Create a room
+          </button>
         </div>
-      )}
 
-      {/* 登录弹窗 */}
-      {showAuthModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2>{isSignUp ? 'Sign Up' : 'Sign In'}</h2>
-              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+        {room ? (
+          <div className="panel">
+            <button
+              className="button button-ghost"
+              onClick={() => setActiveRoom(null)}
+            >
+              <ArrowRight
+                size={14}
+                style={{ transform: "rotate(180deg)" }}
+              />{" "}
+              Back to rooms
+            </button>
+
+            <div style={{ textAlign: "center", padding: "35px 10px" }}>
+              <span className="avatar" style={{ width: 60, height: 60 }}>
+                <Clock3 size={26} />
+              </span>
+              <h2 style={{ marginTop: 20 }}>{room.name}</h2>
+              <p className="page-subtitle">
+                {room.subject} · {room.privacy} room
+              </p>
+              <div style={{ margin: "22px auto", maxWidth: 340 }}>
+                <FocusTimer />
+              </div>
+              <p className="muted-small">
+                This timer runs in your browser only. Live room presence and
+                chat will be added with backend integration.
+              </p>
             </div>
-            <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <input type="email" required placeholder="student@tdsb.ca" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
-              <input type="password" required placeholder="••••••••" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
-              {isSignUp && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label><input type="checkbox" required checked={isStudentConfirmed} onChange={(e) => setIsStudentConfirmed(e.target.checked)} /> Confirm Student/Alumni</label>
-                  <label><input type="checkbox" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} /> Agree Terms</label>
+          </div>
+        ) : (
+          <>
+            <div className="stats-grid">
+              <div className="stat-card">
+                <span>AVAILABLE ROOMS</span>
+                <strong>{rooms.length}</strong>
+                <span>Study spaces in this demo</span>
+              </div>
+              <div className="stat-card">
+                <span>PUBLIC ROOMS</span>
+                <strong>
+                  {rooms.filter((item) => item.privacy === "Public").length}
+                </strong>
+                <span>Open to join</span>
+              </div>
+              <div className="stat-card">
+                <span>YOUR FOCUS</span>
+                <strong>25 min</strong>
+                <span>Suggested focus session</span>
+              </div>
+              <div className="stat-card">
+                <span>ROOM STATUS</span>
+                <strong>Ready</strong>
+                <span>Choose a room to begin</span>
+              </div>
+            </div>
+
+            <div style={{ height: 30 }} />
+
+            <div className="section-title-row">
+              <div>
+                <h2>Find your space</h2>
+                <p>Choose a room that fits your study mood.</p>
+              </div>
+            </div>
+
+            <div className="room-grid">
+              {rooms.map((item) => (
+                <article className="room-card" key={item.id}>
+                  <div className="resource-card-top">
+                    <span className="avatar">
+                      <Users size={17} />
+                    </span>
+                    <span className="badge">{item.privacy}</span>
+                  </div>
+                  <h3 style={{ marginTop: 17 }}>{item.name}</h3>
+                  <p>{item.subject}</p>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      margin: "15px 0",
+                    }}
+                  >
+                    <span className="muted-small">HOST: {item.creator}</span>
+                    <span className="muted-small">
+                      <Users size={12} /> {item.online} online*
+                    </span>
+                  </div>
+                  <button
+                    className="button button-secondary button-wide"
+                    onClick={() => {
+                      if (item.privacy === "Private") {
+                        notify("Private room codes will be connected to the backend.");
+                        return;
+                      }
+                      setActiveRoom(item.id);
+                    }}
+                  >
+                    Enter room <ArrowRight size={14} />
+                  </button>
+                </article>
+              ))}
+            </div>
+            <p className="muted-small" style={{ marginTop: 15 }}>
+              *Sample counts only; live presence is not connected yet.
+            </p>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // 14. 讨论区
+  function renderDiscussions() {
+    return (
+      <div className="page-enter">
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">
+              <span className="eyebrow-line" />
+              STUDENT VOICES
+            </div>
+            <h1>
+              Discussions<span className="gradient-text">.</span>
+            </h1>
+            <p className="page-subtitle">
+              Ask questions, exchange perspectives, and help each other out.
+            </p>
+          </div>
+          <button
+            className="button button-primary"
+            onClick={() => {
+              if (requireLogin()) setDiscussionModalOpen(true);
+            }}
+          >
+            <Plus size={15} /> New discussion
+          </button>
+        </div>
+
+        <div className="hub-search">
+          <MessageCircle size={17} />
+          <span style={{ fontSize: 11, color: "var(--muted)" }}>
+            Be curious. Be constructive. Keep the conversation respectful.
+          </span>
+        </div>
+
+        <div style={{ display: "grid", gap: 13 }}>
+          {discussions.map((item) => (
+            <article className="discussion-card" key={item.id}>
+              <div className="resource-card-top">
+                <span className="badge">
+                  <Hash size={11} /> {item.category}
+                </span>
+                <button
+                  className="icon-button"
+                  aria-label="Report discussion"
+                  onClick={() => reportContent(item.title)}
+                >
+                  <Flag size={13} />
+                </button>
+              </div>
+
+              <h3 style={{ marginTop: 15, fontSize: 16 }}>{item.title}</h3>
+              <p>{item.body}</p>
+
+              <div className="resource-card-actions">
+                <span className="muted-small">
+                  Posted by {item.author}
+                </span>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <button
+                    className="button button-ghost button-small"
+                    onClick={() => voteDiscussion(item.id)}
+                  >
+                    <ArrowRight
+                      size={13}
+                      style={{ transform: "rotate(-90deg)" }}
+                    />
+                    {item.votes}
+                  </button>
+                  <span className="muted-small">
+                    <MessageCircle size={12} /> {item.replies} replies
+                  </span>
                 </div>
-              )}
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                {isSignUp ? 'Create Account' : 'Sign In'}
-              </button>
-            </form>
-            <p onClick={() => setIsSignUp(!isSignUp)} style={{ color: theme.accent, marginTop: '1rem', cursor: 'pointer', textAlign: 'center' }}>
-              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // 15. 公告
+  function renderAnnouncements() {
+    return (
+      <div className="page-enter">
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">
+              <span className="eyebrow-line" />
+              COMMUNITY UPDATES
+            </div>
+            <h1>
+              Announcements<span className="gradient-text">.</span>
+            </h1>
+            <p className="page-subtitle">
+              Updates and information for the North Synapse community.
             </p>
           </div>
         </div>
-      )}
 
-      {/* 发布笔记弹窗 */}
-      {showCreateResourceModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '540px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-              <h2>Share Course Notes / Resource</h2>
-              <button onClick={() => setShowCreateResourceModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+        <article className="notice-card">
+          <div className="resource-card-top">
+            <span className="badge">
+              <Bell size={12} /> COMMUNITY NOTICE
+            </span>
+            <span className="muted-small">LATEST UPDATE</span>
+          </div>
+          <h2 style={{ marginTop: 22, fontSize: 22 }}>
+            Welcome to North Synapse
+          </h2>
+          <p style={{ lineHeight: 1.9, color: "var(--muted)" }}>
+            {announcementText}
+          </p>
+          <div className="resource-card-actions">
+            <span className="muted-small">North Synapse Team</span>
+            <span className="muted-small">Community update</span>
+          </div>
+        </article>
+
+        <div style={{ height: 15 }} />
+
+        <div className="panel">
+          <h3>Community guidelines</h3>
+          <p>
+            Share ideas respectfully. Constructive criticism of courses and
+            teaching is welcome, but personal attacks, harassment, and
+            knowingly false claims are not.
+          </p>
+          <p>
+            Use the report option when content may violate community rules.
+            Reports and moderation decisions will be handled through the
+            administrative system once it is connected.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 16. 反馈页面
+  function renderFeedback() {
+    return (
+      <div className="page-enter">
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">
+              <span className="eyebrow-line" />
+              HELP US IMPROVE
             </div>
-            <form onSubmit={handleCreateResourceSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <input type="text" required placeholder="Title" value={newResTitle} onChange={(e) => setNewResTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
-              <textarea required rows={5} placeholder="Content" value={newResContent} onChange={(e) => setNewResContent(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Publish Resource Note</button>
-            </form>
+            <h1>
+              Your feedback<span className="gradient-text">.</span>
+            </h1>
+            <p className="page-subtitle">
+              Your thoughts can help make this community better for everyone.
+            </p>
+          </div>
+        </div>
+
+        <div className="panel">
+          <h2 style={{ fontSize: 18 }}>How is your experience?</h2>
+          <p className="page-subtitle">
+            Choose a rating, then tell us what you think.
+          </p>
+
+          <div style={{ display: "flex", gap: 8, margin: "22px 0" }}>
+            {[1, 2, 3, 4, 5].map((rating) => (
+              <button
+                key={rating}
+                className="icon-button"
+                aria-label={`Rate ${rating} stars`}
+                onClick={() => setFeedbackRating(rating)}
+                style={{
+                  width: 44,
+                  height: 44,
+                  color:
+                    feedbackRating >= rating
+                      ? "#f5bd4f"
+                      : "var(--muted)",
+                  borderColor:
+                    feedbackRating >= rating
+                      ? "rgba(245,189,79,0.5)"
+                      : undefined,
+                }}
+              >
+                <span style={{ fontSize: 22 }}>
+                  {feedbackRating >= rating ? "★" : "☆"}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <label className="field-label" htmlFor="feedback">
+            YOUR FEEDBACK
+          </label>
+          <textarea
+            id="feedback"
+            className="textarea"
+            value={feedbackText}
+            onChange={(event) => setFeedbackText(event.target.value)}
+            placeholder="What works well? What could be improved?"
+          />
+
+          <div style={{ height: 15 }} />
+
+          <button
+            className="button button-primary"
+            onClick={() => {
+              if (!feedbackRating) {
+                notify("Please select a rating first.");
+                return;
+              }
+              if (!feedbackText.trim()) {
+                notify("Please write a short message.");
+                return;
+              }
+              notify(
+                "Feedback captured in this demo only. Email delivery will be configured later."
+              );
+              setFeedbackRating(0);
+              setFeedbackText("");
+            }}
+          >
+            <Send size={14} /> Submit feedback
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 17. 个人主页
+  function renderDashboard() {
+    return (
+      <div className="page-enter">
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">
+              <span className="eyebrow-line" />
+              YOUR SPACE
+            </div>
+            <h1>
+              Dashboard<span className="gradient-text">.</span>
+            </h1>
+            <p className="page-subtitle">
+              Your activity and learning contributions.
+            </p>
+          </div>
+        </div>
+
+        {!loggedIn ? (
+          <div className="panel empty-dashboard">
+            <Users size={27} />
+            <h2>Your space, your progress.</h2>
+            <p>
+              Sign in to access your profile, contributions, and saved
+              resources.
+            </p>
+            <button
+              className="button button-primary"
+              onClick={() => {
+                setAuthMode("login");
+                setAuthOpen(true);
+              }}
+            >
+              <LogIn size={14} /> Sign in
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="profile-cover" />
+            <div className="panel" style={{ borderTop: 0, borderRadius: "0 0 13px 13px" }}>
+              <div className="profile-main">
+                <span
+                  className="avatar"
+                  style={{
+                    width: 76,
+                    height: 76,
+                    fontSize: 25,
+                    border: "4px solid var(--panel)",
+                  }}
+                >
+                  {username.charAt(0).toUpperCase()}
+                </span>
+                <div className="profile-identity">
+                  <h1>{username}</h1>
+                  <p>North Synapse community member</p>
+                </div>
+                <button
+                  className="button button-secondary"
+                  onClick={() => notify("Profile editing will be connected to the database next.")}
+                >
+                  <Settings size={14} /> Edit profile
+                </button>
+              </div>
+            </div>
+
+            <div style={{ height: 15 }} />
+
+            <div className="stats-grid">
+              <div className="stat-card">
+                <span>PUBLISHED RESOURCES</span>
+                <strong>
+                  {resources.filter((item) => item.author === username).length}
+                </strong>
+              </div>
+              <div className="stat-card">
+                <span>LIKED BY OTHERS</span>
+                <strong>
+                  {resources
+                    .filter((item) => item.author === username)
+                    .reduce((sum, item) => sum + item.likes, 0)}
+                </strong>
+              </div>
+              <div className="stat-card">
+                <span>SAVED RESOURCES</span>
+                <strong>{savedIds.length}</strong>
+              </div>
+              <div className="stat-card">
+                <span>DISCUSSIONS</span>
+                <strong>
+                  {discussions.filter((item) => item.author === username).length}
+                </strong>
+              </div>
+            </div>
+
+            <div style={{ height: 20 }} />
+
+            <div className="dashboard-columns">
+              <div className="panel">
+                <h3>Your published resources</h3>
+                {resources.filter((item) => item.author === username).length ===
+                0 ? (
+                  <p className="page-subtitle" style={{ marginTop: 15 }}>
+                    Your shared resources will appear here.
+                  </p>
+                ) : (
+                  resources
+                    .filter((item) => item.author === username)
+                    .map((item) => (
+                      <div className="account-detail" key={item.id}>
+                        <b>{item.title}</b>
+                        <span>
+                          {item.likes} likes · {item.saves} saves
+                        </span>
+                      </div>
+                    ))
+                )}
+              </div>
+
+              <div className="panel">
+                <h3>Saved resources</h3>
+                {resources
+                  .filter((item) => savedIds.includes(item.id))
+                  .map((item) => (
+                    <div className="account-detail" key={item.id}>
+                      <b>{item.title}</b>
+                      <span>{item.subject}</span>
+                    </div>
+                  ))}
+                {savedIds.length === 0 && (
+                  <p className="page-subtitle" style={{ marginTop: 15 }}>
+                    Save a resource to find it here.
+                  </p>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // 18. 简易专注计时器
+  function FocusTimer() {
+    const [minutes, setMinutes] = useState(25);
+    const [seconds, setSeconds] = useState(0);
+    const [running, setRunning] = useState(false);
+
+    // 计时器逻辑会在后续版本中单独完善
+    function resetTimer() {
+      setRunning(false);
+      setMinutes(25);
+      setSeconds(0);
+    }
+
+    return (
+      <div className="panel">
+        <span className="muted-small">FOCUS TIMER</span>
+        <div
+          style={{
+            fontSize: 48,
+            fontWeight: 800,
+            letterSpacing: -2,
+            margin: "15px 0",
+          }}
+        >
+          {String(minutes).padStart(2, "0")}:
+          {String(seconds).padStart(2, "0")}
+        </div>
+        <p className="page-subtitle">
+          {running ? "Focus session in progress" : "Ready when you are"}
+        </p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 8,
+            marginTop: 15,
+          }}
+        >
+          <button
+            className="button button-primary"
+            onClick={() => {
+              setRunning((value) => !value);
+              notify("The timer controls are a visual prototype for now.");
+            }}
+          >
+            {running ? "Pause" : "Start focus"}
+          </button>
+          <button className="button button-secondary" onClick={resetTimer}>
+            Reset
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 19. 统一选择页面
+  function renderSection() {
+    switch (section) {
+      case "Overview":
+        return renderOverview();
+      case "Research Hub":
+        return renderResearchHub();
+      case "Study Lounge":
+        return renderStudyLounge();
+      case "Discussions":
+        return renderDiscussions();
+      case "Announcements":
+        return renderAnnouncements();
+      case "Feedback":
+        return renderFeedback();
+      case "Dashboard":
+        return renderDashboard();
+      default:
+        return renderOverview();
+    }
+  }
+
+  // 20. 页面主体
+  return (
+    <div className={`app ${darkMode ? "" : "light"}`}>
+      {renderSidebar()}
+
+      <div className="main-shell">
+        {renderTopbar()}
+
+        <button
+          className="announcement-strip"
+          onClick={() => navigate("Announcements")}
+        >
+          <span className="announcement-pill">UPDATE</span>
+          <span className="announcement-title">{announcementText}</span>
+          <ArrowRight size={14} />
+        </button>
+
+        {toast && (
+          <div className="toast">
+            <Check size={14} />
+            <span>{toast}</span>
+            <button
+              className="icon-button"
+              aria-label="Dismiss message"
+              onClick={() => setToast("")}
+            >
+              <X size={13} />
+            </button>
+          </div>
+        )}
+
+        <main className="content">{renderSection()}</main>
+
+        <footer className="site-footer">
+          <span className="footer-mark">N</span>
+          <span>North Synapse</span>
+          <span>Learn · Connect · Grow</span>
+          <button
+            className="inline-link"
+            onClick={() => setTermsOpen(true)}
+          >
+            Terms of Use
+          </button>
+          <span>© 2026</span>
+        </footer>
+      </div>
+
+      {/* 21. 登录与注册弹窗 */}
+      {authOpen && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setAuthOpen(false);
+          }}
+        >
+          <div className="modal-window">
+            <div className="auth-modal">
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  className="icon-button"
+                  aria-label="Close login"
+                  onClick={() => setAuthOpen(false)}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              <span
+                className="avatar"
+                style={{ width: 52, height: 52, margin: "5px auto 18px" }}
+              >
+                <Zap size={23} />
+              </span>
+
+              <h2>{authMode === "login" ? "Welcome back." : "Join the community."}</h2>
+              <p className="modal-subtitle">
+                {authMode === "login"
+                  ? "Continue your learning journey."
+                  : "Create an account for NTCI students."}
+              </p>
+
+              <div className="form-stack" style={{ textAlign: "left", marginTop: 22 }}>
+                <label className="field-label" htmlFor="auth-email">
+                  EMAIL ADDRESS
+                </label>
+                <input
+                  id="auth-email"
+                  className="input"
+                  type="email"
+                  value={authEmail}
+                  onChange={(event) => setAuthEmail(event.target.value)}
+                  placeholder="you@example.com"
+                />
+
+                <label className="field-label" htmlFor="auth-password">
+                  PASSWORD
+                </label>
+                <input
+                  id="auth-password"
+                  className="input"
+                  type="password"
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.target.value)}
+                  placeholder="Enter your password"
+                />
+
+                {authMode === "register" && (
+                  <>
+                    <label className="check-row">
+                      <input
+                        type="checkbox"
+                        checked={isStudent}
+                        onChange={(event) => setIsStudent(event.target.checked)}
+                      />
+                      <span>
+                        I confirm that I am currently a student at North
+                        Toronto Collegiate Institute.
+                      </span>
+                    </label>
+
+                    <label className="check-row">
+                      <input
+                        type="checkbox"
+                        checked={acceptedTerms}
+                        onChange={(event) =>
+                          setAcceptedTerms(event.target.checked)
+                        }
+                      />
+                      <span>
+                        I have read and agree to the{" "}
+                        <button
+                          className="inline-link"
+                          onClick={() => setTermsOpen(true)}
+                        >
+                          Terms of Use
+                        </button>
+                        .
+                      </span>
+                    </label>
+                  </>
+                )}
+
+                <button
+                  className="button button-primary button-wide"
+                  style={{ marginTop: 8 }}
+                  onClick={handleAuth}
+                >
+                  {authMode === "login" ? "Sign in" : "Create account"}{" "}
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+
+              <p className="modal-subtitle" style={{ marginTop: 20 }}>
+                {authMode === "login"
+                  ? "New to North Synapse?"
+                  : "Already have an account?"}{" "}
+                <button
+                  className="inline-link"
+                  onClick={() =>
+                    setAuthMode((mode) =>
+                      mode === "login" ? "register" : "login"
+                    )
+                  }
+                >
+                  {authMode === "login" ? "Create an account" : "Sign in"}
+                </button>
+              </p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* 发起讨论弹窗 */}
-      {showCreateDiscussionModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-              <h2>Start Discussion Topic</h2>
-              <button onClick={() => setShowCreateDiscussionModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+      {/* 22. 使用条款弹窗 */}
+      {termsOpen && (
+        <div className="modal-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setTermsOpen(false);
+        }}>
+          <div className="modal-window">
+            <div className="terms-modal">
+              <div className="modal-heading">
+                <div>
+                  <h2>Terms of Use</h2>
+                  <p className="modal-subtitle">
+                    A respectful space for learning and exchange.
+                  </p>
+                </div>
+                <button
+                  className="icon-button"
+                  aria-label="Close terms"
+                  onClick={() => setTermsOpen(false)}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              <div className="terms-scroll">
+                <section>
+                  <h3>1. Eligibility</h3>
+                  <p>
+                    North Synapse is intended for current students at North
+                    Toronto Collegiate Institute. Users must provide truthful
+                    information when creating an account.
+                  </p>
+                </section>
+                <section>
+                  <h3>2. Respectful discussion</h3>
+                  <p>
+                    Respectful disagreement and constructive criticism are
+                    welcome. Harassment, targeted personal attacks, and
+                    knowingly fabricated claims are not permitted.
+                  </p>
+                </section>
+                <section>
+                  <h3>3. Content and moderation</h3>
+                  <p>
+                    Users are responsible for their contributions. Content
+                    that violates community rules may be removed, and accounts
+                    may be warned or restricted when appropriate.
+                  </p>
+                </section>
+                <section>
+                  <h3>4. Reporting</h3>
+                  <p>
+                    Users may report content they believe violates these terms.
+                    Reports should be made honestly and in good faith.
+                  </p>
+                </section>
+                <section>
+                  <h3>5. Privacy and account deletion</h3>
+                  <p>
+                    Account deletion should remove personal data where
+                    applicable. Limited records may be retained when reasonably
+                    necessary for safety, moderation, or legal obligations.
+                  </p>
+                </section>
+              </div>
+
+              <button
+                className="button button-primary button-wide"
+                style={{ marginTop: 18 }}
+                onClick={() => setTermsOpen(false)}
+              >
+                I understand
+              </button>
             </div>
-            <form onSubmit={handleCreateDiscussionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <input type="text" required placeholder="Topic Title" value={newDiscTitle} onChange={(e) => setNewDiscTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
-              <textarea required rows={4} placeholder="Content" value={newDiscContent} onChange={(e) => setNewDiscContent(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Post Topic</button>
-            </form>
           </div>
         </div>
       )}
 
+      {/* 23. 发布学习资源弹窗 */}
+      {resourceModalOpen && (
+        <div className="modal-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setResourceModalOpen(false);
+        }}>
+          <div className="modal-window">
+            <div className="standard-modal">
+              <div className="modal-heading">
+                <div>
+                  <h2>Share a resource</h2>
+                  <p className="modal-subtitle">
+                    Help another student understand something new.
+                  </p>
+                </div>
+                <button
+                  className="icon-button"
+                  aria-label="Close"
+                  onClick={() => setResourceModalOpen(false)}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              <div className="form-stack">
+                <label className="field-label" htmlFor="resource-title">
+                  TITLE
+                </label>
+                <input
+                  id="resource-title"
+                  className="input"
+                  value={resourceTitle}
+                  onChange={(event) => setResourceTitle(event.target.value)}
+                  placeholder="Give your resource a clear title"
+                />
+
+                <label className="field-label" htmlFor="resource-description">
+                  DESCRIPTION
+                </label>
+                <textarea
+                  id="resource-description"
+                  className="textarea"
+                  value={resourceDescription}
+                  onChange={(event) =>
+                    setResourceDescription(event.target.value)
+                  }
+                  placeholder="What will other students learn?"
+                />
+
+                <label className="field-label" htmlFor="resource-subject">
+                  SUBJECT
+                </label>
+                <select
+                  id="resource-subject"
+                  value={resourceSubject}
+                  onChange={(event) => setResourceSubject(event.target.value)}
+                >
+                  {subjects.slice(1).map((subject) => (
+                    <option key={subject}>{subject}</option>
+                  ))}
+                </select>
+
+                <label className="field-label" htmlFor="resource-grade">
+                  GRADE
+                </label>
+                <select
+                  id="resource-grade"
+                  value={resourceGrade}
+                  onChange={(event) => setResourceGrade(event.target.value)}
+                >
+                  {grades.slice(1).map((grade) => (
+                    <option key={grade}>{grade}</option>
+                  ))}
+                  <option>All Grades</option>
+                </select>
+
+                <button
+                  className="button button-primary button-wide"
+                  onClick={publishResource}
+                  style={{ marginTop: 10 }}
+                >
+                  <FileText size={14} /> Publish resource
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 24. 发布讨论弹窗 */}
+      {discussionModalOpen && (
+        <div className="modal-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setDiscussionModalOpen(false);
+        }}>
+          <div className="modal-window">
+            <div className="standard-modal">
+              <div className="modal-heading">
+                <div>
+                  <h2>Start a discussion</h2>
+                  <p className="modal-subtitle">
+                    Ask a question or start a thoughtful conversation.
+                  </p>
+                </div>
+                <button
+                  className="icon-button"
+                  aria-label="Close"
+                  onClick={() => setDiscussionModalOpen(false)}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              <div className="form-stack">
+                <label className="field-label" htmlFor="discussion-title">
+                  TITLE
+                </label>
+                <input
+                  id="discussion-title"
+                  className="input"
+                  value={discussionTitle}
+                  onChange={(event) => setDiscussionTitle(event.target.value)}
+                  placeholder="What would you like to discuss?"
+                />
+
+                <label className="field-label" htmlFor="discussion-category">
+                  CATEGORY
+                </label>
+                <select
+                  id="discussion-category"
+                  value={discussionCategory}
+                  onChange={(event) =>
+                    setDiscussionCategory(event.target.value)
+                  }
+                >
+                  <option>Study Tips</option>
+                  <option>Course Selection</option>
+                  <option>Computer Science</option>
+                  <option>School Life</option>
+                  <option>General Discussion</option>
+                </select>
+
+                <label className="field-label" htmlFor="discussion-body">
+                  DETAILS
+                </label>
+                <textarea
+                  id="discussion-body"
+                  className="textarea"
+                  value={discussionBody}
+                  onChange={(event) => setDiscussionBody(event.target.value)}
+                  placeholder="Add context to help others respond."
+                />
+
+                <button
+                  className="button button-primary button-wide"
+                  onClick={publishDiscussion}
+                  style={{ marginTop: 10 }}
+                >
+                  <Send size={14} /> Publish discussion
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 25. 创建自习室弹窗 */}
+      {roomModalOpen && (
+        <div className="modal-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setRoomModalOpen(false);
+        }}>
+          <div className="modal-window">
+            <div className="standard-modal">
+              <div className="modal-heading">
+                <div>
+                  <h2>Create a study room</h2>
+                  <p className="modal-subtitle">
+                    Make a space to focus with other students.
+                  </p>
+                </div>
+                <button
+                  className="icon-button"
+                  aria-label="Close"
+                  onClick={() => setRoomModalOpen(false)}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              <div className="form-stack">
+                <label className="field-label" htmlFor="room-name">
+                  ROOM NAME
+                </label>
+                <input
+                  id="room-name"
+                  className="input"
+                  value={roomName}
+                  onChange={(event) => setRoomName(event.target.value)}
+                  placeholder="e.g. Afternoon Math Focus"
+                />
+
+                <label className="field-label" htmlFor="room-subject">
+                  STUDY TOPIC
+                </label>
+                <select
+                  id="room-subject"
+                  value={roomSubject}
+                  onChange={(event) => setRoomSubject(event.target.value)}
+                >
+                  <option>General Study</option>
+                  <option>Mathematics</option>
+                  <option>Science</option>
+                  <option>English</option>
+                  <option>Computer Science</option>
+                  <option>Exam Preparation</option>
+                </select>
+
+                <label className="field-label" htmlFor="room-privacy">
+                  ACCESS
+                </label>
+                <select
+                  id="room-privacy"
+                  value={roomPrivacy}
+                  onChange={(event) =>
+                    setRoomPrivacy(event.target.value as "Public" | "Private")
+                  }
+                >
+                  <option value="Public">Public — anyone can join</option>
+                  <option value="Private">Private — invite code required</option>
+                </select>
+
+                {roomPrivacy === "Private" && (
+                  <p className="modal-subtitle">
+                    Private room code generation and verification will be
+                    implemented with the database.
+                  </p>
+                )}
+
+                <button
+                  className="button button-primary button-wide"
+                  onClick={createRoom}
+                  style={{ marginTop: 10 }}
+                >
+                  <Plus size={14} /> Create room
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
