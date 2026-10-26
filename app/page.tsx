@@ -848,7 +848,7 @@ export default function Home() {
                     <div className="space-y-4">
                       {discussions
                         .filter((discussion) =>
-                          `${discussion.title} ${discussion.text} ${discussion.tag} ${discussion.name}`
+                          `${discussion.title} ${discussion.content} ${discussion.category ?? ""} ${discussion.author}`
                             .toLowerCase()
                             .includes(search.toLowerCase())
                         )
