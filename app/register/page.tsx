@@ -12,8 +12,9 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [readNotice, setReadNotice] = useState(false);
-  const [acceptPromise, setAcceptPromise] = useState(false);
+  const [isStudent, setIsStudent] = useState(false);
+  const [acceptedNotice, setAcceptedNotice] = useState(false);
+  const [showNotice, setShowNotice] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,8 +26,8 @@ export default function RegisterPage() {
     setMessage("");
     setError("");
 
-    if (!readNotice || !acceptPromise) {
-      setError("Please read the User Notice and accept the Student Pledge.");
+    if (!isStudent || !acceptedNotice) {
+      setError("Please complete both required confirmations.");
       return;
     }
 
@@ -48,8 +49,8 @@ export default function RegisterPage() {
       options: {
         emailRedirectTo: `${window.location.origin}/`,
         data: {
+          is_student: true,
           accepted_user_notice: true,
-          accepted_student_pledge: true,
           accepted_at: new Date().toISOString(),
         },
       },
@@ -69,7 +70,7 @@ export default function RegisterPage() {
     }
 
     setMessage(
-      "Registration submitted. Please check your email to confirm your account before signing in."
+      "Registration received. Please check your email to confirm your account before signing in."
     );
   }
 
@@ -88,7 +89,7 @@ export default function RegisterPage() {
         </h1>
 
         <p className="mt-2 text-[var(--muted)]">
-          Create an account for your learning community.
+          Create your learning community account.
         </p>
 
         <form onSubmit={handleRegister} className="mt-8 space-y-5">
@@ -142,54 +143,38 @@ export default function RegisterPage() {
             />
           </div>
 
-          <div className="space-y-4 rounded-xl border border-[var(--border)] p-4">
-            <div>
-              <h2 className="font-semibold">User Notice</h2>
-              <div className="mt-2 max-h-32 overflow-y-auto rounded-lg bg-[var(--surface-secondary)] p-3 text-sm text-[var(--muted)]">
-                <p>
-                  North Synapse is a learning community. Use respectful
-                  language, share only content you have permission to share,
-                  protect personal information, and do not post harassment,
-                  spam, or misleading content.
-                </p>
-                <p className="mt-2">
-                  Keep your account secure and report inappropriate content
-                  to the site administrators. Access may be restricted if
-                  community rules are violated.
-                </p>
-              </div>
-              <label className="mt-3 flex items-start gap-3 text-sm">
-                <input
-                  type="checkbox"
-                  checked={readNotice}
-                  onChange={(event) => setReadNotice(event.target.checked)}
-                  className="mt-1"
-                />
-                <span>
-                  I have read and understood the User Notice.
-                </span>
-              </label>
-            </div>
+          <div className="space-y-4 border-t border-[var(--border)] pt-5">
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={isStudent}
+                onChange={(event) => setIsStudent(event.target.checked)}
+                className="mt-1 h-4 w-4 accent-[var(--primary)]"
+              />
+              <span>I confirm that I am a student.</span>
+            </label>
 
-            <div>
-              <h2 className="font-semibold">Student Pledge</h2>
-              <div className="mt-2 rounded-lg bg-[var(--surface-secondary)] p-3 text-sm text-[var(--muted)]">
-                I will contribute honestly, respect other students, protect
-                the privacy of community members, and use this platform
-                for constructive learning and collaboration.
-              </div>
-              <label className="mt-3 flex items-start gap-3 text-sm">
-                <input
-                  type="checkbox"
-                  checked={acceptPromise}
-                  onChange={(event) => setAcceptPromise(event.target.checked)}
-                  className="mt-1"
-                />
-                <span>
-                  I agree to follow the Student Pledge.
-                </span>
-              </label>
-            </div>
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={acceptedNotice}
+                onChange={(event) =>
+                  setAcceptedNotice(event.target.checked)
+                }
+                className="mt-1 h-4 w-4 accent-[var(--primary)]"
+              />
+              <span>
+                I have read and agree to the{" "}
+                <button
+                  type="button"
+                  onClick={() => setShowNotice(true)}
+                  className="font-medium text-[var(--primary)] underline underline-offset-2"
+                >
+                  User Notice
+                </button>
+                .
+              </span>
+            </label>
           </div>
 
           {error && (
@@ -223,6 +208,131 @@ export default function RegisterPage() {
           </Link>
         </p>
       </div>
+
+      {showNotice && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowNotice(false)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="notice-title"
+            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <h2 id="notice-title" className="text-xl font-semibold">
+                North Synapse — User Notice
+              </h2>
+              <button
+                type="button"
+                aria-label="Close User Notice"
+                onClick={() => setShowNotice(false)}
+                className="rounded-lg px-3 py-1 text-lg text-[var(--muted)] hover:bg-[var(--surface-secondary)]"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4 text-sm leading-7 text-[var(--muted)]">
+              <section>
+                <h3 className="font-semibold text-[var(--foreground)]">
+                  1. Purpose of the Platform
+                </h3>
+                <p>
+                  North Synapse is a student learning community designed
+                  to support academic discussion, resource sharing, and
+                  collaborative learning.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="font-semibold text-[var(--foreground)]">
+                  2. Respectful Participation
+                </h3>
+                <p>
+                  Treat other members respectfully. Harassment,
+                  discrimination, bullying, threats, and deliberately
+                  disruptive behaviour are not permitted.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="font-semibold text-[var(--foreground)]">
+                  3. Honest Use
+                </h3>
+                <p>
+                  Share accurate information to the best of your
+                  knowledge. Do not impersonate others, spam the
+                  community, or misrepresent another person&apos;s work
+                  as your own.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="font-semibold text-[var(--foreground)]">
+                  4. Content and Copyright
+                </h3>
+                <p>
+                  Only upload or share material you have the right to
+                  distribute. Respect the intellectual property and
+                  privacy of others.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="font-semibold text-[var(--foreground)]">
+                  5. Privacy and Account Security
+                </h3>
+                <p>
+                  Do not share passwords or publish other people&apos;s
+                  private information without permission. Keep your
+                  account credentials secure.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="font-semibold text-[var(--foreground)]">
+                  6. Reporting and Moderation
+                </h3>
+                <p>
+                  Report inappropriate content or misuse to the
+                  platform administrators. Content that violates
+                  community rules may be removed, and access may be
+                  restricted when appropriate.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="font-semibold text-[var(--foreground)]">
+                  7. Responsible Use
+                </h3>
+                <p>
+                  Use North Synapse for constructive learning and
+                  collaboration. Do not use the platform for unlawful
+                  activities or to compromise the security of the
+                  website or other users.
+                </p>
+              </section>
+
+              <p className="text-xs">
+                This is an initial community notice and should be
+                reviewed and updated before the platform opens to the
+                public.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowNotice(false)}
+              className="mt-6 w-full rounded-xl bg-[var(--primary)] px-4 py-3 font-medium text-white"
+            >
+              Close
+            </button>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
