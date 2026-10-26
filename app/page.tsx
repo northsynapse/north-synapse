@@ -197,7 +197,7 @@ export default function Home() {
   }
 
   const filteredDiscussions = discussions.filter((discussion) =>
-    `${discussion.title} ${discussion.text} ${discussion.tag} ${discussion.name}`
+    `${discussion.title} ${discussion.content} ${discussion.category ?? ""} ${discussion.author}`
       .toLowerCase()
       .includes(search.toLowerCase())
   );
