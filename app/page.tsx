@@ -1,1964 +1,851 @@
+
 "use client";
 
-/* =========================================================
-   NORTH SYNAPSE
-   主页面：导航、资源中心、自习室、讨论区、公告、反馈、个人主页
-   注意：当前为前端原型，数据暂存在页面状态中，刷新后会重置。
-   ========================================================= */
-
 import { useState } from "react";
-import { supabase } from "../lib/supabase";
 import {
   Activity,
-  ArrowDownUp,
+  ArrowDownRight,
   ArrowRight,
+  ArrowUpRight,
   Bell,
   BookOpen,
-  Bookmark,
+  CalendarDays,
   Check,
   ChevronDown,
   Clock3,
+  Compass,
   FileText,
-  Flag,
-  Hash,
-  Heart,
-  Home,
-  LogIn,
+  Flame,
+  GraduationCap,
+  LayoutDashboard,
   Menu,
   MessageCircle,
   Moon,
+  MoreHorizontal,
   Plus,
   Search,
-  Send,
   Settings,
   ShieldCheck,
+  Sparkles,
   Sun,
   Users,
   X,
-  Zap,
 } from "lucide-react";
 
-// 1. 定义数据类型
-type Section =
-  | "Overview"
-  | "Research Hub"
-  | "Study Lounge"
-  | "Discussions"
-  | "Announcements"
-  | "Feedback"
-  | "Dashboard";
+const navigation = [
+  { label: "Dashboard", icon: LayoutDashboard, group: "Workspace" },
+  { label: "Resources", icon: BookOpen, group: "Workspace" },
+  { label: "Discussions", icon: MessageCircle, group: "Workspace" },
+  { label: "Study Rooms", icon: Users, group: "Workspace" },
+  { label: "Announcements", icon: Bell, group: "Community" },
+  { label: "Feedback", icon: MessageCircle, group: "Community" },
+];
 
-type Resource = {
-  id: number;
-  title: string;
-  description: string;
-  subject: string;
-  grade: string;
-  author: string;
-  date: string;
-  likes: number;
-  saves: number;
-};
-
-type Discussion = {
-  id: number;
-  title: string;
-  body: string;
-  category: string;
-  author: string;
-  replies: number;
-  votes: number;
-};
-
-type StudyRoom = {
-  id: number;
-  name: string;
-  creator: string;
-  subject: string;
-  privacy: "Public" | "Private";
-  online: number;
-};
-
-// 2. 示例内容：之后会改为从 Supabase 数据库读取
-const initialResources: Resource[] = [
+const courses = [
   {
-    id: 1,
-    title: "Functions — Complete Review",
-    description:
-      "A structured review of function notation, transformations, domain, range, and inverse functions.",
-    subject: "Mathematics",
-    grade: "Grade 11",
-    author: "Alex Chen",
-    date: "Oct 24, 2026",
-    likes: 24,
-    saves: 38,
+    code: "MCR3U",
+    name: "Functions",
+    detail: "Unit 04 · Trigonometry",
+    progress: 72,
+    color: "#8b6cf6",
+    background: "#f0ebff",
+    symbol: "ƒ",
   },
   {
-    id: 2,
-    title: "Chemistry: Naming Compounds",
-    description:
-      "A concise reference for ionic compounds, molecular compounds, and polyatomic ions.",
-    subject: "Science",
-    grade: "Grade 10",
-    author: "Jamie W.",
-    date: "Oct 23, 2026",
-    likes: 19,
-    saves: 31,
+    code: "ICS3U",
+    name: "Computer Science",
+    detail: "Unit 03 · Software Design",
+    progress: 58,
+    color: "#299d91",
+    background: "#e2f5f0",
+    symbol: "</>",
   },
   {
-    id: 3,
-    title: "How to Prepare for English Essays",
-    description:
-      "Planning an argument, selecting evidence, organizing paragraphs, and revising a first draft.",
-    subject: "English",
-    grade: "Grade 10",
-    author: "Morgan L.",
-    date: "Oct 22, 2026",
-    likes: 16,
-    saves: 27,
-  },
-  {
-    id: 4,
-    title: "Python Problem-Solving Notes",
-    description:
-      "Useful patterns for lists, loops, dictionaries, and introductory competitive programming.",
-    subject: "Computer Science",
-    grade: "Grade 11",
-    author: "Taylor K.",
-    date: "Oct 21, 2026",
-    likes: 32,
-    saves: 42,
-  },
-  {
-    id: 5,
-    title: "Physics Formula Reference",
-    description:
-      "An organized reference for motion, forces, energy, and common unit conversions.",
-    subject: "Science",
-    grade: "Grade 11",
-    author: "Sam R.",
-    date: "Oct 20, 2026",
-    likes: 13,
-    saves: 20,
-  },
-  {
-    id: 6,
-    title: "Study Planning That Actually Works",
-    description:
-      "A practical weekly planning template for assignments, review sessions, and deadlines.",
-    subject: "Study Skills",
-    grade: "All Grades",
-    author: "Jordan P.",
-    date: "Oct 19, 2026",
-    likes: 21,
-    saves: 36,
+    code: "SPH3U",
+    name: "Physics",
+    detail: "Unit 02 · Dynamics",
+    progress: 41,
+    color: "#e49a43",
+    background: "#fff0dd",
+    symbol: "↗",
   },
 ];
 
-const initialDiscussions: Discussion[] = [
+const discussions = [
   {
-    id: 1,
-    title: "How do you organize your study schedule?",
-    body: "I am trying to balance homework, test preparation, and personal projects. What works for you?",
-    category: "Study Tips",
-    author: "StudySeeker",
-    replies: 12,
-    votes: 18,
-  },
-  {
-    id: 2,
-    title: "Advice for choosing Grade 11 courses",
-    body: "What should students consider when planning prerequisites and future university programs?",
-    category: "Course Selection",
-    author: "NorthStar",
+    initials: "JL",
+    name: "Jason Liu",
+    time: "12 min ago",
+    color: "#dce8ff",
+    title: "A different way to understand transformations",
+    text: "I made a quick visual explanation of function transformations. Sharing it here in case anyone finds it useful!",
+    tag: "Mathematics",
     replies: 8,
-    votes: 14,
+    likes: 14,
   },
   {
-    id: 3,
-    title: "Share your favourite coding resources",
-    body: "Looking for useful websites and projects for students who want to improve their programming skills.",
-    category: "Computer Science",
-    author: "ByteSized",
-    replies: 15,
-    votes: 27,
+    initials: "AM",
+    name: "Ava Martin",
+    time: "36 min ago",
+    color: "#f8e3d9",
+    title: "Useful resources for learning Python",
+    text: "Collected a few practice websites and notes for anyone starting with functions and object-oriented programming.",
+    tag: "Computer Science",
+    replies: 12,
+    likes: 21,
   },
 ];
 
-const initialRooms: StudyRoom[] = [
+const announcements = [
   {
-    id: 1,
-    name: "The Common Room",
-    creator: "North Synapse",
-    subject: "General Study",
-    privacy: "Public",
-    online: 12,
+    category: "COMMUNITY",
+    title: "Welcome to the new learning space",
+    detail: "Explore resources, share ideas, and learn together.",
+    color: "#8250ed",
   },
   {
-    id: 2,
-    name: "Math Focus",
-    creator: "Alex Chen",
-    subject: "Mathematics",
-    privacy: "Public",
-    online: 5,
-  },
-  {
-    id: 3,
-    name: "Quiet Coding",
-    creator: "Taylor K.",
-    subject: "Computer Science",
-    privacy: "Public",
-    online: 3,
+    category: "REMINDER",
+    title: "Keep discussions constructive",
+    detail: "Give helpful feedback and respect different perspectives.",
+    color: "#299d91",
   },
 ];
 
-const navItems: { name: Section; icon: typeof Home }[] = [
-  { name: "Overview", icon: Home },
-  { name: "Research Hub", icon: BookOpen },
-  { name: "Study Lounge", icon: Clock3 },
-  { name: "Discussions", icon: MessageCircle },
-  { name: "Announcements", icon: Bell },
-  { name: "Feedback", icon: Heart },
-  { name: "Dashboard", icon: Users },
-];
-
-const subjects = [
-  "All Subjects",
-  "Mathematics",
-  "Science",
-  "English",
-  "Computer Science",
-  "Study Skills",
-];
-
-const grades = ["All Grades", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
-
-export default function HomePage() {
-  // 3. 页面状态
-  const [section, setSection] = useState<Section>("Overview");
-  const [darkMode, setDarkMode] = useState(true);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-
-  // 登录状态
-  const [username, setUsername] = useState("");
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [isStudent, setIsStudent] = useState(false);
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [termsOpen, setTermsOpen] = useState(false);
-
-  // 资源中心状态
-  const [resources, setResources] = useState(initialResources);
-  const [query, setQuery] = useState("");
-  const [subjectFilter, setSubjectFilter] = useState("All Subjects");
-  const [gradeFilter, setGradeFilter] = useState("All Grades");
-  const [sortBy, setSortBy] = useState("Newest");
-  const [likedIds, setLikedIds] = useState<number[]>([]);
-  const [savedIds, setSavedIds] = useState<number[]>([]);
-  const [resourceModalOpen, setResourceModalOpen] = useState(false);
-  const [resourceTitle, setResourceTitle] = useState("");
-  const [resourceDescription, setResourceDescription] = useState("");
-  const [resourceSubject, setResourceSubject] = useState("Mathematics");
-  const [resourceGrade, setResourceGrade] = useState("Grade 10");
-
-  // 资源详情状态
-  const [previewResource, setPreviewResource] = useState<Resource | null>(
-    null
-  );
-  const [commentText, setCommentText] = useState("");
-  const [resourceComments, setResourceComments] = useState<
-    Record<number, string[]>
-  >({});
-
-  // 讨论区状态
-  const [discussions, setDiscussions] = useState(initialDiscussions);
-  const [discussionModalOpen, setDiscussionModalOpen] = useState(false);
-  const [discussionTitle, setDiscussionTitle] = useState("");
-  const [discussionBody, setDiscussionBody] = useState("");
-  const [discussionCategory, setDiscussionCategory] = useState("Study Tips");
-
-  // 自习室状态
-  const [rooms, setRooms] = useState(initialRooms);
-  const [roomModalOpen, setRoomModalOpen] = useState(false);
-  const [roomName, setRoomName] = useState("");
-  const [roomSubject, setRoomSubject] = useState("General Study");
-  const [roomPrivacy, setRoomPrivacy] = useState<"Public" | "Private">(
-    "Public"
-  );
-  const [activeRoom, setActiveRoom] = useState<number | null>(null);
-
-  // 公告、反馈与通用提示
-  const [announcementText, setAnnouncementText] = useState(
-    "Welcome to North Synapse — a place to learn, share, and grow together."
-  );
-  const [feedbackRating, setFeedbackRating] = useState(0);
-  const [feedbackText, setFeedbackText] = useState("");
-  const [toast, setToast] = useState("");
-
-  // 4. 通用辅助函数
-  function notify(message: string) {
-    setToast(message);
-  }
-
-  function navigate(next: Section) {
-    setSection(next);
-    setMobileNavOpen(false);
-    setToast("");
-  }
-
-  function requireLogin() {
-    if (!loggedIn) {
-      setAuthMode("login");
-      setAuthOpen(true);
-      return false;
-    }
-    return true;
-  }
-
-  // 5. 使用 Supabase 处理真实注册与登录
-  async function handleAuth() {
-    if (!authEmail.trim() || !authPassword.trim()) {
-      notify("Please enter your email and password.");
-      return;
-    }
-
-    if (authMode === "register" && (!isStudent || !acceptedTerms)) {
-      notify("Please confirm student eligibility and accept the Terms.");
-      return;
-    }
-
-    if (!supabase) {
-      notify("Authentication is not configured. Please try again later.");
-      return;
-    }
-
-    try {
-      if (authMode === "register") {
-        const { data, error } = await supabase.auth.signUp({
-          email: authEmail.trim(),
-          password: authPassword,
-        });
-
-        if (error) {
-          notify(error.message);
-          return;
-        }
-
-        setAuthOpen(false);
-        setAuthEmail("");
-        setAuthPassword("");
-        setIsStudent(false);
-        setAcceptedTerms(false);
-
-        notify(
-          data.session
-            ? "Account created successfully."
-            : "Please check your email to confirm your account."
-        );
-        return;
-      }
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: authEmail.trim(),
-        password: authPassword,
-      });
-
-      if (error) {
-        notify(error.message);
-        return;
-      }
-
-      setUsername(data.user.email?.split("@")[0] ?? "Student");
-      setLoggedIn(true);
-      setAuthOpen(false);
-      setAuthEmail("");
-      setAuthPassword("");
-      notify("Signed in successfully.");
-    } catch {
-      notify("Something went wrong. Please try again.");
-    }
-  }
-
-  async function handleLogout() {
-    if (supabase) {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        notify(error.message);
-        return;
-      }
-    }
-
-    setLoggedIn(false);
-    setUsername("");
-    setActiveRoom(null);
-    notify("You have signed out.");
-  }
-    // 6. 资源中心：搜索、筛选、排序
-  const filteredResources = resources
-    .filter((item) => {
-      const searchText =
-        `${item.title} ${item.description} ${item.author} ${item.subject}`.toLowerCase();
-
-      return (
-        searchText.includes(query.toLowerCase()) &&
-        (subjectFilter === "All Subjects" ||
-          item.subject === subjectFilter) &&
-        (gradeFilter === "All Grades" || item.grade === gradeFilter)
-      );
-    })
-    .sort((a, b) => {
-      if (sortBy === "Most Liked") return b.likes - a.likes;
-      if (sortBy === "Most Saved") return b.saves - a.saves;
-      return b.id - a.id;
-    });
-
-  function toggleLike(id: number) {
-    if (!requireLogin()) return;
-
-    const alreadyLiked = likedIds.includes(id);
-
-    setLikedIds((current) =>
-      alreadyLiked ? current.filter((item) => item !== id) : [...current, id]
-    );
-
-    setResources((current) =>
-      current.map((item) =>
-        item.id === id
-          ? { ...item, likes: item.likes + (alreadyLiked ? -1 : 1) }
-          : item
-      )
-    );
-  }
-
-  function toggleSave(id: number) {
-    if (!requireLogin()) return;
-
-    const alreadySaved = savedIds.includes(id);
-
-    setSavedIds((current) =>
-      alreadySaved ? current.filter((item) => item !== id) : [...current, id]
-    );
-
-    setResources((current) =>
-      current.map((item) =>
-        item.id === id
-          ? { ...item, saves: item.saves + (alreadySaved ? -1 : 1) }
-          : item
-      )
-    );
-  }
-
-  function publishResource() {
-    if (!requireLogin()) return;
-
-    if (!resourceTitle.trim() || !resourceDescription.trim()) {
-      notify("Please complete the resource title and description.");
-      return;
-    }
-
-    const newResource: Resource = {
-      id: Date.now(),
-      title: resourceTitle.trim(),
-      description: resourceDescription.trim(),
-      subject: resourceSubject,
-      grade: resourceGrade,
-      author: username,
-      date: new Date().toLocaleDateString("en-CA", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-      likes: 0,
-      saves: 0,
-    };
-
-    setResources((current) => [newResource, ...current]);
-    setResourceTitle("");
-    setResourceDescription("");
-    setResourceModalOpen(false);
-    setSection("Research Hub");
-    notify("Resource added to this demo session.");
-  }
-
-  // 7. 讨论区：发布与举报
-  function publishDiscussion() {
-    if (!requireLogin()) return;
-
-    if (!discussionTitle.trim() || !discussionBody.trim()) {
-      notify("Please complete your discussion title and text.");
-      return;
-    }
-
-    const item: Discussion = {
-      id: Date.now(),
-      title: discussionTitle.trim(),
-      body: discussionBody.trim(),
-      category: discussionCategory,
-      author: username,
-      replies: 0,
-      votes: 0,
-    };
-
-    setDiscussions((current) => [item, ...current]);
-    setDiscussionTitle("");
-    setDiscussionBody("");
-    setDiscussionModalOpen(false);
-    notify("Discussion published in this demo session.");
-  }
-
-  function reportContent(title: string) {
-    if (!requireLogin()) return;
-    notify(`Demo report prepared for review: "${title}".`);
-  }
-
-  function voteDiscussion(id: number) {
-    if (!requireLogin()) return;
-
-    setDiscussions((current) =>
-      current.map((item) =>
-        item.id === id ? { ...item, votes: item.votes + 1 } : item
-      )
-    );
-  }
-
-  // 8. 自习室：创建、进入与退出
-  function createRoom() {
-    if (!requireLogin()) return;
-
-    if (!roomName.trim()) {
-      notify("Please enter a room name.");
-      return;
-    }
-
-    const newRoom: StudyRoom = {
-      id: Date.now(),
-      name: roomName.trim(),
-      creator: username,
-      subject: roomSubject,
-      privacy: roomPrivacy,
-      online: 1,
-    };
-
-    setRooms((current) => [...current, newRoom]);
-    setRoomName("");
-    setRoomModalOpen(false);
-    setActiveRoom(newRoom.id);
-    notify("Room created in this demo session.");
-  }
-
-  // 9. 页面顶部
-  function renderTopbar() {
-    return (
-      <header className="topbar">
-        <div className="top-actions">
-          <button
-            className="icon-button mobile-menu"
-            aria-label="Open navigation"
-            onClick={() => setMobileNavOpen((open) => !open)}
-          >
-            <Menu size={17} />
-          </button>
-
-          <div className="breadcrumb">
-            <span>North Synapse</span>
-            <span>/</span>
-            <strong>{section}</strong>
-          </div>
-        </div>
-
-        <div className="top-actions">
-          <button
-            className="icon-button"
-            aria-label="Toggle theme"
-            onClick={() => setDarkMode((value) => !value)}
-          >
-            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-
-          <button
-            className="icon-button"
-            aria-label="Announcements"
-            onClick={() => navigate("Announcements")}
-          >
-            <Bell size={16} />
-          </button>
-
-          {loggedIn ? (
-            <button className="user-chip" onClick={() => navigate("Dashboard")}>
-              <span className="avatar">{username.charAt(0).toUpperCase()}</span>
-              <span>{username}</span>
-              <ChevronDown size={13} />
-            </button>
-          ) : (
-            <button
-              className="button button-primary"
-              onClick={() => {
-                setAuthMode("login");
-                setAuthOpen(true);
-              }}
-            >
-              <LogIn size={14} />
-              Sign in
-            </button>
-          )}
-        </div>
-      </header>
-    );
-  }
-
-  // 10. 左侧导航
-  function renderSidebar() {
-    return (
-      <aside className={`sidebar ${mobileNavOpen ? "sidebar-open" : ""}`}>
-        <button className="brand" onClick={() => navigate("Overview")}>
-          <span className="brand-mark">
-            <svg viewBox="0 0 48 52" aria-hidden="true">
-              <path d="M8 12 L8 40 L24 40 L24 26 L40 26 L40 40" />
-              <path d="M8 12 L24 12 L24 26" />
-              <circle cx="8" cy="12" r="3" />
-              <circle cx="24" cy="12" r="3" />
-              <circle cx="24" cy="26" r="3" />
-              <circle cx="40" cy="26" r="3" />
-              <circle cx="40" cy="40" r="3" />
-            </svg>
-          </span>
-
-          <span className="brand-name">
-            North <b>Synapse</b>
-            <small>LEARN · CONNECT · GROW</small>
-          </span>
-        </button>
-
-        <div className="side-label">YOUR COMMUNITY</div>
-
-        <nav className="side-nav">
-          {navItems.map(({ name, icon: Icon }) => (
-            <button
-              key={name}
-              className={`nav-item ${section === name ? "active" : ""}`}
-              onClick={() => navigate(name)}
-            >
-              <Icon size={16} />
-              <span>{name}</span>
-              {section === name && <span className="nav-dot" />}
-            </button>
-          ))}
-        </nav>
-
-        <div className="sidebar-bottom">
-          <div className="community-card">
-            <strong>A community that thinks.</strong>
-            <p>
-              Share knowledge, discover ideas, and make school life a little
-              easier together.
-            </p>
-            <span>
-              <i className="online-dot" /> Built for NTCI students
-            </span>
-          </div>
-
-          {loggedIn && (
-            <button
-              className="button button-ghost button-wide"
-              onClick={handleLogout}
-            >
-              Sign out
-            </button>
-          )}
-
-          <div className="sidebar-foot">
-            <span className="tiny-logo">N</span>
-            <span>North Synapse</span>
-            <span className="version">BETA · 0.1</span>
-          </div>
-        </div>
-      </aside>
-    );
-  }
-
-  // 11. 首页 Overview
-  function renderOverview() {
-    return (
-      <div className="page-enter">
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">
-              <span className="eyebrow-line" />
-              YOUR LEARNING COMMUNITY
-            </div>
-            <h1>Think better, <span>together.</span></h1>
-            <p className="page-description">
-              A shared space for NTCI students to exchange knowledge,
-              discover resources, and grow together.
-            </p>
-          </div>
-
-          <button
-            className="button button-primary"
-            onClick={() => {
-              setAuthMode(loggedIn ? "login" : "register");
-              setAuthOpen(true);
-            }}
-          >
-            {loggedIn ? "Explore community" : "Join the community"}
-            <ArrowRight size={15} />
-          </button>
-        </div>
-
-        <div className="hero-panel">
-          <div className="hero-copy">
-            <span className="hero-tag">
-              <Zap size={13} /> YOUR IDEAS BELONG HERE
-            </span>
-            <h2>Knowledge grows when it is shared.</h2>
-            <p>
-              Find study materials, exchange perspectives, and meet people
-              who care about learning as much as you do.
-            </p>
-            <div className="hero-actions">
-              <button
-                className="button button-primary"
-                onClick={() => navigate("Research Hub")}
-              >
-                Explore resources <ArrowRight size={14} />
-              </button>
-              <button
-                className="button button-secondary"
-                onClick={() => navigate("Discussions")}
-              >
-                Join a discussion
-              </button>
-            </div>
-          </div>
-
-          <div className="hero-graphic" aria-hidden="true">
-            <div className="orbit orbit-one" />
-            <div className="orbit orbit-two" />
-            <div className="orbit orbit-three" />
-            <div className="hero-node node-one" />
-            <div className="hero-node node-two" />
-            <div className="hero-node node-three" />
-            <div className="hero-node node-four" />
-            <div className="hero-center">
-              <Activity size={36} />
-            </div>
-          </div>
-        </div>
-
-        <div className="section-heading">
-          <div>
-            <h2>Explore North Synapse</h2>
-            <p>Everything you need to make learning more connected.</p>
-          </div>
-        </div>
-
-        <div className="feature-grid">
-          <button
-            className="feature-card"
-            onClick={() => navigate("Research Hub")}
-          >
-            <span className="feature-icon"><BookOpen size={20} /></span>
-            <h3>Research Hub</h3>
-            <p>Share notes, find resources, and save useful study materials.</p>
-            <span className="feature-link">Explore resources <ArrowRight size={13} /></span>
-          </button>
-
-          <button
-            className="feature-card"
-            onClick={() => navigate("Study Lounge")}
-          >
-            <span className="feature-icon"><Clock3 size={20} /></span>
-            <h3>Study Lounge</h3>
-            <p>Find a quiet space to focus or study alongside other students.</p>
-            <span className="feature-link">Find a room <ArrowRight size={13} /></span>
-          </button>
-
-          <button
-            className="feature-card"
-            onClick={() => navigate("Discussions")}
-          >
-            <span className="feature-icon"><MessageCircle size={20} /></span>
-            <h3>Discussions</h3>
-            <p>Ask questions, share advice, and learn from your community.</p>
-            <span className="feature-link">Start a conversation <ArrowRight size={13} /></span>
-          </button>
-        </div>
-
-        <div className="section-heading">
-          <div>
-            <h2>Recently shared</h2>
-            <p>Resources from the student community.</p>
-          </div>
-          <button className="inline-link" onClick={() => navigate("Research Hub")}>
-            View all <ArrowRight size={13} />
-          </button>
-        </div>
-
-        <div className="resource-list">
-          {initialResources.slice(0, 3).map((item) => (
-            <button
-              key={item.id}
-              className="resource-row"
-              onClick={() => {
-                setPreviewResource(item);
-                navigate("Research Hub");
-              }}
-            >
-              <span className="resource-file-icon"><FileText size={18} /></span>
-              <span className="resource-row-main">
-                <strong>{item.title}</strong>
-                <span>{item.subject} · {item.grade} · by {item.author}</span>
-              </span>
-              <span className="resource-row-stats">
-                <Heart size={13} /> {item.likes}
-              </span>
-              <ArrowRight size={14} />
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-    // 12. Research Hub
-  function renderResearchHub() {
-    return (
-      <div className="page-enter">
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">
-              <span className="eyebrow-line" />
-              THE KNOWLEDGE LIBRARY
-            </div>
-            <h1>
-              Research <span className="gradient-text">Hub.</span>
-            </h1>
-            <p className="page-subtitle">
-              Student-made notes, study guides, and ideas worth sharing.
-            </p>
-          </div>
-
-          <button
-            className="button button-primary"
-            onClick={() => {
-              if (requireLogin()) setResourceModalOpen(true);
-            }}
-          >
-            <Plus size={15} /> Publish a resource
-          </button>
-        </div>
-
-        <label className="hub-search">
-          <Search size={17} />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search notes, subjects, keywords, or authors..."
-          />
-          <span className="muted-small">
-            {filteredResources.length} RESULTS
-          </span>
-        </label>
-
-        <div className="filter-panel">
-          <div className="filter-row">
-            <span className="filter-label">SUBJECT</span>
-            <div className="filter-chips">
-              {subjects.map((subject) => (
-                <button
-                  key={subject}
-                  className={`chip ${
-                    subjectFilter === subject ? "selected" : ""
-                  }`}
-                  onClick={() => setSubjectFilter(subject)}
-                >
-                  {subject}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="filter-row">
-            <span className="filter-label">GRADE</span>
-            <div className="filter-chips">
-              {grades.map((grade) => (
-                <button
-                  key={grade}
-                  className={`chip ${
-                    gradeFilter === grade ? "selected" : ""
-                  }`}
-                  onClick={() => setGradeFilter(grade)}
-                >
-                  {grade}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="filter-bottom">
-            <span>{filteredResources.length} resources found</span>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 7,
-              }}
-            >
-              <ArrowDownUp size={13} />
-              <select
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value)}
-                style={{ width: "auto", padding: "6px", fontSize: 10 }}
-              >
-                <option>Newest</option>
-                <option>Most Liked</option>
-                <option>Most Saved</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <div className="section-title-row">
-          <div>
-            <h2>All resources</h2>
-            <p>Created by students, for students.</p>
-          </div>
-        </div>
-
-        {filteredResources.length === 0 ? (
-          <div className="panel empty-dashboard">
-            <Search size={25} />
-            <h3>No resources found</h3>
-            <p>Try another keyword or change your filters.</p>
-            <button
-              className="button button-secondary"
-              onClick={() => {
-                setQuery("");
-                setSubjectFilter("All Subjects");
-                setGradeFilter("All Grades");
-              }}
-            >
-              Clear filters
-            </button>
-          </div>
-        ) : (
-          <div className="resource-grid">
-            {filteredResources.map((resource) => (
-              <article className="resource-card" key={resource.id}>
-                <div className="resource-card-top">
-                  <span className="badge">{resource.subject}</span>
-                  <button
-                    className="icon-button"
-                    aria-label="Report resource"
-                    onClick={() => reportContent(resource.title)}
-                  >
-                    <Flag size={13} />
-                  </button>
-                </div>
-
-                <h3 style={{ marginTop: 16, fontSize: 15 }}>
-                  {resource.title}
-                </h3>
-                <p>{resource.description}</p>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    marginBottom: 14,
-                  }}
-                >
-                  <span className="muted-small">{resource.grade}</span>
-                  <span className="muted-small">{resource.date}</span>
-                </div>
-
-                <div className="resource-card-actions">
-                  <span className="muted-small">{resource.author}</span>
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <button
-                      className="icon-button"
-                      aria-label="Like resource"
-                      onClick={() => toggleLike(resource.id)}
-                      style={{
-                        color: likedIds.includes(resource.id)
-                          ? "var(--purple)"
-                          : undefined,
-                      }}
-                    >
-                      <Heart
-                        size={14}
-                        fill={
-                          likedIds.includes(resource.id)
-                            ? "currentColor"
-                            : "none"
-                        }
-                      />
-                      {resource.likes}
-                    </button>
-
-                    <button
-                      className="icon-button"
-                      aria-label="Save resource"
-                      onClick={() => toggleSave(resource.id)}
-                      style={{
-                        color: savedIds.includes(resource.id)
-                          ? "var(--purple)"
-                          : undefined,
-                      }}
-                    >
-                      <Bookmark
-                        size={14}
-                        fill={
-                          savedIds.includes(resource.id)
-                            ? "currentColor"
-                            : "none"
-                        }
-                      />
-                      {resource.saves}
-                    </button>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // 13. Study Lounge
-  function renderStudyLounge() {
-    const room = rooms.find((item) => item.id === activeRoom);
-
-    return (
-      <div className="page-enter">
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">
-              <span className="eyebrow-line" />
-              FOCUS TOGETHER
-            </div>
-            <h1>
-              Study <span className="gradient-text">Lounge.</span>
-            </h1>
-            <p className="page-subtitle">
-              Find a quiet corner, set an intention, and get things done.
-            </p>
-          </div>
-
-          <button
-            className="button button-primary"
-            onClick={() => {
-              if (requireLogin()) setRoomModalOpen(true);
-            }}
-          >
-            <Plus size={15} /> Create a room
-          </button>
-        </div>
-
-        {room ? (
-          <div className="panel">
-            <button
-              className="button button-ghost"
-              onClick={() => setActiveRoom(null)}
-            >
-              <ArrowRight
-                size={14}
-                style={{ transform: "rotate(180deg)" }}
-              />{" "}
-              Back to rooms
-            </button>
-
-            <div style={{ textAlign: "center", padding: "35px 10px" }}>
-              <span className="avatar" style={{ width: 60, height: 60 }}>
-                <Clock3 size={26} />
-              </span>
-
-              <h2 style={{ marginTop: 20 }}>{room.name}</h2>
-              <p className="page-subtitle">
-                {room.subject} · {room.privacy} room
-              </p>
-
-              <div style={{ margin: "22px auto", maxWidth: 340 }}>
-                <FocusTimer />
-              </div>
-
-              <p className="muted-small">
-                This timer runs in your browser only. Live room presence and
-                chat will be added with backend integration.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="stats-grid">
-              <div className="stat-card">
-                <span>AVAILABLE ROOMS</span>
-                <strong>{rooms.length}</strong>
-                <span>Study spaces in this demo</span>
-              </div>
-
-              <div className="stat-card">
-                <span>PUBLIC ROOMS</span>
-                <strong>
-                  {rooms.filter((item) => item.privacy === "Public").length}
-                </strong>
-                <span>Open to join</span>
-              </div>
-
-              <div className="stat-card">
-                <span>YOUR FOCUS</span>
-                <strong>25 min</strong>
-                <span>Suggested focus session</span>
-              </div>
-
-              <div className="stat-card">
-                <span>ROOM STATUS</span>
-                <strong>Ready</strong>
-                <span>Choose a room to begin</span>
-              </div>
-            </div>
-
-            <div style={{ height: 30 }} />
-
-            <div className="section-title-row">
-              <div>
-                <h2>Find your space</h2>
-                <p>Choose a room that fits your study mood.</p>
-              </div>
-            </div>
-
-            <div className="room-grid">
-              {rooms.map((item) => (
-                <article className="room-card" key={item.id}>
-                  <div className="resource-card-top">
-                    <span className="avatar">
-                      <Users size={17} />
-                    </span>
-                    <span className="badge">{item.privacy}</span>
-                  </div>
-
-                  <h3 style={{ marginTop: 17 }}>{item.name}</h3>
-                  <p>{item.subject}</p>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      margin: "15px 0",
-                    }}
-                  >
-                    <span className="muted-small">
-                      HOST: {item.creator}
-                    </span>
-                    <span className="muted-small">
-                      <Users size={12} /> {item.online} online*
-                    </span>
-                  </div>
-
-                  <button
-                    className="button button-secondary button-wide"
-                    onClick={() => {
-                      if (item.privacy === "Private") {
-                        notify(
-                          "Private room codes will be connected to the backend."
-                        );
-                        return;
-                      }
-
-                      setActiveRoom(item.id);
-                    }}
-                  >
-                    Enter room <ArrowRight size={14} />
-                  </button>
-                </article>
-              ))}
-            </div>
-
-            <p className="muted-small" style={{ marginTop: 15 }}>
-              *Sample counts only; live presence is not connected yet.
-            </p>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  // 14. 讨论区
-  function renderDiscussions() {
-    return (
-      <div className="page-enter">
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">
-              <span className="eyebrow-line" />
-              STUDENT VOICES
-            </div>
-            <h1>
-              Discussions<span className="gradient-text">.</span>
-            </h1>
-            <p className="page-subtitle">
-              Ask questions, exchange perspectives, and help each other out.
-            </p>
-          </div>
-
-          <button
-            className="button button-primary"
-            onClick={() => {
-              if (requireLogin()) setDiscussionModalOpen(true);
-            }}
-          >
-            <Plus size={15} /> New discussion
-          </button>
-        </div>
-
-        <div className="hub-search">
-          <MessageCircle size={17} />
-          <span style={{ fontSize: 11, color: "var(--muted)" }}>
-            Be curious. Be constructive. Keep the conversation respectful.
-          </span>
-        </div>
-
-        <div style={{ display: "grid", gap: 13 }}>
-          {discussions.map((item) => (
-            <article className="discussion-card" key={item.id}>
-              <div className="resource-card-top">
-                <span className="badge">
-                  <Hash size={11} /> {item.category}
-                </span>
-
-                <button
-                  className="icon-button"
-                  aria-label="Report discussion"
-                  onClick={() => reportContent(item.title)}
-                >
-                  <Flag size={13} />
-                </button>
-              </div>
-
-              <h3 style={{ marginTop: 15, fontSize: 16 }}>{item.title}</h3>
-              <p>{item.body}</p>
-
-              <div className="resource-card-actions">
-                <span className="muted-small">
-                  Posted by {item.author}
-                </span>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 12,
-                    alignItems: "center",
-                  }}
-                >
-                  <button
-                    className="button button-ghost button-small"
-                    onClick={() => voteDiscussion(item.id)}
-                  >
-                    <ArrowRight
-                      size={13}
-                      style={{ transform: "rotate(-90deg)" }}
-                    />
-                    {item.votes}
-                  </button>
-
-                  <span className="muted-small">
-                    <MessageCircle size={12} /> {item.replies} replies
-                  </span>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // 15. 公告
-  function renderAnnouncements() {
-    return (
-      <div className="page-enter">
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">
-              <span className="eyebrow-line" />
-              COMMUNITY UPDATES
-            </div>
-            <h1>
-              Announcements<span className="gradient-text">.</span>
-            </h1>
-            <p className="page-subtitle">
-              Updates and information for the North Synapse community.
-            </p>
-          </div>
-        </div>
-
-        <article className="notice-card">
-          <div className="resource-card-top">
-            <span className="badge">
-              <Bell size={12} /> COMMUNITY NOTICE
-            </span>
-            <span className="muted-small">LATEST UPDATE</span>
-          </div>
-
-          <h2 style={{ marginTop: 22, fontSize: 22 }}>
-            Welcome to North Synapse
-          </h2>
-
-          <p style={{ lineHeight: 1.9, color: "var(--muted)" }}>
-            {announcementText}
-          </p>
-
-          <div className="resource-card-actions">
-            <span className="muted-small">North Synapse Team</span>
-            <span className="muted-small">Community update</span>
-          </div>
-        </article>
-
-        <div style={{ height: 15 }} />
-
-        <div className="panel">
-          <h3>Community guidelines</h3>
-          <p>
-            North Synapse is a space for learning, sharing, and constructive
-            discussion. Please respect other students, protect personal
-            information, and report inappropriate content when necessary.
-          </p>
-        </div>
-      </div>
-    );
-  }
-  
-  // 16. 反馈页面
-  function renderFeedback() {
-    return (
-      <div className="page-enter">
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">HELP US IMPROVE</div>
-            <h1>Feedback<span className="gradient-text">.</span></h1>
-            <p className="page-subtitle">
-              Share your ideas and help improve North Synapse.
-            </p>
-          </div>
-        </div>
-
-        <div className="panel">
-          <h2>Rate your experience</h2>
-          <p>Your feedback helps us build a better learning community.</p>
-
-          <div style={{ display: "flex", gap: 10, margin: "20px 0" }}>
-            {[1, 2, 3, 4, 5].map((rating) => (
-              <button
-                key={rating}
-                className="icon-button"
-                onClick={() => setFeedbackRating(rating)}
-                aria-label={`Rate ${rating} out of 5`}
-                style={{
-                  color:
-                    rating <= feedbackRating
-                      ? "var(--purple)"
-                      : "var(--muted)",
-                  fontSize: 22,
-                }}
-              >
-                ★
-              </button>
-            ))}
-          </div>
-
-          <label className="field-label">Your feedback</label>
-          <textarea
-            className="text-area"
-            value={feedbackText}
-            onChange={(event) => setFeedbackText(event.target.value)}
-            placeholder="Tell us what works well or what we could improve..."
-            rows={5}
-          />
-
-          <button
-            className="button button-primary"
-            style={{ marginTop: 15 }}
-            onClick={() => {
-              if (!requireLogin()) return;
-
-              if (!feedbackRating || !feedbackText.trim()) {
-                notify("Please select a rating and enter your feedback.");
-                return;
-              }
-
-              notify("Feedback submitted in this demo session.");
-              setFeedbackRating(0);
-              setFeedbackText("");
-            }}
-          >
-            <Send size={14} /> Submit feedback
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // 17. 个人主页
-  function renderDashboard() {
-    return (
-      <div className="page-enter">
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">YOUR SPACE</div>
-            <h1>Dashboard<span className="gradient-text">.</span></h1>
-            <p className="page-subtitle">
-              Your learning activity and community profile.
-            </p>
-          </div>
-        </div>
-
-        {loggedIn ? (
-          <div className="panel">
-            <div className="resource-card-top">
-              <span className="avatar" style={{ width: 56, height: 56 }}>
-                {username.charAt(0).toUpperCase()}
-              </span>
-              <span className="badge">Student</span>
-            </div>
-
-            <h2 style={{ marginTop: 18 }}>{username}</h2>
-            <p className="page-subtitle">North Synapse member</p>
-
-            <div className="stats-grid" style={{ marginTop: 25 }}>
-              <div className="stat-card">
-                <span>PUBLISHED RESOURCES</span>
-                <strong>
-                  {resources.filter((item) => item.author === username).length}
-                </strong>
-              </div>
-              <div className="stat-card">
-                <span>LIKED RESOURCES</span>
-                <strong>{likedIds.length}</strong>
-              </div>
-              <div className="stat-card">
-                <span>SAVED RESOURCES</span>
-                <strong>{savedIds.length}</strong>
-              </div>
-              <div className="stat-card">
-                <span>DISCUSSIONS</span>
-                <strong>
-                  {discussions.filter((item) => item.author === username).length}
-                </strong>
-              </div>
-            </div>
-
-            <button
-              className="button button-secondary"
-              style={{ marginTop: 20 }}
-              onClick={handleLogout}
-            >
-              Sign out
-            </button>
-          </div>
-        ) : (
-          <div className="panel empty-dashboard">
-            <Users size={28} />
-            <h2>Your profile starts here.</h2>
-            <p>Sign in to view your community activity.</p>
-            <button
-              className="button button-primary"
-              onClick={() => {
-                setAuthMode("login");
-                setAuthOpen(true);
-              }}
-            >
-              Sign in
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // 18. 主页面与弹窗
+function SectionHeading({
+  title,
+  action,
+  onAction,
+}: {
+  title: string;
+  action?: string;
+  onAction?: () => void;
+}) {
   return (
-    <div className={`app-shell ${darkMode ? "dark-mode" : "light-mode"}`}>
-      {renderSidebar()}
-
-      <main className="main-area">
-        {renderTopbar()}
-
-        <div className="page-content">
-          {section === "Overview" && renderOverview()}
-          {section === "Research Hub" && renderResearchHub()}
-          {section === "Study Lounge" && renderStudyLounge()}
-          {section === "Discussions" && renderDiscussions()}
-          {section === "Announcements" && renderAnnouncements()}
-          {section === "Feedback" && renderFeedback()}
-          {section === "Dashboard" && renderDashboard()}
-        </div>
-      </main>
-
-      {toast && (
-        <div className="toast-message" role="status">
-          <Check size={15} />
-          <span>{toast}</span>
-          <button
-            className="icon-button"
-            aria-label="Dismiss notification"
-            onClick={() => setToast("")}
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
-      {authOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <button
-              className="modal-close icon-button"
-              aria-label="Close"
-              onClick={() => setAuthOpen(false)}
-            >
-              <X size={17} />
-            </button>
-
-            <div className="eyebrow">NORTH SYNAPSE ACCOUNT</div>
-            <h2>{authMode === "login" ? "Welcome back." : "Join the community."}</h2>
-            <p className="page-subtitle">
-              Use your account to participate in the student community.
-            </p>
-
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void handleAuth();
-              }}
-            >
-              <label className="field-label">Email address</label>
-              <input
-                className="text-input"
-                type="email"
-                value={authEmail}
-                onChange={(event) => setAuthEmail(event.target.value)}
-                placeholder="you@example.com"
-                required
-              />
-
-              <label className="field-label">Password</label>
-              <input
-                className="text-input"
-                type="password"
-                value={authPassword}
-                onChange={(event) => setAuthPassword(event.target.value)}
-                placeholder="Enter your password"
-                minLength={6}
-                required
-              />
-
-              {authMode === "register" && (
-                <>
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={isStudent}
-                      onChange={(event) => setIsStudent(event.target.checked)}
-                    />
-                    I confirm that I am eligible to join the NTCI student community.
-                  </label>
-
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={acceptedTerms}
-                      onChange={(event) => setAcceptedTerms(event.target.checked)}
-                    />
-                    I agree to the Terms of Service.
-                  </label>
-
-                  <button
-                    type="button"
-                    className="inline-link"
-                    onClick={() => setTermsOpen(true)}
-                  >
-                    Read Terms of Service
-                  </button>
-                </>
-              )}
-
-              <button
-                className="button button-primary button-wide"
-                type="submit"
-                style={{ marginTop: 18 }}
-              >
-                {authMode === "login" ? "Sign in" : "Create account"}
-                <ArrowRight size={14} />
-              </button>
-            </form>
-
-            <p className="modal-switch">
-              {authMode === "login"
-                ? "New to North Synapse?"
-                : "Already have an account?"}{" "}
-              <button
-                className="inline-link"
-                onClick={() =>
-                  setAuthMode(authMode === "login" ? "register" : "login")
-                }
-              >
-                {authMode === "login" ? "Create an account" : "Sign in"}
-              </button>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {termsOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <button
-              className="modal-close icon-button"
-              aria-label="Close terms"
-              onClick={() => setTermsOpen(false)}
-            >
-              <X size={17} />
-            </button>
-
-            <h2>Terms of Service</h2>
-            <p>
-              North Synapse is intended for eligible NTCI students. Use the
-              platform respectfully, share only content you have permission
-              to share, protect personal information, and do not harass other
-              users or post harmful or misleading material.
-            </p>
-            <p>
-              Content submitted by users may be reviewed by authorized
-              administrators. Please report content that violates community
-              guidelines.
-            </p>
-            <button
-              className="button button-primary"
-              onClick={() => {
-                setAcceptedTerms(true);
-                setTermsOpen(false);
-              }}
-            >
-              I agree
-            </button>
-          </div>
-        </div>
-      )}
-
-      {resourceModalOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <button
-              className="modal-close icon-button"
-              aria-label="Close"
-              onClick={() => setResourceModalOpen(false)}
-            >
-              <X size={17} />
-            </button>
-
-            <h2>Publish a resource</h2>
-            <p className="page-subtitle">
-              Share useful learning materials with other students.
-            </p>
-
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                publishResource();
-              }}
-            >
-              <label className="field-label">Resource title</label>
-              <input
-                className="text-input"
-                value={resourceTitle}
-                onChange={(event) => setResourceTitle(event.target.value)}
-                placeholder="Give your resource a clear title"
-                required
-              />
-
-              <label className="field-label">Description</label>
-              <textarea
-                className="text-area"
-                value={resourceDescription}
-                onChange={(event) => setResourceDescription(event.target.value)}
-                placeholder="What will students learn from this resource?"
-                rows={4}
-                required
-              />
-
-              <label className="field-label">Subject</label>
-              <select
-                className="text-input"
-                value={resourceSubject}
-                onChange={(event) => setResourceSubject(event.target.value)}
-              >
-                {subjects.filter((item) => item !== "All Subjects").map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-
-              <label className="field-label">Grade</label>
-              <select
-                className="text-input"
-                value={resourceGrade}
-                onChange={(event) => setResourceGrade(event.target.value)}
-              >
-                {grades.filter((item) => item !== "All Grades").map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-
-              <button
-                className="button button-primary button-wide"
-                type="submit"
-                style={{ marginTop: 18 }}
-              >
-                Publish resource
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {discussionModalOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <button
-              className="modal-close icon-button"
-              aria-label="Close"
-              onClick={() => setDiscussionModalOpen(false)}
-            >
-              <X size={17} />
-            </button>
-
-            <h2>Start a discussion</h2>
-
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                publishDiscussion();
-              }}
-            >
-              <label className="field-label">Title</label>
-              <input
-                className="text-input"
-                value={discussionTitle}
-                onChange={(event) => setDiscussionTitle(event.target.value)}
-                placeholder="What would you like to discuss?"
-                required
-              />
-
-              <label className="field-label">Category</label>
-              <select
-                className="text-input"
-                value={discussionCategory}
-                onChange={(event) => setDiscussionCategory(event.target.value)}
-              >
-                <option>Study Tips</option>
-                <option>Course Selection</option>
-                <option>Computer Science</option>
-                <option>School Life</option>
-                <option>Questions</option>
-              </select>
-
-              <label className="field-label">Details</label>
-              <textarea
-                className="text-area"
-                value={discussionBody}
-                onChange={(event) => setDiscussionBody(event.target.value)}
-                placeholder="Share some context..."
-                rows={5}
-                required
-              />
-
-              <button
-                className="button button-primary button-wide"
-                type="submit"
-                style={{ marginTop: 18 }}
-              >
-                Publish discussion
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {roomModalOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <button
-              className="modal-close icon-button"
-              aria-label="Close"
-              onClick={() => setRoomModalOpen(false)}
-            >
-              <X size={17} />
-            </button>
-
-            <h2>Create a study room</h2>
-
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                createRoom();
-              }}
-            >
-              <label className="field-label">Room name</label>
-              <input
-                className="text-input"
-                value={roomName}
-                onChange={(event) => setRoomName(event.target.value)}
-                placeholder="e.g. Evening Math Focus"
-                required
-              />
-
-              <label className="field-label">Subject</label>
-              <select
-                className="text-input"
-                value={roomSubject}
-                onChange={(event) => setRoomSubject(event.target.value)}
-              >
-                <option>General Study</option>
-                <option>Mathematics</option>
-                <option>Science</option>
-                <option>English</option>
-                <option>Computer Science</option>
-              </select>
-
-              <label className="field-label">Room privacy</label>
-              <select
-                className="text-input"
-                value={roomPrivacy}
-                onChange={(event) =>
-                  setRoomPrivacy(event.target.value as "Public" | "Private")
-                }
-              >
-                <option value="Public">Public</option>
-                <option value="Private">Private</option>
-              </select>
-
-              <button
-                className="button button-primary button-wide"
-                type="submit"
-                style={{ marginTop: 18 }}
-              >
-                Create room
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {previewResource && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <button
-              className="modal-close icon-button"
-              aria-label="Close resource"
-              onClick={() => {
-                setPreviewResource(null);
-                setCommentText("");
-              }}
-            >
-              <X size={17} />
-            </button>
-
-            <span className="badge">{previewResource.subject}</span>
-            <h2 style={{ marginTop: 15 }}>{previewResource.title}</h2>
-            <p>{previewResource.description}</p>
-            <p className="muted-small">
-              {previewResource.grade} · by {previewResource.author}
-            </p>
-
-            <div className="section-title-row">
-              <h3>Comments</h3>
-            </div>
-
-            {(resourceComments[previewResource.id] ?? []).map((comment, index) => (
-              <p className="panel" key={`${previewResource.id}-${index}`}>
-                {comment}
-              </p>
-            ))}
-
-            <textarea
-              className="text-area"
-              value={commentText}
-              onChange={(event) => setCommentText(event.target.value)}
-              placeholder="Write a comment..."
-              rows={3}
-            />
-
-            <button
-              className="button button-primary"
-              style={{ marginTop: 12 }}
-              onClick={() => {
-                if (!requireLogin()) return;
-                if (!commentText.trim()) {
-                  notify("Please enter a comment.");
-                  return;
-                }
-
-                setResourceComments((current) => ({
-                  ...current,
-                  [previewResource.id]: [
-                    ...(current[previewResource.id] ?? []),
-                    `${username}: ${commentText.trim()}`,
-                  ],
-                }));
-                setCommentText("");
-                notify("Comment added to this demo session.");
-              }}
-            >
-              <Send size={14} /> Add comment
-            </button>
-          </div>
-        </div>
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <h2 className="text-base font-bold tracking-tight">{title}</h2>
+      {action && (
+        <button
+          onClick={onAction}
+          className="flex items-center gap-1 text-xs font-semibold text-[var(--primary)] hover:opacity-75"
+        >
+          {action} <ArrowRight size={14} />
+        </button>
       )}
     </div>
   );
 }
 
-// 19. 自习计时器组件
-function FocusTimer() {
-  const [minutes, setMinutes] = useState(25);
+export default function Home() {
+  const [activeNav, setActiveNav] = useState("Dashboard");
+  const [darkMode, setDarkMode] = useState(false);
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const [search, setSearch] = useState("");
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+
+  function toggleTheme() {
+    const next = !darkMode;
+    setDarkMode(next);
+    document.documentElement.classList.toggle("dark", next);
+  }
+
+  const filteredDiscussions = discussions.filter((discussion) =>
+    `${discussion.title} ${discussion.text} ${discussion.tag} ${discussion.name}`
+      .toLowerCase()
+      .includes(search.toLowerCase())
+  );
+
+  const section = navigation.find((item) => item.label === activeNav);
 
   return (
-    <div className="panel">
-      <div className="eyebrow">FOCUS SESSION</div>
-      <div
-        style={{
-          fontSize: 42,
-          fontWeight: 700,
-          letterSpacing: "-0.04em",
-          margin: "15px 0",
-        }}
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      {mobileMenu && (
+        <button
+          aria-label="Close navigation"
+          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
+          onClick={() => setMobileMenu(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-[248px] flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-transform duration-200 lg:translate-x-0 ${
+          mobileMenu ? "translate-x-0" : "-translate-x-full"
+        }`}
       >
-        {String(minutes).padStart(2, "0")}:00
-      </div>
-      <p className="muted-small">
-        Choose a session length. A live countdown will be added later.
-      </p>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          gap: 8,
-          flexWrap: "wrap",
-          marginTop: 15,
-        }}
-      >
-        {[15, 25, 45, 60].map((value) => (
+        <div className="flex h-[82px] items-center justify-between px-6">
           <button
-            key={value}
-            className={`chip ${minutes === value ? "selected" : ""}`}
-            onClick={() => setMinutes(value)}
+            className="flex items-center gap-3 text-left"
+            onClick={() => setActiveNav("Dashboard")}
           >
-            {value} min
+            <span className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#8250ed] text-white shadow-md shadow-purple-200/40">
+              <Activity size={23} strokeWidth={2.2} />
+            </span>
+            <span>
+              <span className="block text-[17px] font-extrabold tracking-tight">
+                North Synapse
+              </span>
+              <span className="block text-[10px] font-semibold uppercase tracking-[2px] text-[var(--muted)]">
+                Learn together
+              </span>
+            </span>
           </button>
+          <button
+            aria-label="Close menu"
+            className="rounded-lg p-2 hover:bg-[var(--surface-secondary)] lg:hidden"
+            onClick={() => setMobileMenu(false)}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-4 pt-5">
+          <button
+            onClick={() => setActiveNav("Dashboard")}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${
+              activeNav === "Dashboard"
+                ? "bg-[var(--primary-soft)] text-[var(--primary)]"
+                : "text-[var(--muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            <LayoutDashboard size={18} />
+            Dashboard
+            {activeNav === "Dashboard" && (
+              <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
+            )}
+          </button>
+        </div>
+
+        {["Workspace", "Community"].map((group) => (
+          <div className="px-4 pt-7" key={group}>
+            <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[1.8px] text-[var(--muted)]">
+              {group}
+            </p>
+            <div className="space-y-1">
+              {navigation
+                .filter(
+                  (item) =>
+                    item.group === group && item.label !== "Dashboard"
+                )
+                .map((item) => {
+                  const Icon = item.icon;
+                  const active = activeNav === item.label;
+                  return (
+                    <button
+                      key={item.label}
+                      onClick={() => {
+                        setActiveNav(item.label);
+                        setMobileMenu(false);
+                      }}
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition ${
+                        active
+                          ? "bg-[var(--primary-soft)] text-[var(--primary)]"
+                          : "text-[var(--muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)]"
+                      }`}
+                    >
+                      <Icon size={17} />
+                      {item.label}
+                      {item.label === "Discussions" && (
+                        <span className="ml-auto rounded-md bg-[var(--surface-secondary)] px-1.5 py-0.5 text-[10px]">
+                          8
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
         ))}
+
+        <div className="mx-4 mt-8 border-t border-[var(--border)] pt-6">
+          <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[1.8px] text-[var(--muted)]">
+            Personal
+          </p>
+          <button
+            onClick={() => setActiveNav("My Profile")}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium ${
+              activeNav === "My Profile"
+                ? "bg-[var(--primary-soft)] text-[var(--primary)]"
+                : "text-[var(--muted)] hover:bg-[var(--surface-secondary)]"
+            }`}
+          >
+            <GraduationCap size={17} />
+            My Profile
+          </button>
+          <button
+            onClick={() => setActiveNav("Settings")}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium ${
+              activeNav === "Settings"
+                ? "bg-[var(--primary-soft)] text-[var(--primary)]"
+                : "text-[var(--muted)] hover:bg-[var(--surface-secondary)]"
+            }`}
+          >
+            <Settings size={17} />
+            Settings
+          </button>
+        </div>
+
+        <div className="mt-auto p-4">
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--background)] p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary-soft)] text-[var(--primary)]">
+                <Sparkles size={16} />
+              </span>
+              <span className="text-xs font-bold">A space to grow</span>
+            </div>
+            <p className="mb-3 text-[11px] leading-relaxed text-[var(--muted)]">
+              Share what you know. Discover what you don&apos;t.
+            </p>
+            <div className="h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
+              <div className="h-full w-[68%] rounded-full bg-[var(--primary)]" />
+            </div>
+            <p className="mt-2 text-[10px] text-[var(--muted)]">
+              Community is growing
+            </p>
+          </div>
+          <div className="mt-4 flex items-center gap-3 rounded-xl px-2 py-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e7e0ff] text-xs font-bold text-[#6941c6]">
+              SL
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-bold">Student Member</p>
+              <p className="text-[10px] text-[var(--muted)]">Learning account</p>
+            </div>
+            <button
+              aria-label="Account options"
+              onClick={() => setActiveNav("My Profile")}
+              className="rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--surface-secondary)]"
+            >
+              <MoreHorizontal size={18} />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <div className="min-h-screen lg:pl-[248px]">
+        <header className="sticky top-0 z-30 flex h-[74px] items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface)]/95 px-4 backdrop-blur-xl sm:px-7 xl:px-10">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              aria-label="Open navigation"
+              onClick={() => setMobileMenu(true)}
+              className="rounded-xl p-2 hover:bg-[var(--surface-secondary)] lg:hidden"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="relative hidden w-[min(36vw,340px)] sm:block">
+              <Search
+                size={17}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+              />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search discussions..."
+                className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] pl-10 pr-4 text-xs outline-none transition focus:border-[var(--primary)]"
+              />
+              <span className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--muted)] md:block">
+                /
+              </span>
+            </div>
+            <span className="truncate text-sm font-bold sm:hidden">
+              {activeNav}
+            </span>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <button
+              aria-label="Toggle theme"
+              onClick={toggleTheme}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-secondary)]"
+            >
+              {darkMode ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
+            <div className="relative">
+              <button
+                aria-label="Notifications"
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-secondary)]"
+              >
+                <Bell size={17} />
+                <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#ef8068]" />
+              </button>
+              {showNotifications && (
+                <div className="absolute right-0 top-12 z-50 w-64 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl">
+                  <p className="font-bold">Notifications</p>
+                  <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+                    You&apos;re all caught up. New community notifications will
+                    appear here.
+                  </p>
+                  <button
+                    onClick={() => setShowNotifications(false)}
+                    className="mt-3 text-xs font-semibold text-[var(--primary)]"
+                  >
+                    Close
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="hidden h-8 w-px bg-[var(--border)] sm:block" />
+            <button
+              onClick={() => setActiveNav("My Profile")}
+              className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-[var(--surface-secondary)]"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e7e0ff] text-[11px] font-bold text-[#6941c6]">
+                SL
+              </span>
+              <span className="hidden text-left sm:block">
+                <span className="block text-xs font-bold">Student</span>
+                <span className="block text-[10px] text-[var(--muted)]">
+                  Member
+                </span>
+              </span>
+              <ChevronDown
+                size={14}
+                className="hidden text-[var(--muted)] sm:block"
+              />
+            </button>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-[1600px] p-4 sm:p-7 xl:p-10">
+          {activeNav === "Dashboard" ? (
+            <>
+              <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--muted)]">
+                    <CalendarDays size={14} />
+                    YOUR LEARNING SPACE
+                  </div>
+                  <h1 className="text-[27px] font-extrabold tracking-tight sm:text-[32px]">
+                    Good to have you here <span>✦</span>
+                  </h1>
+                  <p className="mt-1.5 text-sm text-[var(--muted)]">
+                    A little progress every day adds up to something great.
+                  </p>
+                </div>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowCreateMenu(!showCreateMenu)}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-[#8250ed] px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-purple-200/30 transition hover:bg-[#7040d9]"
+                  >
+                    <Plus size={16} />
+                    Create something
+                    <ChevronDown size={14} />
+                  </button>
+                  {showCreateMenu && (
+                    <div className="absolute right-0 top-12 z-20 w-52 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl">
+                      {[
+                        ["Discussion", MessageCircle],
+                        ["Resource", FileText],
+                        ["Study room", Users],
+                      ].map(([label, Icon]) => {
+                        const ItemIcon = Icon as typeof Plus;
+                        return (
+                          <button
+                            key={label as string}
+                            onClick={() => {
+                              setActiveNav(
+                                label === "Discussion"
+                                  ? "Discussions"
+                                  : label === "Resource"
+                                    ? "Resources"
+                                    : "Study Rooms"
+                              );
+                              setShowCreateMenu(false);
+                            }}
+                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs hover:bg-[var(--surface-secondary)]"
+                          >
+                            <ItemIcon size={16} />
+                            {label as string}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]">
+                  <div className="flex items-start justify-between">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f0eaff] text-[#8250ed]">
+                      <BookOpen size={19} />
+                    </span>
+                    <span className="flex items-center gap-1 rounded-full bg-[#e5f6ee] px-2 py-1 text-[10px] font-bold text-[#248763]">
+                      <ArrowUpRight size={12} /> 2
+                    </span>
+                  </div>
+                  <p className="mt-4 text-xs font-medium text-[var(--muted)]">
+                    Active courses
+                  </p>
+                  <p className="mt-1 text-[29px] font-extrabold tracking-tight">
+                    3
+                  </p>
+                  <p className="mt-1 text-[10px] text-[var(--muted)]">
+                    Courses in your workspace
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]">
+                  <div className="flex items-start justify-between">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e1f5f0] text-[#258f82]">
+                      <Clock3 size={19} />
+                    </span>
+                    <span className="flex items-center gap-1 rounded-full bg-[#e5f6ee] px-2 py-1 text-[10px] font-bold text-[#248763]">
+                      <ArrowUpRight size={12} /> 12%
+                    </span>
+                  </div>
+                  <p className="mt-4 text-xs font-medium text-[var(--muted)]">
+                    Study time
+                  </p>
+                  <p className="mt-1 text-[29px] font-extrabold tracking-tight">
+                    8.5<span className="ml-1 text-sm font-semibold">hrs</span>
+                  </p>
+                  <p className="mt-1 text-[10px] text-[var(--muted)]">
+                    This week
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]">
+                  <div className="flex items-start justify-between">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fff0dd] text-[#d78b35]">
+                      <Flame size={19} />
+                    </span>
+                    <span className="rounded-full bg-[var(--surface-secondary)] px-2 py-1 text-[10px] font-semibold text-[var(--muted)]">
+                      Keep going
+                    </span>
+                  </div>
+                  <p className="mt-4 text-xs font-medium text-[var(--muted)]">
+                    Learning streak
+                  </p>
+                  <p className="mt-1 text-[29px] font-extrabold tracking-tight">
+                    5<span className="ml-1 text-sm font-semibold">days</span>
+                  </p>
+                  <p className="mt-1 text-[10px] text-[var(--muted)]">
+                    Your personal best is 8
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]">
+                  <div className="flex items-start justify-between">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e5efff] text-[#4c82d9]">
+                      <Users size={19} />
+                    </span>
+                    <span className="flex items-center gap-1 rounded-full bg-[#e5f6ee] px-2 py-1 text-[10px] font-bold text-[#248763]">
+                      <ArrowUpRight size={12} /> 4
+                    </span>
+                  </div>
+                  <p className="mt-4 text-xs font-medium text-[var(--muted)]">
+                    Community contributions
+                  </p>
+                  <p className="mt-1 text-[29px] font-extrabold tracking-tight">
+                    12
+                  </p>
+                  <p className="mt-1 text-[10px] text-[var(--muted)]">
+                    Posts and shared resources
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 items-start gap-7 2xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.85fr)]">
+                <div className="min-w-0 space-y-8">
+                  <section>
+                    <SectionHeading
+                      title="Your learning journey"
+                      action="All courses"
+                      onAction={() => setActiveNav("Resources")}
+                    />
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      {courses.map((course) => (
+                        <button
+                          key={course.code}
+                          onClick={() => setActiveNav("Resources")}
+                          className="group rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left shadow-[var(--shadow)] transition hover:-translate-y-0.5 hover:border-[var(--primary)]/40"
+                        >
+                          <div className="mb-5 flex items-center justify-between">
+                            <span
+                              className="flex h-11 w-11 items-center justify-center rounded-xl text-sm font-bold"
+                              style={{
+                                backgroundColor: course.background,
+                                color: course.color,
+                              }}
+                            >
+                              {course.symbol}
+                            </span>
+                            <MoreHorizontal
+                              size={18}
+                              className="text-[var(--muted)]"
+                            />
+                          </div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                            {course.code}
+                          </p>
+                          <h3 className="mt-1 text-sm font-bold">
+                            {course.name}
+                          </h3>
+                          <p className="mt-1 text-[11px] text-[var(--muted)]">
+                            {course.detail}
+                          </p>
+                          <div className="mt-5 flex items-center justify-between text-[10px]">
+                            <span className="text-[var(--muted)]">
+                              Progress
+                            </span>
+                            <span className="font-bold">
+                              {course.progress}%
+                            </span>
+                          </div>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--surface-secondary)]">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${course.progress}%`,
+                                backgroundColor: course.color,
+                              }}
+                            />
+                          </div>
+                          <div className="mt-4 flex items-center justify-between text-[10px] font-semibold text-[var(--muted)]">
+                            <span>Continue learning</span>
+                            <ArrowRight
+                              size={14}
+                              className="transition group-hover:translate-x-1"
+                            />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section>
+                    <SectionHeading
+                      title="Community discussions"
+                      action="Explore all"
+                      onAction={() => setActiveNav("Discussions")}
+                    />
+                    <div className="space-y-4">
+                      {filteredDiscussions.length > 0 ? (
+                        filteredDiscussions.map((discussion) => (
+                          <article
+                            key={discussion.title}
+                            className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] sm:p-6"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-slate-700"
+                                style={{
+                                  backgroundColor: discussion.color,
+                                }}
+                              >
+                                {discussion.initials}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-xs font-bold">
+                                    {discussion.name}
+                                  </span>
+                                  <span className="text-[10px] text-[var(--muted)]">
+                                    {discussion.time}
+                                  </span>
+                                </div>
+                                <h3 className="mt-2 text-sm font-bold leading-relaxed">
+                                  {discussion.title}
+                                </h3>
+                                <p className="mt-1.5 text-xs leading-6 text-[var(--muted)]">
+                                  {discussion.text}
+                                </p>
+                                <div className="mt-4 flex flex-wrap items-center gap-3">
+                                  <span className="rounded-lg bg-[var(--primary-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--primary)]">
+                                    {discussion.tag}
+                                  </span>
+                                  <span className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
+                                    <MessageCircle size={13} />
+                                    {discussion.replies} replies
+                                  </span>
+                                  <span className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
+                                    <ArrowUpRight size={13} />
+                                    {discussion.likes} helpful
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                aria-label="Discussion options"
+                                className="rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--surface-secondary)]"
+                              >
+                                <MoreHorizontal size={18} />
+                              </button>
+                            </div>
+                          </article>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+                          <Search
+                            size={24}
+                            className="mx-auto text-[var(--muted)]"
+                          />
+                          <p className="mt-3 text-sm font-semibold">
+                            No discussions found
+                          </p>
+                          <p className="mt-1 text-xs text-[var(--muted)]">
+                            Try another search term.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                </div>
+
+                <div className="min-w-0 space-y-7">
+                  <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]">
+                    <SectionHeading title="Weekly activity" />
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[28px] font-extrabold tracking-tight">
+                          8.5 hrs
+                        </p>
+                        <p className="mt-1 text-[11px] text-[var(--muted)]">
+                          Time invested this week
+                        </p>
+                      </div>
+                      <span className="flex items-center gap-1 rounded-lg bg-[#e5f6ee] px-2 py-1 text-[10px] font-bold text-[#248763]">
+                        <ArrowUpRight size={12} /> 12%
+                      </span>
+                    </div>
+                    <div className="mt-6 flex h-[110px] items-end justify-between gap-2">
+                      {[
+                        { day: "M", height: 40 },
+                        { day: "T", height: 65 },
+                        { day: "W", height: 48 },
+                        { day: "T", height: 82 },
+                        { day: "F", height: 58 },
+                        { day: "S", height: 96 },
+                        { day: "S", height: 28 },
+                      ].map((item, index) => (
+                        <div
+                          key={`${item.day}-${index}`}
+                          className="flex flex-1 flex-col items-center gap-2"
+                        >
+                          <div className="flex h-[88px] w-full items-end">
+                            <div
+                              className={`w-full rounded-t-md transition-opacity hover:opacity-70 ${
+                                index === 5
+                                  ? "bg-[#8250ed]"
+                                  : "bg-[var(--primary-soft)]"
+                              }`}
+                              style={{ height: `${item.height}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-[var(--muted)]">
+                            {item.day}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]">
+                    <SectionHeading
+                      title="Community board"
+                      action="View all"
+                      onAction={() => setActiveNav("Announcements")}
+                    />
+                    <div className="space-y-5">
+                      {announcements.map((announcement) => (
+                        <div
+                          key={announcement.title}
+                          className="flex gap-3"
+                        >
+                          <span
+                            className="mt-1 h-2 w-2 shrink-0 rounded-full"
+                            style={{
+                              backgroundColor: announcement.color,
+                            }}
+                          />
+                          <div>
+                            <p
+                              className="text-[9px] font-bold tracking-[1.2px]"
+                              style={{
+                                color: announcement.color,
+                              }}
+                            >
+                              {announcement.category}
+                            </p>
+                            <h3 className="mt-1 text-xs font-bold leading-relaxed">
+                              {announcement.title}
+                            </h3>
+                            <p className="mt-1 text-[11px] leading-relaxed text-[var(--muted)]">
+                              {announcement.detail}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#7750df] to-[#9b7af5] p-5 text-white shadow-lg shadow-purple-200/20">
+                    <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
+                      <Compass size={21} />
+                    </div>
+                    <p className="text-[10px] font-bold uppercase tracking-[1.6px] text-white/70">
+                      Discover more
+                    </p>
+                    <h3 className="mt-2 text-lg font-bold leading-snug">
+                      Knowledge grows when it is shared.
+                    </h3>
+                    <p className="mt-2 text-xs leading-relaxed text-white/80">
+                      Find new perspectives, ask questions, and contribute to
+                      your learning community.
+                    </p>
+                    <button
+                      onClick={() => setActiveNav("Discussions")}
+                      className="mt-5 flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-xs font-bold text-[#7040d9] transition hover:bg-white/90"
+                    >
+                      Explore discussions <ArrowRight size={14} />
+                    </button>
+                  </section>
+                </div>
+              </div>
+            </>
+          ) : (
+            <section className="mx-auto max-w-2xl py-16 text-center sm:py-24">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary)]">
+                {section ? (
+                  <section.icon size={28} />
+                ) : activeNav === "My Profile" ? (
+                  <GraduationCap size={28} />
+                ) : activeNav === "Settings" ? (
+                  <Settings size={28} />
+                ) : (
+                  <ShieldCheck size={28} />
+                )}
+              </div>
+              <p className="mt-6 text-xs font-bold uppercase tracking-[2px] text-[var(--primary)]">
+                North Synapse
+              </p>
+              <h1 className="mt-2 text-3xl font-extrabold tracking-tight">
+                {activeNav}
+              </h1>
+              <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[var(--muted)]">
+                This section is being prepared. Its full functionality will be
+                added in the next stages of the rebuild.
+              </p>
+              <button
+                onClick={() => setActiveNav("Dashboard")}
+                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#8250ed] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#7040d9]"
+              >
+                <LayoutDashboard size={15} /> Back to Dashboard
+              </button>
+            </section>
+          )}
+
+          <footer className="mt-12 flex flex-col justify-between gap-2 border-t border-[var(--border)] py-5 text-[10px] text-[var(--muted)] sm:flex-row sm:items-center">
+            <p>© 2026 North Synapse. Built for curious minds.</p>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#36b58a]" />
+                Community-first learning
+              </span>
+              <span>Version 1.0</span>
+            </div>
+          </footer>
+        </main>
       </div>
     </div>
   );
