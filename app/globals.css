@@ -623,3 +623,64 @@ textarea {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ===== North Synapse 布局兼容修复 ===== */
+
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.main-shell,
+.page-enter,
+.panel,
+.resource-card,
+.discussion-card,
+.notice-card,
+.room-card,
+.feedback-card,
+.stat-card {
+  min-width: 0;
+}
+
+.stats-grid,
+.resource-grid {
+  width: 100%;
+  min-width: 0;
+}
+
+.stats-grid > *,
+.resource-grid > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+img {
+  height: auto;
+}
+
+@media (max-width: 760px) {
+  .main-shell {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .stats-grid,
+  .resource-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page-heading,
+  .section-title-row,
+  .filter-bottom {
+    min-width: 0;
+  }
+}
