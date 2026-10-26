@@ -861,10 +861,12 @@ export default function Home() {
                               <div
                                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-slate-700"
                                 style={{
-                                  backgroundColor: discussion.color,
+                                  backgroundColor: discussionColors[
+                                    discussions.indexOf(discussion) % discussionColors.length
+                                  ],
                                 }}
-                              >
-                                {discussion.initials}
+                                >
+                                  {discussion.author.slice(0, 2).toUpperCase()}
                               </div>
 
                               <div className="min-w-0 flex-1">
