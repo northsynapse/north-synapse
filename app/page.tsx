@@ -484,7 +484,7 @@ export default function HomePage() {
       status: direct ? "accepted" : "pending",
     });
     if (error) {
-      setFriendError(error.code === "23505" ? "You have already sent a request to this person." : error.message);
+      setFriendError(error.code === "23505" ? "A request already exists or you are already friends. You can send another request after the previous request is declined or removed." : error.message);
       return;
     }
     setFriendNotice(direct ? `You are now friends with ${profileName(person)}.` : `Friend request sent to ${profileName(person)}.`);
@@ -599,17 +599,8 @@ export default function HomePage() {
   }
 
   async function handleSignOut() {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      window.alert("Unable to sign out. Please try again.");
-      return;
-    }
-
-    setUserId(null);
-    setUserEmail(null);
-    setProfile(null);
-    setActiveNav("Home");
+    window.alert("You cannot sign out right now.");
+    return;
   }
 
   function requireLogin(action: string) {
