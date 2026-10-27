@@ -140,6 +140,13 @@ export default function HomePage() {
   const [messageLoading, setMessageLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
 
+  // Automatically dismiss success/info notices after a short delay.
+  useEffect(() => {
+    if (!friendNotice) return;
+    const timeoutId = window.setTimeout(() => setFriendNotice(""), 3500);
+    return () => window.clearTimeout(timeoutId);
+  }, [friendNotice]);
+
   const handleSaveProfile = async () => {
     if (!userId) {
       setProfileError("Please sign in before saving your profile.");
@@ -1352,7 +1359,13 @@ export default function HomePage() {
                             <p className="font-semibold text-slate-900">{profileName(person)}</p>
                             <p className="mt-1 text-xs text-slate-500">{[person.username ? `@${person.username}` : null, person.grade_level].filter(Boolean).join(" · ") || "Community member"}</p>
                             {person.bio && <p className="mt-2 line-clamp-2 text-sm text-slate-600">{person.bio}</p>}
-                            <button onClick={() => sendFriendRequest(person)} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white"><UserPlus size={15}/>{person.friend_request_mode === "direct" ? "Add friend" : "Request"}</button>
+                            {friends.some((friend) => friend.id === person.id) ? (
+                              <span className="mt-3 inline-block text-sm font-medium text-green-700">Already friends</span>
+                            ) : friendRequestIds.includes(person.id) ? (
+                              <span className="mt-3 inline-block text-sm text-slate-500">Request pending</span>
+                            ) : (
+                              <button onClick={() => sendFriendRequest(person)} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white"><UserPlus size={15}/>{person.friend_request_mode === "direct" ? "Add friend" : "Request"}</button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1378,7 +1391,7 @@ export default function HomePage() {
 
                   <div className="mb-6 rounded-2xl border border-violet-100 bg-white p-5">
                     <h2 className="mb-3 font-semibold text-slate-900">Your friends ({friends.length})</h2>
-                    {friends.length === 0 ? <p className="text-sm text-slate-500">Your accepted friends will appear here.</p> :
+                    {friendLoading && friends.length === 0 ? <p className="text-sm text-slate-500">Loading your friends...</p> : friends.length === 0 ? <p className="text-sm text-slate-500">Your accepted friends will appear here. Once a request is accepted or a direct add succeeds, that person will appear here and you can message them.</p> :
                       <div className="grid gap-3 sm:grid-cols-2">
                         {friends.map((person) => (
                           <div key={person.id} className={`rounded-xl border p-4 ${selectedFriend?.id === person.id ? "border-violet-400 bg-violet-50" : "border-violet-100"}`}>
