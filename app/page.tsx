@@ -1064,6 +1064,181 @@ export default function Home() {
         </div>
       )}
 
+
+      <style>{`
+        @media (max-width: 640px) {
+          * {
+            min-width: 0;
+          }
+
+          header {
+            box-sizing: border-box !important;
+            width: 100% !important;
+            padding: 0.85rem 1rem !important;
+            gap: 0.75rem !important;
+            flex-wrap: wrap !important;
+          }
+
+          header > div:first-child {
+            flex: 1 1 42% !important;
+            gap: 0.45rem !important;
+            font-size: 1.05rem !important;
+          }
+
+          header > div:first-child svg {
+            width: 25px !important;
+            flex-shrink: 0 !important;
+          }
+
+          header nav {
+            order: 3 !important;
+            flex: 1 1 100% !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            gap: 1.1rem !important;
+            overflow-x: auto !important;
+            white-space: nowrap !important;
+            scrollbar-width: none;
+            padding: 0.15rem 0 0.35rem !important;
+          }
+
+          header nav::-webkit-scrollbar {
+            display: none;
+          }
+
+          header nav button {
+            flex-shrink: 0 !important;
+            white-space: nowrap !important;
+            font-size: 0.82rem !important;
+          }
+
+          header > div:last-child {
+            gap: 0.45rem !important;
+            flex: 0 1 auto !important;
+          }
+
+          header > div:last-child button {
+            padding: 0.5rem 0.65rem !important;
+            white-space: nowrap !important;
+            font-size: 0.78rem !important;
+          }
+
+          header > div:last-child span {
+            max-width: 5.5rem !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+          }
+
+          main {
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-width: 1080px !important;
+            padding: 1rem !important;
+            margin: 0 auto !important;
+          }
+
+          main > div:first-child {
+            max-width: 100% !important;
+          }
+
+          main > div:first-child > div:first-child {
+            box-sizing: border-box !important;
+            width: 100% !important;
+            padding: 0 0.75rem !important;
+            gap: 0.5rem !important;
+          }
+
+          main h1 {
+            font-size: 1.65rem !important;
+            line-height: 1.2 !important;
+            overflow-wrap: anywhere !important;
+          }
+
+          main input,
+          main select,
+          main textarea {
+            max-width: 100% !important;
+          }
+
+          main > div > div {
+            box-sizing: border-box;
+          }
+
+          main button {
+            max-width: 100%;
+          }
+
+          /* Resource Hub title and share button */
+          main > div > div:first-child {
+            gap: 1rem !important;
+          }
+
+          /* Resource cards and their metadata wrap instead of overflowing */
+          main > div > div > div {
+            min-width: 0;
+          }
+
+          main [style*="justify-content: space-between"] {
+            flex-wrap: wrap !important;
+            gap: 0.65rem !important;
+          }
+
+          /* Modals fit the phone viewport */
+          [style*="position: fixed"][style*="width: 100vw"] {
+            box-sizing: border-box !important;
+            padding: 0.65rem !important;
+            align-items: center !important;
+          }
+
+          [style*="max-width: 960px"] {
+            box-sizing: border-box !important;
+            width: 100% !important;
+            height: 92dvh !important;
+            max-height: 92dvh !important;
+          }
+
+          [style*="max-width: 960px"] > div:first-child {
+            padding: 0.85rem 1rem !important;
+            gap: 0.5rem !important;
+          }
+
+          [style*="max-width: 960px"] > div:first-child h2 {
+            font-size: 1rem !important;
+            overflow-wrap: anywhere !important;
+          }
+
+          [style*="max-width: 960px"] > div:nth-child(2) {
+            flex-direction: column !important;
+            overflow-y: auto !important;
+          }
+
+          [style*="max-width: 960px"] > div:nth-child(2) > div {
+            box-sizing: border-box !important;
+            width: 100% !important;
+            flex: 0 0 auto !important;
+            padding: 1rem !important;
+            border-right: none !important;
+          }
+
+          [style*="max-width: 680px"] {
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-height: 92dvh !important;
+            padding: 1.1rem !important;
+          }
+
+          [style*="max-width: 420px"],
+          [style*="max-width: 480px"] {
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-height: 92dvh !important;
+            overflow-y: auto !important;
+            padding: 1.2rem !important;
+          }
+        }
+      `}</style>
+
     </div>
   );
 }
