@@ -207,6 +207,57 @@ export default function Home() {
 
   // 判断是否为管理员（邮箱中包含 northsynapse）
   const isAdmin = user?.email?.toLowerCase().includes('northsynapse');
+  // Username and Nickname validation
+  const USERNAME_MIN = 3;
+  const USERNAME_MAX = 30;
+  const NICKNAME_MIN = 2;
+  const NICKNAME_MAX = 24;
+  
+  function normalizeName(value: string): string {
+    return value.trim();
+  }
+  
+  function getCharacterLength(value: string): number {
+    return Array.from(value).length;
+  }
+  
+  function hasInvalidCharacters(value: string): boolean {
+    // Reject control, formatting, and other Unicode "Other" characters.
+    // Ordinary international letters, numbers, spaces, punctuation, and symbols are allowed.
+    return /\p{C}/u.test(value);
+  }
+  
+  function validateUsername(value: string): string | null {
+    const clean = normalizeName(value);
+    const length = getCharacterLength(clean);
+  
+    if (!clean) return 'Username cannot be empty.';
+    if (length < USERNAME_MIN || length > USERNAME_MAX) {
+      return `Username must be ${USERNAME_MIN}–${USERNAME_MAX} characters long.`;
+    }
+    if (!/\S/u.test(clean)) return 'Username cannot contain only spaces.';
+    if (hasInvalidCharacters(clean)) {
+      return 'Username contains unsupported characters.';
+    }
+  
+    return null;
+  }
+  
+  function validateNickname(value: string): string | null {
+    const clean = normalizeName(value);
+    const length = getCharacterLength(clean);
+  
+    if (!clean) return 'Nickname cannot be empty.';
+    if (length < NICKNAME_MIN || length > NICKNAME_MAX) {
+      return `Nickname must be ${NICKNAME_MIN}–${NICKNAME_MAX} characters long.`;
+    }
+    if (!/\S/u.test(clean)) return 'Nickname cannot contain only spaces.';
+    if (hasInvalidCharacters(clean)) {
+      return 'Nickname contains unsupported characters.';
+    }
+  
+    return null;
+  }
 
   /* ==========================================================================
      2. 副作用与数据同步
