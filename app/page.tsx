@@ -79,6 +79,7 @@ export default function Home() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
   const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // 个人资料
@@ -88,6 +89,8 @@ export default function Home() {
   const [grade, setGrade] = useState('Grade 12');
   const [gender, setGender] = useState('Prefer not to say');
   const [bio, setBio] = useState('');
+  // 累计登录期间网站处于前台的使用时间（秒）
+  const [usageSeconds, setUsageSeconds] = useState(0);
 
   // 筛选与搜索
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
@@ -271,6 +274,7 @@ export default function Home() {
           setGrade(parsed.grade || 'Grade 12');
           setAvatarUrl(parsed.avatarUrl || '');
           setBio(parsed.bio || '');
+          setUsageSeconds(Number(parsed.totalStudySeconds) || 0);
         } catch (_) {}
       }
     }
@@ -295,6 +299,35 @@ export default function Home() {
     }, 8000);
     return () => clearInterval(timer);
   }, [announcements]);
+
+  // 每 30 秒累计一次网站使用时间；切到后台时暂停计时。
+  useEffect(() => {
+    if (!user?.email || typeof window === 'undefined') return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      setUsageSeconds((current) => {
+        const next = current + 30;
+        setUser((previous: any) => {
+          if (!previous?.email) return previous;
+          const updated = { ...previous, totalStudySeconds: next };
+          localStorage.setItem('ns_user', JSON.stringify(updated));
+          try {
+            const accounts = JSON.parse(localStorage.getItem('ns_accounts') || '[]');
+            if (Array.isArray(accounts)) {
+              localStorage.setItem('ns_accounts', JSON.stringify(accounts.map((account: any) =>
+                account.email?.toLowerCase() === String(previous.email).toLowerCase()
+                  ? { ...account, profile: updated }
+                  : account
+              )));
+            }
+          } catch (_) {}
+          return updated;
+        });
+        return next;
+      });
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [user?.email]);
 
   useEffect(() => {
     let timer: any = null;
@@ -385,7 +418,8 @@ export default function Home() {
         avatarUrl: legacyProfile?.avatarUrl || '',
         createdAt: legacyProfile?.createdAt || new Date().toLocaleDateString('en-US', {
           month: 'short', day: 'numeric', year: 'numeric'
-        })
+        }),
+        totalStudySeconds: Number(legacyProfile?.totalStudySeconds) || 0
       };
 
       accounts.push({ email: cleanEmail, password: cleanPassword, profile });
@@ -398,6 +432,7 @@ export default function Home() {
       setGender(profile.gender);
       setBio(profile.bio);
       setAvatarUrl(profile.avatarUrl);
+      setUsageSeconds(Number(profile.totalStudySeconds) || 0);
       alert('Registration successful! Logged in as ' + cleanEmail);
     } else {
       if (accountIndex === -1) {
@@ -422,6 +457,7 @@ export default function Home() {
       setGender(profile.gender || 'Prefer not to say');
       setBio(profile.bio || '');
       setAvatarUrl(profile.avatarUrl || '');
+      setUsageSeconds(Number(profile.totalStudySeconds) || 0);
       alert('Welcome back, ' + (profile.nickname || profile.username || cleanEmail) + '!');
     }
 
@@ -697,6 +733,14 @@ export default function Home() {
 
   const myResources = resources.filter(r => r.authorEmail === user?.email);
   const bookmarkedResources = resources.filter(r => r.bookmarkedByMe);
+  const myDiscussions = discussions.filter(d => d.authorEmail?.toLowerCase() === user?.email?.toLowerCase());
+  const joinedDate = user?.createdAt || user?.joinedAt || 'Not available';
+  const formatDuration = (seconds: number) => {
+    const totalMinutes = Math.floor(Math.max(0, seconds) / 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return hours > 0 ? `${hours} hr ${minutes} min` : `${minutes} min`;
+  };
 
   return (
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
@@ -958,15 +1002,31 @@ export default function Home() {
         {/* DASHBOARD 视图 */}
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{nickname || 'Student Profile'}</h1>
-                <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem' }}>@{username || 'username'} • {grade}</p>
-                {bio && <p style={{ fontSize: '0.85rem', marginTop: '0.5rem', fontStyle: 'italic' }}>&quot;{bio}&quot;</p>}
+            <div className="ns-profile-card" style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: 'clamp(1rem, 4vw, 2rem)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1.25rem', flexWrap: 'wrap' }}>
+              <div style={{ minWidth: 0, flex: '1 1 240px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  {avatarUrl ? <img src={avatarUrl} alt="Profile avatar" style={{ width: '76px', height: '76px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${theme.border}` }} /> : <div style={{ width: '76px', height: '76px', borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, backgroundColor: theme.bg, color: theme.accent, fontSize: '1.8rem', fontWeight: 800 }}>{(nickname || username || '?').slice(0, 1).toUpperCase()}</div>}
+                  <div style={{ minWidth: 0 }}>
+                    <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', overflowWrap: 'anywhere', margin: 0 }}>{nickname || 'Student Profile'}</h1>
+                    <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem', overflowWrap: 'anywhere' }}>@{username || 'username'}</p>
+                    <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.35rem' }}>{grade || 'Grade not specified'} · {gender || 'Gender not specified'}</p>
+                  </div>
+                </div>
+                {bio.trim() && <p style={{ fontSize: '0.9rem', marginTop: '0.8rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{bio}</p>}
               </div>
-              <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.6rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+              <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', minHeight: '44px' }}>
                 Edit Profile
               </button>
+              <div className="ns-profile-stats" style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem', marginTop: '0.25rem' }}>
+                {[
+                  { label: 'Member Since', value: joinedDate },
+                  { label: 'Time on Platform', value: formatDuration(usageSeconds) },
+                  { label: 'Resources Shared', value: String(myResources.length) },
+                  { label: 'Saved Resources', value: String(bookmarkedResources.length) },
+                  { label: 'Discussions Started', value: String(myDiscussions.length) },
+                  { label: 'Account Email', value: user?.email || 'Not available' },
+                ].map(stat => <div key={stat.label} style={{ minWidth: 0, padding: '0.9rem', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg }}><div style={{ fontSize: '0.75rem', color: theme.textMuted, marginBottom: '0.35rem' }}>{stat.label}</div><div style={{ fontSize: '0.95rem', fontWeight: 650, overflowWrap: 'anywhere' }}>{stat.value}</div></div>)}
+              </div>
             </div>
 
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
@@ -998,6 +1058,34 @@ export default function Home() {
         )}
 
       </main>
+
+      {/* 常驻的用户须知入口：登录前后都能打开 */}
+      <footer style={{ maxWidth: '1080px', margin: '0 auto', padding: '1rem 1rem 2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', color: theme.textMuted, fontSize: '0.85rem' }}>
+        <span>North Synapse · Student Learning Community</span>
+        <button type="button" onClick={() => setShowTermsModal(true)} style={{ background: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMain, padding: '0.55rem 0.85rem', borderRadius: '8px', cursor: 'pointer', minHeight: '40px' }}>Terms of Service & User Notice</button>
+      </footer>
+
+      {showTermsModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.78)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000000, padding: '1rem' }}>
+          <div style={{ backgroundColor: theme.cardBg, color: theme.textMain, width: '100%', maxWidth: '620px', maxHeight: '90dvh', overflowY: 'auto', borderRadius: '14px', border: `1px solid ${theme.border}`, padding: 'clamp(1rem, 4vw, 1.75rem)', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+              <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Terms of Service & User Notice</h2>
+              <button type="button" onClick={() => setShowTermsModal(false)} aria-label="Close user notice" style={{ background: 'transparent', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem', padding: '0.4rem' }}>✕</button>
+            </div>
+            <p style={{ color: theme.textMuted, fontSize: '0.9rem', lineHeight: 1.6 }}>North Synapse is a student learning-community prototype. Please read these guidelines before using the platform.</p>
+            <ol style={{ paddingLeft: '1.3rem', lineHeight: 1.7, display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+              <li><strong>Academic purpose:</strong> Share learning notes, resources, and constructive academic discussion.</li>
+              <li><strong>Respect others:</strong> Do not harass, threaten, discriminate against, impersonate, or reveal another person’s private information.</li>
+              <li><strong>Share responsibly:</strong> Only upload content you created or have permission to share. Respect copyright and school rules.</li>
+              <li><strong>Appropriate content:</strong> Do not post illegal, dangerous, hateful, sexually explicit, or otherwise inappropriate material.</li>
+              <li><strong>Privacy:</strong> Never publish passwords, home addresses, phone numbers, student numbers, or other sensitive information.</li>
+              <li><strong>Accuracy and attribution:</strong> Credit original authors and do not present someone else’s work as your own.</li>
+              <li><strong>Prototype limitation:</strong> This version stores account and profile data in this browser. It is not a production-grade secure account system; avoid entering confidential information.</li>
+            </ol>
+            <button type="button" onClick={() => setShowTermsModal(false)} style={{ width: '100%', marginTop: '1rem', backgroundColor: theme.accent, color: '#fff', border: 'none', padding: '0.75rem', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', minHeight: '44px' }}>I Understand</button>
+          </div>
+        </div>
+      )}
 
       {/* 预览与学术引用弹窗 */}
       {previewResource && (
@@ -1409,6 +1497,7 @@ export default function Home() {
             padding: 1.2rem !important;
           }
         }
+        @media (max-width: 600px) { .ns-profile-stats { grid-template-columns: minmax(0, 1fr) !important; } .ns-profile-card > button { width: 100% !important; } }
       `}</style>
 
     </div>
