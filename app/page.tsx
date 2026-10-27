@@ -401,12 +401,39 @@ export default function Home() {
     return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
   }
 
-  function handleSaveProfile(e: React.FormEvent) {
-    e.preventDefault();
-    if (!username.trim() || !nickname.trim()) {
-      alert('Username and Nickname cannot be empty.');
-      return;
-    }
+function handleSaveProfile(e: React.FormEvent) {
+  e.preventDefault();
+
+  const cleanUsername = normalizeName(username);
+  const cleanNickname = normalizeName(nickname);
+
+  const usernameError = validateUsername(cleanUsername);
+  if (usernameError) {
+    alert(usernameError);
+    return;
+  }
+
+  const nicknameError = validateNickname(cleanNickname);
+  if (nicknameError) {
+    alert(nicknameError);
+    return;
+  }
+
+  // Check usernames among locally registered accounts.
+  const accounts: Array<{ email: string; passwordHash: string; user: any }> =
+    JSON.parse(localStorage.getItem('ns_accounts') || '[]');
+
+  const duplicateUsername = accounts.some(
+    (account) =>
+      account.email !== String(user?.email || '').toLowerCase() &&
+      normalizeName(account.user?.username || '').toLocaleLowerCase() ===
+        cleanUsername.toLocaleLowerCase()
+  );
+
+  if (duplicateUsername) {
+    alert('This username is already taken. Please choose another one.');
+    return;
+  }
 
     const updatedUser = {
       ...user,
