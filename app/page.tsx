@@ -180,7 +180,7 @@ export default function HomePage() {
           supabase
             .from("profiles")
             .select(
-              "username, nickname, display_name, grade_level, genderavatar_url, bio, role"
+              "username, nickname, display_name, grade_level, gender, avatar_url, bio, role"
             )
             .eq("id", userId)
             .maybeSingle(),
