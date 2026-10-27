@@ -79,14 +79,15 @@ export default function Home() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
   const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // 个人资料
   const [avatarUrl, setAvatarUrl] = useState('');
   const [username, setUsername] = useState('');
   const [nickname, setNickname] = useState('');
-  const [grade, setGrade] = useState('Grade 12');
-  const [gender, setGender] = useState('Prefer not to say');
+  const [grade, setGrade] = useState('');
+  const [gender, setGender] = useState('');
   const [bio, setBio] = useState('');
 
   // 筛选与搜索
@@ -219,7 +220,8 @@ export default function Home() {
           setUser(parsed);
           setUsername(parsed.username || '');
           setNickname(parsed.nickname || parsed.username || '');
-          setGrade(parsed.grade || 'Grade 12');
+          setGrade(parsed.grade || '');
+          setGender(parsed.gender || '');
           setAvatarUrl(parsed.avatarUrl || '');
           setBio(parsed.bio || '');
         } catch (_) {}
@@ -262,52 +264,90 @@ export default function Home() {
   /* ==========================================================================
      3. 业务处理函数
      ========================================================================== */
-  function handleAuthSubmit(e: React.FormEvent) {
+  async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
 
-    const cleanEmail = authEmail.trim();
-    const cleanPassword = authPassword.trim();
+    const cleanEmail = authEmail.trim().toLowerCase();
+    const cleanPassword = authPassword;
 
-    if (!cleanEmail.includes('@')) {
-      alert('Please enter a valid email address.');
+    try {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        alert('Please enter a valid email address.');
+        return;
+      }
+      if (cleanPassword.length < 8) {
+        alert('Password must be at least 8 characters long.');
+        return;
+      }
+      if (isSignUp && (!isStudentConfirmed || !hasAgreedTerms)) {
+        alert('Please confirm that you are a student/alumni and accept the Terms of Service.');
+        return;
+      }
+
+      // Front-end demo account registry. Production authentication should use Supabase Auth.
+      const accounts: Array<{ email: string; passwordHash: string; user: any }> =
+        JSON.parse(localStorage.getItem('ns_accounts') || '[]');
+      const existing = accounts.find((account) => account.email === cleanEmail);
+      const passwordHash = await hashPassword(cleanPassword);
+
+      if (isSignUp) {
+        if (existing) {
+          alert('An account with this email already exists. Please sign in instead.');
+          return;
+        }
+        const defaultName = cleanEmail.split('@')[0];
+        const userObj = {
+          email: cleanEmail,
+          username: defaultName,
+          nickname: defaultName,
+          grade: '',
+          gender: '',
+          bio: '',
+          avatarUrl: '',
+          createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        };
+        localStorage.setItem('ns_accounts', JSON.stringify([...accounts, { email: cleanEmail, passwordHash, user: userObj }]));
+        setUser(userObj);
+        setUsername(defaultName);
+        setNickname(defaultName);
+        setGrade('');
+        setGender('');
+        setBio('');
+        setAvatarUrl('');
+        localStorage.setItem('ns_user', JSON.stringify(userObj));
+        alert('Registration successful!');
+      } else {
+        if (!existing || existing.passwordHash !== passwordHash) {
+          alert('Incorrect email or password. Please try again.');
+          return;
+        }
+        const userObj = existing.user;
+        setUser(userObj);
+        setUsername(userObj.username || '');
+        setNickname(userObj.nickname || userObj.username || '');
+        setGrade(userObj.grade || '');
+        setGender(userObj.gender || '');
+        setBio(userObj.bio || '');
+        setAvatarUrl(userObj.avatarUrl || '');
+        localStorage.setItem('ns_user', JSON.stringify(userObj));
+        alert('Welcome back, ' + (userObj.nickname || userObj.username || cleanEmail.split('@')[0]) + '!');
+      }
+      setShowAuthModal(false);
+      setAuthPassword('');
+      setActiveTab('dashboard');
+    } catch (error) {
+      console.error('Authentication error:', error);
+      alert('Unable to process this account. Please try again.');
+    } finally {
       setLoading(false);
-      return;
     }
-    if (cleanPassword.length < 6) {
-      alert('Password must be at least 6 characters long.');
-      setLoading(false);
-      return;
-    }
+  }
 
-    if (isSignUp && (!isStudentConfirmed || !hasAgreedTerms)) {
-      alert('Please confirm that you are a student and accept the Terms of Service.');
-      setLoading(false);
-      return;
-    }
-
-    const defaultName = cleanEmail.split('@')[0];
-    const userObj = {
-      email: cleanEmail,
-      username: defaultName,
-      nickname: defaultName,
-      grade: 'Grade 12',
-      createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    };
-
-    setUser(userObj);
-    setUsername(defaultName);
-    setNickname(defaultName);
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('ns_user', JSON.stringify(userObj));
-    }
-
-    alert(isSignUp ? 'Registration successful! Logged in as ' + cleanEmail : 'Welcome back, ' + defaultName + '!');
-    setShowAuthModal(false);
-    setAuthPassword('');
-    setActiveTab('dashboard');
-    setLoading(false);
+  async function hashPassword(password: string) {
+    const data = new TextEncoder().encode(password);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
   }
 
   function handleSaveProfile(e: React.FormEvent) {
@@ -330,6 +370,11 @@ export default function Home() {
     setUser(updatedUser);
     if (typeof window !== 'undefined') {
       localStorage.setItem('ns_user', JSON.stringify(updatedUser));
+      const accounts: Array<{ email: string; passwordHash: string; user: any }> =
+        JSON.parse(localStorage.getItem('ns_accounts') || '[]');
+      localStorage.setItem('ns_accounts', JSON.stringify(accounts.map((account) =>
+        account.email === String(user?.email || '').toLowerCase() ? { ...account, user: updatedUser } : account
+      )));
     }
 
     alert('Profile updated successfully!');
@@ -348,10 +393,13 @@ export default function Home() {
   function handleDeleteAccount() {
     if (!window.confirm('Are you sure you want to delete this account? All local session data will be reset.')) return;
 
-    setUser(null);
     if (typeof window !== 'undefined') {
+      const accounts: Array<{ email: string; passwordHash: string; user: any }> =
+        JSON.parse(localStorage.getItem('ns_accounts') || '[]');
+      localStorage.setItem('ns_accounts', JSON.stringify(accounts.filter((account) => account.email !== String(user?.email || '').toLowerCase())));
       localStorage.removeItem('ns_user');
     }
+    setUser(null);
     setShowEditProfileModal(false);
     setActiveTab('resources');
     alert('Account deleted and session cleared.');
@@ -622,23 +670,23 @@ export default function Home() {
       <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
         
         {/* 公告轮播栏 */}
-        <div className="ns-notice-banner" style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', border: `1px solid ${theme.accent}`, borderRadius: '12px', padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
+        <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', border: `1px solid ${theme.accent}`, borderRadius: '12px', padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, overflow: 'hidden' }}>
-            <span className="ns-notice-count" style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
+            <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
               NOTICE ({currentBannerIndex + 1}/{announcements.length})
             </span>
 
             <div style={{ flex: 1, overflow: 'hidden', height: '52px', position: 'relative' }}>
               {announcements.map((item, idx) => (
                 <div key={item.id} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '52px', display: 'flex', alignItems: 'center', gap: '0.8rem', opacity: idx === currentBannerIndex ? 1 : 0, transform: idx === currentBannerIndex ? 'translateY(0)' : 'translateY(15px)', transition: 'all 0.4s ease-in-out' }}>
-                  <span className="ns-notice-title" style={{ fontSize: '0.9rem', color: theme.textMain, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</span>
-                  <span className="ns-notice-date" style={{ fontSize: '0.8rem', color: theme.textMuted, flexShrink: 0 }}>• {item.date}</span>
+                  <span style={{ fontSize: '0.9rem', color: theme.textMain, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</span>
+                  <span style={{ fontSize: '0.8rem', color: theme.textMuted, flexShrink: 0 }}>• {item.date}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <button className="ns-notice-viewall" onClick={() => setActiveTab('announcements')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', flexShrink: 0 }}>
+          <button onClick={() => setActiveTab('announcements')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', flexShrink: 0 }}>
             View All
           </button>
         </div>
@@ -816,9 +864,10 @@ export default function Home() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{nickname || 'Student Profile'}</h1>
-                <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem' }}>@{username || 'username'} • {grade}</p>
-                {bio && <p style={{ fontSize: '0.85rem', marginTop: '0.5rem', fontStyle: 'italic' }}>&quot;{bio}&quot;</p>}
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', overflowWrap: 'anywhere' }}>{nickname || 'Profile'}</h1>
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem', overflowWrap: 'anywhere' }}>@{username || 'username'}</p>
+                {(grade || gender) && <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.35rem' }}>{[grade, gender].filter(Boolean).join(' · ')}</p>}
+                {bio.trim() && <p style={{ fontSize: '0.9rem', marginTop: '0.65rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{bio}</p>}
               </div>
               <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.6rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
                 Edit Profile
@@ -952,12 +1001,11 @@ export default function Home() {
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Email</label>
                 <input type="email" required placeholder="student@tdsb.ca" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-                <span style={{ fontSize: '0.7rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>Tip: Enter an email containing &quot;northsynapse&quot; to toggle admin rights.</span>
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Password</label>
-                <input type="password" required placeholder="••••••••" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+                <input type="password" required minLength={8} placeholder="At least 8 characters" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
               </div>
 
               {isSignUp && (
@@ -965,8 +1013,9 @@ export default function Home() {
                   <label style={{ fontSize: '0.8rem', color: theme.textMuted }}>
                     <input type="checkbox" required checked={isStudentConfirmed} onChange={(e) => setIsStudentConfirmed(e.target.checked)} /> Confirm Student/Alumni
                   </label>
-                  <label style={{ fontSize: '0.8rem', color: theme.textMuted }}>
-                    <input type="checkbox" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} /> Agree Terms of Service
+                  <label style={{ fontSize: '0.8rem', color: theme.textMuted, display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
+                    <input type="checkbox" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} style={{ marginTop: '0.15rem' }} />
+                    <span>I agree to the <button type="button" onClick={() => setShowTermsModal(true)} style={{ background: 'none', border: 'none', padding: 0, color: theme.accent, textDecoration: 'underline', cursor: 'pointer' }}>Terms of Service / User Notice</button>.</span>
                   </label>
                 </div>
               )}
@@ -976,9 +1025,34 @@ export default function Home() {
               </button>
             </form>
 
-            <p onClick={() => setIsSignUp(!isSignUp)} style={{ color: theme.accent, marginTop: '1rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}>
+            <p onClick={() => { setIsSignUp(!isSignUp); setHasAgreedTerms(false); setIsStudentConfirmed(false); }} style={{ color: theme.accent, marginTop: '1rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}>
               {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Terms of Service / User Notice modal */}
+      {showTermsModal && (
+        <div onClick={() => setShowTermsModal(false)} style={{ position: 'fixed', inset: 0, padding: '1rem', backgroundColor: 'rgba(0,0,0,0.82)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000001 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: theme.cardBg, color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: 'clamp(1rem, 4vw, 2rem)', width: '100%', maxWidth: '620px', maxHeight: '85dvh', overflowY: 'auto', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+              <h2 style={{ margin: 0 }}>Terms of Service & User Notice</h2>
+              <button type="button" onClick={() => setShowTermsModal(false)} aria-label="Close terms" style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            </div>
+            <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Please read these basic rules before using North Synapse.</p>
+            <ol style={{ paddingLeft: '1.3rem', lineHeight: 1.65, display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+              <li><strong>Academic purpose:</strong> Use this platform to share study notes, learning resources, and constructive academic discussion.</li>
+              <li><strong>Respect others:</strong> Do not harass, threaten, discriminate against, impersonate, or reveal another person's private information.</li>
+              <li><strong>Share responsibly:</strong> Only upload material you created or have permission to share. Respect copyright and school rules.</li>
+              <li><strong>Appropriate content:</strong> Do not post illegal, dangerous, hateful, sexually explicit, or otherwise inappropriate material.</li>
+              <li><strong>Privacy:</strong> Do not publish passwords, home addresses, phone numbers, student numbers, private messages, or other sensitive information.</li>
+              <li><strong>Accuracy and attribution:</strong> Credit original authors, label your own work clearly, and do not present someone else's work as yours.</li>
+              <li><strong>Moderation:</strong> Content may be reviewed or removed if it violates these rules. Repeated misuse may result in access restrictions.</li>
+              <li><strong>Account responsibility:</strong> Keep your login details private and use only an account you are authorized to access.</li>
+              <li><strong>Prototype notice:</strong> Some features may still be under development. Do not rely on this prototype to store confidential or important information.</li>
+            </ol>
+            <button type="button" onClick={() => setShowTermsModal(false)} style={{ width: '100%', marginTop: '1rem', backgroundColor: theme.accent, color: '#fff', border: 'none', padding: '0.75rem', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Close</button>
           </div>
         </div>
       )}
@@ -986,18 +1060,23 @@ export default function Home() {
       {/* 编辑资料与注销弹窗 */}
       {showEditProfileModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: 'clamp(1rem, 4vw, 2rem)', borderRadius: '12px', width: '90%', maxWidth: '520px', maxHeight: '90dvh', overflowY: 'auto', border: `1px solid ${theme.border}`, boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
               <h2>Edit Profile</h2>
               <button onClick={() => setShowEditProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
             </div>
 
+            <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: '0 0 1.2rem' }}>Customize how other students see you. Grade, gender, and bio are optional.</p>
             <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <input type="file" ref={fileInputRef} accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
-                <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '0.5rem 1rem', borderRadius: '6px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer' }}>
-                  {avatarUrl ? 'Change Avatar' : 'Upload Avatar'}
-                </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '1rem', border: `1px solid ${theme.border}`, borderRadius: '10px', backgroundColor: theme.bg }}>
+                {avatarUrl ? <img src={avatarUrl} alt="Profile avatar preview" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: '64px', height: '64px', borderRadius: '50%', display: 'grid', placeItems: 'center', backgroundColor: theme.cardBg, color: theme.accent, fontSize: '1.5rem', fontWeight: 800 }}>{(nickname || username || '?').slice(0, 1).toUpperCase()}</div>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1, minWidth: '150px' }}>
+                  <input type="file" ref={fileInputRef} accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
+                  <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '0.55rem 0.8rem', borderRadius: '6px', backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer', alignSelf: 'flex-start' }}>
+                    {avatarUrl ? 'Change Profile Photo' : 'Choose Profile Photo'}
+                  </button>
+                  <span style={{ color: theme.textMuted, fontSize: '0.75rem' }}>On phones, choose a photo from your photo library. On computers, choose an image file.</span>
+                </div>
               </div>
 
               <div>
@@ -1008,6 +1087,26 @@ export default function Home() {
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
                 <input type="text" required value={nickname} onChange={(e) => setNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade (optional)</label>
+                <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
+                  <option value="">Not specified</option>
+                  {['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'Alumni'].map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (optional)</label>
+                <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
+                  <option value="">Not specified</option>
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
+                  <option value="Non-binary">Non-binary</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
+                  <option value="Self-describe">Self-describe</option>
+                </select>
               </div>
 
               <div>
@@ -1067,33 +1166,6 @@ export default function Home() {
 
       <style>{`
         @media (max-width: 640px) {
-          /* Keep the announcement title readable on narrow screens. */
-          .ns-notice-banner {
-            padding: 0 0.55rem !important;
-            gap: 0.4rem !important;
-            height: 48px !important;
-          }
-
-          .ns-notice-count {
-            font-size: 0.58rem !important;
-            padding: 0.22rem 0.35rem !important;
-          }
-
-          .ns-notice-title {
-            font-size: 0.68rem !important;
-            white-space: normal !important;
-            line-height: 1.2 !important;
-            overflow: hidden !important;
-            display: -webkit-box !important;
-            -webkit-line-clamp: 2 !important;
-            -webkit-box-orient: vertical !important;
-          }
-
-          .ns-notice-date,
-          .ns-notice-viewall {
-            display: none !important;
-          }
-
           * {
             min-width: 0;
           }
