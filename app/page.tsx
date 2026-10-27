@@ -372,7 +372,6 @@ export default function Home() {
           );
           return;
         }
-        const defaultName = cleanEmail.split('@')[0];
         const userObj = {
           email: cleanEmail,
           username: defaultName,
