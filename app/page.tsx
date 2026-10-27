@@ -86,7 +86,7 @@ export default function Home() {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [username, setUsername] = useState('');
   const [nickname, setNickname] = useState('');
-  const [grade, setGrade] = useState('Grade 12');
+  const [grade, setGrade] = useState('');
   const [gender, setGender] = useState('Prefer not to say');
   const [bio, setBio] = useState('');
   // 累计登录期间网站处于前台的使用时间（秒）
@@ -271,7 +271,7 @@ export default function Home() {
           setUser(parsed);
           setUsername(parsed.username || '');
           setNickname(parsed.nickname || parsed.username || '');
-          setGrade(parsed.grade || 'Grade 12');
+          setGrade(parsed.grade || '');
           setAvatarUrl(parsed.avatarUrl || '');
           setBio(parsed.bio || '');
           setUsageSeconds(Number(parsed.totalStudySeconds) || 0);
@@ -412,7 +412,7 @@ export default function Home() {
         email: cleanEmail,
         username: legacyProfile?.username || defaultName,
         nickname: legacyProfile?.nickname || legacyProfile?.username || defaultName,
-        grade: legacyProfile?.grade || 'Grade 12',
+        grade: legacyProfile?.grade || '',
         gender: legacyProfile?.gender || 'Prefer not to say',
         bio: legacyProfile?.bio || '',
         avatarUrl: legacyProfile?.avatarUrl || '',
@@ -453,7 +453,7 @@ export default function Home() {
       setUser(profile);
       setUsername(profile.username || '');
       setNickname(profile.nickname || profile.username || '');
-      setGrade(profile.grade || 'Grade 12');
+      setGrade(profile.grade || '');
       setGender(profile.gender || 'Prefer not to say');
       setBio(profile.bio || '');
       setAvatarUrl(profile.avatarUrl || '');
@@ -1244,7 +1244,31 @@ export default function Home() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade (optional)</label>
+                <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
+                  <option value="">Prefer not to specify</option>
+                  <option value="Grade 9">Grade 9</option>
+                  <option value="Grade 10">Grade 10</option>
+                  <option value="Grade 11">Grade 11</option>
+                  <option value="Grade 12">Grade 12</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (optional)</label>
+                <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
+                  <option value="">Prefer not to specify</option>
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
+                  <option value="Non-binary">Non-binary</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
+                  <option value="Self-describe">Self-describe</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio (optional)</label>
                 <textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
               </div>
 
