@@ -113,25 +113,30 @@ export default function HomePage() {
   
     const { data, error } = await supabase
       .from("profiles")
-      .update({
-        nickname: editNickname.trim() || null,
-        gender: editGender || null,
-        grade_level: editGrade || null,
-        bio: editBio.trim() || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userId)
+      .upsert(
+        {
+          id: userId,
+          nickname: editNickname.trim() || null,
+          gender: editGender || null,
+          grade_level: editGrade || null,
+          bio: editBio.trim() || null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      )
       .select("username, nickname, display_name, grade_level, gender, avatar_url, bio, role")
-      .maybeSingle();
-  
+      .single();
+
     if (error || !data) {
+      console.error("Profile save error:", error);
       setProfileError(
-        error?.message || "Profile was not updated. Check your profile record and permissions."
+        error?.message ||
+          "Profile could not be saved. Check the profiles table columns and Row Level Security policies."
       );
       setSavingProfile(false);
       return;
     }
-  
+
     setProfile(data);
     setEditNickname(data.nickname || data.display_name || data.username || "");
     setEditGender(data.gender || "");
@@ -554,6 +559,8 @@ export default function HomePage() {
 
         <div className="my-5 border-t border-white/10" />
 
+        {userId && (
+          <>
         <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-violet-300">
           Personal
         </p>
@@ -582,6 +589,8 @@ export default function HomePage() {
             Settings
           </button>
         </nav>
+          </>
+        )}
 
         <div className="mt-auto rounded-2xl border border-white/10 bg-white/[0.07] p-4">
           <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-400/20 text-violet-200">
@@ -1069,7 +1078,7 @@ export default function HomePage() {
           )}
 
 
-          {activeNav === "Settings" && (
+          {activeNav === "Settings" && userId && (
             <section>
               <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
                 ACCOUNT
