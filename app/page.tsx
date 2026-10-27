@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BookOpen,
   MessageSquare,
@@ -13,11 +13,15 @@ import {
   GraduationCap,
   Bookmark,
   Heart,
-  Clock3,
+  CalendarDays,
+  UserRound,
+  Settings,
   LogIn,
   LogOut,
   Menu,
   X,
+  ArrowUpRight,
+  FileText,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -29,6 +33,7 @@ type Resource = {
   resource_type: string | null;
   description: string | null;
   author: string | null;
+  author_id: string | null;
   created_at: string;
   tags: string[] | null;
 };
@@ -42,6 +47,16 @@ type Discussion = {
   replies_count: number | null;
   is_solved: boolean | null;
   created_at: string;
+};
+
+type Profile = {
+  username: string | null;
+  nickname: string | null;
+  display_name: string | null;
+  grade_level: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  role: string | null;
 };
 
 const navigation = [
@@ -58,15 +73,22 @@ export default function HomePage() {
   const [search, setSearch] = useState("");
   const [resources, setResources] = useState<Resource[]>([]);
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [myResources, setMyResources] = useState<Resource[]>([]);
+  const [bookmarkedResources, setBookmarkedResources] = useState<Resource[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [joinedAt, setJoinedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadPage() {
+    async function loadCommunity() {
       setLoading(true);
       setErrorMessage("");
 
@@ -75,10 +97,10 @@ export default function HomePage() {
           supabase
             .from("resources")
             .select(
-              "id, title, subject, grade, resource_type, description, author, created_at, tags"
+              "id, title, subject, grade, resource_type, description, author, author_id, created_at, tags"
             )
             .order("created_at", { ascending: false })
-            .limit(12),
+            .limit(30),
 
           supabase
             .from("discussions")
@@ -86,7 +108,7 @@ export default function HomePage() {
               "id, title, category, content, author, replies_count, is_solved, created_at"
             )
             .order("created_at", { ascending: false })
-            .limit(12),
+            .limit(30),
 
           supabase.auth.getSession(),
         ]);
@@ -95,27 +117,41 @@ export default function HomePage() {
 
       if (resourceResult.error || discussionResult.error) {
         console.error(
-          "Loading error:",
+          "Community loading error:",
           resourceResult.error?.message,
           discussionResult.error?.message
         );
         setErrorMessage(
-          "Some community content could not be loaded. Please check your connection or permissions."
+          "Some community content could not be loaded. Check your connection and database permissions."
         );
       }
 
       setResources(resourceResult.data ?? []);
       setDiscussions(discussionResult.data ?? []);
-      setUserEmail(sessionResult.data.session?.user.email ?? null);
+
+      const user = sessionResult.data.session?.user ?? null;
+      setUserId(user?.id ?? null);
+      setUserEmail(user?.email ?? null);
+      setJoinedAt(user?.created_at ?? null);
       setLoading(false);
     }
 
-    loadPage();
+    loadCommunity();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserEmail(session?.user.email ?? null);
+      const user = session?.user ?? null;
+      setUserId(user?.id ?? null);
+      setUserEmail(user?.email ?? null);
+      setJoinedAt(user?.created_at ?? null);
+
+      if (!user) {
+        setProfile(null);
+        setMyResources([]);
+        setBookmarkedResources([]);
+        setActiveNav("Home");
+      }
     });
 
     return () => {
@@ -124,62 +160,139 @@ export default function HomePage() {
     };
   }, []);
 
-  const filteredResources = useMemo(() => {
-    const keyword = search.toLowerCase().trim();
-
-    if (!keyword) return resources;
-
-    return resources.filter((item) =>
-      [
-        item.title,
-        item.subject,
-        item.grade,
-        item.resource_type,
-        item.description,
-        item.author,
-        ...(item.tags ?? []),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword)
-    );
-  }, [resources, search]);
-
-  const filteredDiscussions = useMemo(() => {
-    const keyword = search.toLowerCase().trim();
-
-    if (!keyword) return discussions;
-
-    return discussions.filter((item) =>
-      [
-        item.title,
-        item.category,
-        item.content,
-        item.author,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword)
-    );
-  }, [discussions, search]);
-
-  async function handleSignOut() {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      window.alert("Unable to sign out. Please try again.");
-    } else {
-      setUserEmail(null);
+  useEffect(() => {
+    if (!userId) {
+      setProfile(null);
+      setMyResources([]);
+      setBookmarkedResources([]);
+      return;
     }
-  }
 
-  function changeSection(name: string) {
-    setActiveNav(name);
-    setMobileMenuOpen(false);
-    setSearch("");
-  }
+    let mounted = true;
+
+    async function loadProfile() {
+      setProfileLoading(true);
+      setProfileError("");
+
+      const [profileResult, ownResourcesResult, bookmarksResult] =
+        await Promise.all([
+          supabase
+            .from("profiles")
+            .select(
+              "username, nickname, display_name, grade_level, avatar_url, bio, role"
+            )
+            .eq("id", userId)
+            .maybeSingle(),
+
+          supabase
+            .from("resources")
+            .select(
+              "id, title, subject, grade, resource_type, description, author, author_id, created_at, tags"
+            )
+            .eq("author_id", userId)
+            .order("created_at", { ascending: false }),
+
+          supabase
+            .from("resource_bookmarks")
+            .select("resource_id")
+            .eq("user_id", userId),
+        ]);
+
+      if (!mounted) return;
+
+      if (profileResult.error) {
+        console.error("Profile loading error:", profileResult.error.message);
+        setProfileError("Your profile could not be loaded.");
+      } else {
+        setProfile(profileResult.data);
+      }
+
+      if (ownResourcesResult.error) {
+        console.error(
+          "Your resources loading error:",
+          ownResourcesResult.error.message
+        );
+        setProfileError((previous) =>
+          previous || "Your posts could not be loaded. Check database permissions."
+        );
+      } else {
+        setMyResources(ownResourcesResult.data ?? []);
+      }
+
+      if (bookmarksResult.error) {
+        console.error(
+          "Bookmarks loading error:",
+          bookmarksResult.error.message
+        );
+        setProfileError((previous) =>
+          previous || "Bookmarks could not be loaded. Check database permissions."
+        );
+        setBookmarkedResources([]);
+      } else {
+        const ids = (bookmarksResult.data ?? []).map(
+          (item) => item.resource_id
+        );
+
+        if (ids.length === 0) {
+          setBookmarkedResources([]);
+        } else {
+          const savedResult = await supabase
+            .from("resources")
+            .select(
+              "id, title, subject, grade, resource_type, description, author, author_id, created_at, tags"
+            )
+            .in("id", ids)
+            .order("created_at", { ascending: false });
+
+          if (!mounted) return;
+
+          if (savedResult.error) {
+            console.error(
+              "Saved resources error:",
+              savedResult.error.message
+            );
+            setProfileError((previous) =>
+              previous || "Saved resources could not be displayed."
+            );
+          } else {
+            setBookmarkedResources(savedResult.data ?? []);
+          }
+        }
+      }
+
+      setProfileLoading(false);
+    }
+
+    loadProfile();
+
+    return () => {
+      mounted = false;
+    };
+  }, [userId]);
+
+  const filteredResources = resources.filter((item) =>
+    [
+      item.title,
+      item.subject,
+      item.grade,
+      item.resource_type,
+      item.description,
+      item.author,
+      ...(item.tags ?? []),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(search.toLowerCase().trim())
+  );
+
+  const filteredDiscussions = discussions.filter((item) =>
+    [item.title, item.category, item.content, item.author]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(search.toLowerCase().trim())
+  );
 
   function formatDate(date: string) {
     return new Date(date).toLocaleDateString("en-CA", {
@@ -189,524 +302,754 @@ export default function HomePage() {
     });
   }
 
-  function openLogin() {
-    window.location.href = "/login";
+  function navigate(name: string) {
+    setActiveNav(name);
+    setSearch("");
+    setMobileMenuOpen(false);
   }
 
-  function openRegister() {
-    window.location.href = "/register";
+  async function handleSignOut() {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      window.alert("Unable to sign out. Please try again.");
+      return;
+    }
+
+    setUserId(null);
+    setUserEmail(null);
+    setProfile(null);
+    setActiveNav("Home");
+  }
+
+  function requireLogin(action: string) {
+    if (!userId) {
+      window.location.href = "/login";
+      return;
+    }
+
+    window.alert(`${action} will be connected in the next development step.`);
+  }
+
+  const displayName =
+    profile?.nickname ||
+    profile?.display_name ||
+    profile?.username ||
+    userEmail?.split("@")[0] ||
+    "Community member";
+
+  const initials = displayName.trim().charAt(0).toUpperCase() || "N";
+
+  function ResourceCard({ item }: { item: Resource }) {
+    return (
+      <article className="group rounded-2xl border border-violet-100 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-violet-200 hover:shadow-lg hover:shadow-violet-100/70">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+            <FileText size={21} />
+          </div>
+          <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700">
+            {item.resource_type || "Study notes"}
+          </span>
+        </div>
+
+        <h3 className="line-clamp-2 font-semibold leading-6 text-slate-900">
+          {item.title}
+        </h3>
+        <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
+          {item.description || "No description provided."}
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {item.subject && (
+            <span className="rounded-lg bg-violet-50 px-2.5 py-1 text-xs text-violet-700">
+              {item.subject}
+            </span>
+          )}
+          {item.grade && (
+            <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+              {item.grade}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs text-slate-500">
+          <span className="truncate">By {item.author || "Student"}</span>
+          <span className="shrink-0">{formatDate(item.created_at)}</span>
+        </div>
+      </article>
+    );
+  }
+
+  function DiscussionCard({ item }: { item: Discussion }) {
+    return (
+      <article className="rounded-2xl border border-violet-100 bg-white p-5 transition hover:border-violet-200 hover:shadow-md hover:shadow-violet-100/60">
+        <div className="flex items-start gap-4">
+          <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700 sm:flex">
+            <MessageSquare size={19} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              {item.category && (
+                <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">
+                  {item.category}
+                </span>
+              )}
+              {item.is_solved && (
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                  Solved
+                </span>
+              )}
+            </div>
+            <h3 className="mt-2 font-semibold leading-6 text-slate-900">
+              {item.title}
+            </h3>
+            <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-500">
+              {item.content || "Open discussion"}
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
+              <span>{item.author || "Student"}</span>
+              <span className="flex items-center gap-1">
+                <MessageCircle size={14} />
+                {item.replies_count ?? 0} replies
+              </span>
+              <span>{formatDate(item.created_at)}</span>
+            </div>
+          </div>
+        </div>
+      </article>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f8fb] text-slate-800">
-      <div className="flex min-h-screen">
-        {mobileMenuOpen && (
+    <div className="min-h-screen bg-[#f7f5ff] text-slate-800">
+      {mobileMenuOpen && (
+        <button
+          aria-label="Close navigation"
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 z-40 bg-slate-950/40 md:hidden"
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-[250px] flex-col bg-[#30205f] px-4 py-5 text-white shadow-xl shadow-violet-950/10 transition-transform duration-200 md:translate-x-0 ${
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="mb-8 flex items-center justify-between px-2">
           <button
-            aria-label="Close menu"
+            onClick={() => navigate("Home")}
+            className="flex items-center gap-3 text-left"
+          >
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-400 text-white shadow-lg shadow-violet-950/20">
+              <BookOpen size={23} />
+            </div>
+            <div>
+              <p className="text-lg font-bold tracking-tight">North Synapse</p>
+              <p className="text-xs text-violet-200">Learn together.</p>
+            </div>
+          </button>
+
+          <button
             onClick={() => setMobileMenuOpen(false)}
-            className="fixed inset-0 z-40 bg-black/30 md:hidden"
-          />
-        )}
+            className="rounded-lg p-2 text-violet-200 hover:bg-white/10 md:hidden"
+            aria-label="Close menu"
+          >
+            <X size={19} />
+          </button>
+        </div>
 
-        <aside
-          className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white px-5 py-6 transition-transform md:static md:translate-x-0 ${
-            mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <div className="mb-10 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white">
-                <BookOpen size={22} />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold tracking-tight">
-                  North Synapse
-                </h1>
-                <p className="text-xs text-slate-500">
-                  Learn together.
-                </p>
-              </div>
-            </div>
+        <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-violet-300">
+          Community
+        </p>
 
-            <button
-              onClick={() => setMobileMenuOpen(false)}
-              className="rounded-lg p-2 hover:bg-slate-100 md:hidden"
-              aria-label="Close navigation"
-            >
-              <X size={20} />
-            </button>
-          </div>
+        <nav className="space-y-1">
+          {navigation.map((item) => {
+            const Icon = item.icon;
+            const active = activeNav === item.name;
 
-          <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Community
-          </p>
-
-          <nav className="space-y-1">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              const active = activeNav === item.name;
-
-              return (
-                <button
-                  key={item.name}
-                  onClick={() => changeSection(item.name)}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
-                    active
-                      ? "bg-indigo-50 text-indigo-700"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                  }`}
-                >
-                  <Icon size={19} />
-                  {item.name}
-                </button>
-              );
-            })}
-          </nav>
-
-          <div className="mt-auto rounded-2xl bg-slate-50 p-4">
-            <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
-              <Users size={19} />
-            </div>
-            <p className="text-sm font-semibold">A community for learners</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              Share notes, exchange ideas, and study together.
-            </p>
-          </div>
-        </aside>
-
-        <main className="min-w-0 flex-1">
-          <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
-            <div className="flex h-[76px] items-center gap-4 px-5 md:px-9">
+            return (
               <button
-                onClick={() => setMobileMenuOpen(true)}
-                className="rounded-lg p-2 hover:bg-slate-100 md:hidden"
-                aria-label="Open navigation"
+                key={item.name}
+                onClick={() => navigate(item.name)}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
+                  active
+                    ? "bg-violet-400 text-white shadow-md shadow-violet-950/20"
+                    : "text-violet-100/80 hover:bg-white/10 hover:text-white"
+                }`}
               >
-                <Menu size={21} />
+                <Icon size={19} strokeWidth={1.8} />
+                {item.name}
               </button>
+            );
+          })}
+        </nav>
 
-              <div className="relative max-w-xl flex-1">
-                <Search
-                  size={18}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search notes and discussions..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-indigo-400 focus:bg-white"
-                />
-              </div>
+        <div className="my-5 border-t border-white/10" />
 
-              <div className="flex items-center gap-2">
-                {userEmail ? (
-                  <>
-                    <span className="hidden max-w-40 truncate text-sm text-slate-500 lg:block">
-                      {userEmail}
-                    </span>
-                    <button
-                      onClick={handleSignOut}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium hover:bg-slate-50"
-                    >
-                      <LogOut size={16} />
-                      <span className="hidden sm:inline">Sign out</span>
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={openLogin}
-                      className="rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
-                    >
-                      Sign in
-                    </button>
-                    <button
-                      onClick={openRegister}
-                      className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-                    >
-                      Join us
-                    </button>
-                  </>
-                )}
-              </div>
+        <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-violet-300">
+          Personal
+        </p>
+
+        <nav className="space-y-1">
+          <button
+            onClick={() => navigate("Profile")}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
+              activeNav === "Profile"
+                ? "bg-violet-400 text-white"
+                : "text-violet-100/80 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <UserRound size={19} />
+            My Profile
+          </button>
+          <button
+            onClick={() => navigate("Settings")}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
+              activeNav === "Settings"
+                ? "bg-violet-400 text-white"
+                : "text-violet-100/80 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <Settings size={19} />
+            Settings
+          </button>
+        </nav>
+
+        <div className="mt-auto rounded-2xl border border-white/10 bg-white/[0.07] p-4">
+          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-400/20 text-violet-200">
+            <Users size={19} />
+          </div>
+          <p className="text-sm font-semibold">Learn as a community</p>
+          <p className="mt-1 text-xs leading-5 text-violet-200/75">
+            Share knowledge. Ask questions. Grow together.
+          </p>
+        </div>
+      </aside>
+
+      <main className="min-h-screen min-w-0 md:ml-[250px]">
+        <header className="sticky top-0 z-30 border-b border-violet-100 bg-white/90 backdrop-blur-xl">
+          <div className="flex min-h-[76px] items-center gap-3 px-4 sm:px-6 lg:px-9">
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="rounded-lg p-2 text-violet-800 hover:bg-violet-50 md:hidden"
+              aria-label="Open navigation"
+            >
+              <Menu size={21} />
+            </button>
+
+            <div className="relative max-w-xl flex-1">
+              <Search
+                size={18}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-violet-400"
+              />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search notes and discussions..."
+                className="w-full rounded-xl border border-violet-100 bg-violet-50/60 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
+              />
             </div>
-          </header>
 
-          <div className="mx-auto max-w-7xl px-5 py-8 md:px-9 md:py-10">
-            {activeNav === "Home" && (
-              <>
-                <section className="mb-9 overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 px-7 py-9 text-white md:px-10 md:py-12">
-                  <div className="max-w-2xl">
-                    <p className="mb-3 text-sm font-medium text-indigo-100">
-                      NORTH SYNAPSE COMMUNITY
-                    </p>
-                    <h2 className="text-3xl font-bold leading-tight tracking-tight md:text-4xl">
-                      Better learning starts
-                      <br className="hidden sm:block" /> with sharing.
-                    </h2>
-                    <p className="mt-4 max-w-xl text-sm leading-6 text-indigo-100 md:text-base">
-                      Discover student-made notes, ask questions, and
-                      exchange ideas with a community that learns together.
-                    </p>
-                    <div className="mt-7 flex flex-wrap gap-3">
-                      <button
-                        onClick={() => changeSection("Resources")}
-                        className="flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
-                      >
-                        <BookOpen size={17} />
-                        Explore resources
-                      </button>
-                      <button
-                        onClick={() => changeSection("Discussions")}
-                        className="flex items-center gap-2 rounded-xl border border-white/40 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"
-                      >
-                        <MessageSquare size={17} />
-                        Join discussions
-                      </button>
-                    </div>
-                  </div>
-                </section>
-
-                {errorMessage && (
-                  <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    {errorMessage}
-                  </div>
-                )}
-
-                <section className="mb-10">
-                  <div className="mb-5 flex items-end justify-between gap-4">
-                    <div>
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-indigo-600">
-                        Shared knowledge
-                      </p>
-                      <h2 className="text-xl font-bold">Latest resources</h2>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Notes and study materials shared by students.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => changeSection("Resources")}
-                      className="shrink-0 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
-                    >
-                      View all
-                    </button>
-                  </div>
-
-                  {loading ? (
-                    <p className="py-8 text-sm text-slate-500">
-                      Loading resources...
-                    </p>
-                  ) : filteredResources.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
-                      <BookOpen
-                        size={28}
-                        className="mx-auto mb-3 text-slate-400"
-                      />
-                      <p className="font-semibold text-slate-700">
-                        No resources to show yet
-                      </p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Shared notes will appear here once available.
-                      </p>
-                    </div>
+            {userId ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => navigate("Profile")}
+                  className="flex items-center gap-2 rounded-xl p-1.5 pr-2 hover:bg-violet-50"
+                  title="My Profile"
+                >
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt="Profile avatar"
+                      className="h-9 w-9 rounded-full object-cover"
+                    />
                   ) : (
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {filteredResources.slice(0, 6).map((item) => (
-                        <article
-                          key={item.id}
-                          className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-md"
-                        >
-                          <div className="mb-4 flex items-start justify-between gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                              <BookOpen size={20} />
-                            </div>
-                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                              {item.resource_type || "Study notes"}
-                            </span>
-                          </div>
-
-                          <h3 className="line-clamp-2 font-semibold leading-6 text-slate-900">
-                            {item.title}
-                          </h3>
-                          <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
-                            {item.description || "No description provided."}
-                          </p>
-
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            {item.subject && (
-                              <span className="rounded-lg bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700">
-                                {item.subject}
-                              </span>
-                            )}
-                            {item.grade && (
-                              <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-                                {item.grade}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500">
-                            <span className="truncate">
-                              By {item.author || "Community member"}
-                            </span>
-                            <span className="shrink-0">
-                              {formatDate(item.created_at)}
-                            </span>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-200 text-sm font-bold text-violet-800">
+                      {initials}
+                    </span>
                   )}
-                </section>
-
-                <section>
-                  <div className="mb-5 flex items-end justify-between gap-4">
-                    <div>
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-indigo-600">
-                        Exchange ideas
-                      </p>
-                      <h2 className="text-xl font-bold">
-                        Community discussions
-                      </h2>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Questions, advice, and conversations from students.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => changeSection("Discussions")}
-                      className="shrink-0 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
-                    >
-                      View all
-                    </button>
-                  </div>
-
-                  {loading ? (
-                    <p className="py-8 text-sm text-slate-500">
-                      Loading discussions...
-                    </p>
-                  ) : filteredDiscussions.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
-                      <MessageSquare
-                        size={28}
-                        className="mx-auto mb-3 text-slate-400"
-                      />
-                      <p className="font-semibold text-slate-700">
-                        No discussions to show yet
-                      </p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Community conversations will appear here.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {filteredDiscussions.slice(0, 5).map((item) => (
-                        <article
-                          key={item.id}
-                          className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-indigo-200 hover:shadow-sm"
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600 sm:flex">
-                              <MessageSquare size={19} />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                {item.category && (
-                                  <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
-                                    {item.category}
-                                  </span>
-                                )}
-                                {item.is_solved && (
-                                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                                    Solved
-                                  </span>
-                                )}
-                              </div>
-                              <h3 className="mt-2 font-semibold leading-6 text-slate-900">
-                                {item.title}
-                              </h3>
-                              <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-500">
-                                {item.content || "Open discussion"}
-                              </p>
-                              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
-                                <span>
-                                  {item.author || "Community member"}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <MessageCircle size={14} />
-                                  {item.replies_count ?? 0} replies
-                                </span>
-                                <span>{formatDate(item.created_at)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              </>
+                  <span className="hidden max-w-32 truncate text-sm font-medium text-slate-700 sm:block">
+                    {displayName}
+                  </span>
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  className="rounded-xl border border-violet-100 p-2.5 text-slate-500 transition hover:bg-violet-50 hover:text-violet-800"
+                  title="Sign out"
+                  aria-label="Sign out"
+                >
+                  <LogOut size={17} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 sm:gap-2">
+                <button
+                  onClick={() => (window.location.href = "/login")}
+                  className="rounded-xl px-3 py-2.5 text-sm font-medium text-violet-800 hover:bg-violet-50"
+                >
+                  Sign in
+                </button>
+                <button
+                  onClick={() => (window.location.href = "/register")}
+                  className="rounded-xl bg-violet-700 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-800 sm:px-4"
+                >
+                  Join us
+                </button>
+              </div>
             )}
+          </div>
+        </header>
 
-            {activeNav === "Resources" && (
-              <section>
-                <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
+        <div className="mx-auto max-w-[1400px] px-4 py-7 sm:px-6 lg:px-9 lg:py-9">
+          {errorMessage && (
+            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {errorMessage}
+            </div>
+          )}
+
+          {activeNav === "Home" && (
+            <>
+              <section className="relative mb-9 overflow-hidden rounded-[28px] bg-gradient-to-br from-[#39266e] via-[#6043ad] to-[#8b70dc] px-6 py-9 text-white shadow-xl shadow-violet-200/70 sm:px-9 lg:px-12 lg:py-12">
+                <div className="pointer-events-none absolute -right-12 -top-20 h-64 w-64 rounded-full border border-white/10" />
+                <div className="pointer-events-none absolute -right-2 -top-10 h-44 w-44 rounded-full border border-white/10" />
+                <div className="relative max-w-2xl">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-violet-200">
+                    North Synapse Community
+                  </p>
+                  <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-[42px]">
+                    Knowledge grows
+                    <br className="hidden sm:block" /> when we share it.
+                  </h1>
+                  <p className="mt-4 max-w-xl text-sm leading-6 text-violet-100 sm:text-base">
+                    Discover student-made notes, ask questions, and exchange
+                    ideas with a community that learns together.
+                  </p>
+                  <div className="mt-7 flex flex-wrap gap-3">
+                    <button
+                      onClick={() => navigate("Resources")}
+                      className="flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-violet-800 transition hover:bg-violet-50"
+                    >
+                      Explore resources <ArrowUpRight size={17} />
+                    </button>
+                    <button
+                      onClick={() => navigate("Discussions")}
+                      className="flex items-center gap-2 rounded-xl border border-white/30 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                    >
+                      <MessageSquare size={17} /> Join discussions
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="mb-10">
+                <div className="mb-5 flex items-end justify-between gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold">Resources</h2>
-                    <p className="mt-2 text-sm text-slate-500">
-                      Browse notes and study materials shared by students.
+                    <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
+                      Shared knowledge
+                    </p>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                      Latest resources
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Notes and study materials shared by students.
                     </p>
                   </div>
                   <button
-                    onClick={() => {
-                      if (!userEmail) {
-                        openLogin();
-                      } else {
-                        window.alert(
-                          "The resource submission form will be added next."
-                        );
-                      }
-                    }}
-                    className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
+                    onClick={() => navigate("Resources")}
+                    className="shrink-0 text-sm font-semibold text-violet-700 hover:text-violet-900"
                   >
-                    <Plus size={17} />
-                    Share a resource
+                    View all →
                   </button>
                 </div>
 
+                {loading ? (
+                  <p className="py-8 text-sm text-slate-500">
+                    Loading resources...
+                  </p>
+                ) : filteredResources.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-violet-200 bg-white px-6 py-10 text-center">
+                    <BookOpen className="mx-auto mb-3 text-violet-400" size={28} />
+                    <p className="font-semibold text-slate-700">
+                      No resources to show yet
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Student-shared notes will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {filteredResources.slice(0, 6).map((item) => (
+                      <ResourceCard key={item.id} item={item} />
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section>
+                <div className="mb-5 flex items-end justify-between gap-4">
+                  <div>
+                    <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
+                      Exchange ideas
+                    </p>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                      Community discussions
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Questions, advice, and conversations from students.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate("Discussions")}
+                    className="shrink-0 text-sm font-semibold text-violet-700 hover:text-violet-900"
+                  >
+                    View all →
+                  </button>
+                </div>
+
+                {loading ? (
+                  <p className="py-8 text-sm text-slate-500">
+                    Loading discussions...
+                  </p>
+                ) : filteredDiscussions.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-violet-200 bg-white px-6 py-10 text-center">
+                    <MessageSquare className="mx-auto mb-3 text-violet-400" size={28} />
+                    <p className="font-semibold text-slate-700">
+                      No discussions to show yet
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Community conversations will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredDiscussions.slice(0, 5).map((item) => (
+                      <DiscussionCard key={item.id} item={item} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+
+          {activeNav === "Resources" && (
+            <section>
+              <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
+                    Resource library
+                  </p>
+                  <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                    Resources
+                  </h1>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Browse notes and study materials shared by students.
+                  </p>
+                </div>
+                <button
+                  onClick={() => requireLogin("Resource submission")}
+                  className="flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-violet-800"
+                >
+                  <Plus size={17} /> Share a resource
+                </button>
+              </div>
+              {loading ? (
+                <p className="py-8 text-sm text-slate-500">Loading resources...</p>
+              ) : filteredResources.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-violet-200 bg-white p-10 text-center text-sm text-slate-500">
+                  No matching resources found.
+                </div>
+              ) : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {filteredResources.map((item) => (
-                    <article
-                      key={item.id}
-                      className="rounded-2xl border border-slate-200 bg-white p-5"
-                    >
-                      <div className="mb-4 flex items-center justify-between gap-3">
-                        <BookOpen className="text-indigo-600" size={22} />
-                        <span className="text-xs text-slate-500">
-                          {formatDate(item.created_at)}
-                        </span>
-                      </div>
-                      <h3 className="font-semibold">{item.title}</h3>
-                      <p className="mt-2 text-sm text-slate-500">
-                        {item.description || "No description provided."}
-                      </p>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {item.subject && (
-                          <span className="rounded-lg bg-indigo-50 px-2 py-1 text-xs text-indigo-700">
-                            {item.subject}
-                          </span>
-                        )}
-                        {item.grade && (
-                          <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600">
-                            {item.grade}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-4 text-xs text-slate-500">
-                        Shared by {item.author || "Community member"}
-                      </p>
-                    </article>
+                    <ResourceCard key={item.id} item={item} />
                   ))}
                 </div>
+              )}
+            </section>
+          )}
 
-                {!loading && filteredResources.length === 0 && (
-                  <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
-                    No matching resources found.
+          {activeNav === "Discussions" && (
+            <section>
+              <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
+                    Student conversations
                   </p>
-                )}
-              </section>
-            )}
-
-            {activeNav === "Discussions" && (
-              <section>
-                <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl font-bold">Discussions</h2>
-                    <p className="mt-2 text-sm text-slate-500">
-                      Ask questions and exchange ideas with other students.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (!userEmail) {
-                        openLogin();
-                      } else {
-                        window.alert(
-                          "The discussion creation form will be added next."
-                        );
-                      }
-                    }}
-                    className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
-                  >
-                    <Plus size={17} />
-                    Start a discussion
-                  </button>
+                  <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                    Discussions
+                  </h1>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Ask questions and exchange ideas with other students.
+                  </p>
                 </div>
-
+                <button
+                  onClick={() => requireLogin("Discussion creation")}
+                  className="flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-800"
+                >
+                  <Plus size={17} /> Start a discussion
+                </button>
+              </div>
+              {loading ? (
+                <p className="py-8 text-sm text-slate-500">Loading discussions...</p>
+              ) : filteredDiscussions.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-violet-200 bg-white p-10 text-center text-sm text-slate-500">
+                  No matching discussions found.
+                </div>
+              ) : (
                 <div className="space-y-3">
                   {filteredDiscussions.map((item) => (
-                    <article
-                      key={item.id}
-                      className="rounded-2xl border border-slate-200 bg-white p-5"
-                    >
-                      <div className="flex flex-wrap gap-2">
-                        {item.category && (
-                          <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700">
-                            {item.category}
-                          </span>
-                        )}
-                        {item.is_solved && (
-                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700">
-                            Solved
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="mt-3 font-semibold">{item.title}</h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">
-                        {item.content || "Open discussion"}
-                      </p>
-                      <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                        <span>
-                          By {item.author || "Community member"}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MessageCircle size={14} />
-                          {item.replies_count ?? 0} replies
-                        </span>
-                        <span>{formatDate(item.created_at)}</span>
-                      </div>
-                    </article>
+                    <DiscussionCard key={item.id} item={item} />
                   ))}
                 </div>
+              )}
+            </section>
+          )}
 
-                {!loading && filteredDiscussions.length === 0 && (
-                  <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
-                    No matching discussions found.
+          {activeNav === "Profile" && (
+            <section>
+              {!userId ? (
+                <div className="rounded-3xl border border-violet-100 bg-white px-6 py-14 text-center shadow-sm">
+                  <UserRound className="mx-auto mb-4 text-violet-500" size={36} />
+                  <h1 className="text-2xl font-bold">Your profile</h1>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Sign in to view your personal profile and saved resources.
                   </p>
-                )}
-              </section>
-            )}
-
-            {!["Home", "Resources", "Discussions"].includes(activeNav) && (
-              <section className="rounded-3xl border border-slate-200 bg-white px-6 py-14 text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-                  {activeNav === "Study Rooms" && <Users size={26} />}
-                  {activeNav === "Announcements" && <Megaphone size={26} />}
-                  {activeNav === "Feedback" && <MessageCircle size={26} />}
+                  <button
+                    onClick={() => (window.location.href = "/login")}
+                    className="mt-6 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-800"
+                  >
+                    <span className="flex items-center gap-2">
+                      <LogIn size={16} /> Sign in
+                    </span>
+                  </button>
                 </div>
-                <h2 className="text-2xl font-bold">{activeNav}</h2>
-                <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
-                  This section will be connected to its database and interactive
-                  features in the next development steps.
-                </p>
-              </section>
-            )}
+              ) : (
+                <>
+                  <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
+                        Your space
+                      </p>
+                      <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                        My Profile
+                      </h1>
+                    </div>
+                    <button
+                      onClick={() => navigate("Settings")}
+                      className="flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm font-semibold text-violet-800 hover:bg-violet-50"
+                    >
+                      <Settings size={17} /> Profile settings
+                    </button>
+                  </div>
 
-            <footer className="mt-12 border-t border-slate-200 py-6 text-center text-xs text-slate-400">
-              North Synapse · A community built around learning together.
-            </footer>
-          </div>
-        </main>
-      </div>
+                  <div className="mb-7 overflow-hidden rounded-3xl border border-violet-100 bg-white shadow-sm">
+                    <div className="h-28 bg-gradient-to-r from-[#39266e] via-[#6949b9] to-[#a38be8]" />
+                    <div className="px-6 pb-6 sm:px-8">
+                      <div className="-mt-11 flex flex-wrap items-end gap-4">
+                        {profile?.avatar_url ? (
+                          <img
+                            src={profile.avatar_url}
+                            alt="Profile avatar"
+                            className="h-24 w-24 rounded-2xl border-4 border-white bg-white object-cover shadow-md"
+                          />
+                        ) : (
+                          <div className="flex h-24 w-24 items-center justify-center rounded-2xl border-4 border-white bg-violet-100 text-3xl font-bold text-violet-800 shadow-md">
+                            {initials}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1 pb-1">
+                          <h2 className="text-xl font-bold text-slate-900">
+                            {displayName}
+                          </h2>
+                          <p className="mt-1 break-all text-sm text-slate-500">
+                            {userEmail}
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="mt-5 max-w-2xl text-sm leading-6 text-slate-600">
+                        {profile?.bio || "This student has not added a bio yet."}
+                      </p>
+
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        {profile?.grade_level && (
+                          <span className="rounded-full bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700">
+                            {profile.grade_level}
+                          </span>
+                        )}
+                        {profile?.role && (
+                          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
+                            {profile.role}
+                          </span>
+                        )}
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-600">
+                          <CalendarDays size={13} />
+                          Joined {joinedAt ? formatDate(joinedAt) : "Recently"}
+                        </span>
+                      </div>
+
+                      {!profile && !profileLoading && (
+                        <p className="mt-4 text-xs leading-5 text-amber-700">
+                          No profile record was found for this account. Some
+                          profile fields may appear after a profile row is created.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {profileError && (
+                    <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      {profileError}
+                    </div>
+                  )}
+
+                  <div className="mb-8 grid gap-4 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-violet-100 bg-white p-5">
+                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+                        <FileText size={20} />
+                      </div>
+                      <p className="text-2xl font-bold text-slate-900">
+                        {myResources.length}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">Resources shared</p>
+                    </div>
+                    <div className="rounded-2xl border border-violet-100 bg-white p-5">
+                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                        <Bookmark size={20} />
+                      </div>
+                      <p className="text-2xl font-bold text-slate-900">
+                        {bookmarkedResources.length}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">Saved resources</p>
+                    </div>
+                    <div className="rounded-2xl border border-violet-100 bg-white p-5">
+                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                        <MessageSquare size={20} />
+                      </div>
+                      <p className="text-2xl font-bold text-slate-900">—</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Discussions started
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Will be connected next
+                      </p>
+                    </div>
+                  </div>
+
+                  <section className="mb-8">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900">
+                          My shared resources
+                        </h2>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Notes and materials you have posted.
+                        </p>
+                      </div>
+                    </div>
+                    {profileLoading ? (
+                      <p className="py-6 text-sm text-slate-500">
+                        Loading your profile...
+                      </p>
+                    ) : myResources.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-violet-200 bg-white p-7 text-sm text-slate-500">
+                        You have not shared any resources yet.
+                      </div>
+                    ) : (
+                      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        {myResources.map((item) => (
+                          <ResourceCard key={item.id} item={item} />
+                        ))}
+                      </div>
+                    )}
+                  </section>
+
+                  <section>
+                    <div className="mb-4">
+                      <h2 className="text-lg font-bold text-slate-900">
+                        Saved resources
+                      </h2>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Materials you have bookmarked for later.
+                      </p>
+                    </div>
+                    {profileLoading ? (
+                      <p className="py-6 text-sm text-slate-500">
+                        Loading saved resources...
+                      </p>
+                    ) : bookmarkedResources.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-violet-200 bg-white p-7 text-sm text-slate-500">
+                        Your saved resources will appear here when you bookmark
+                        materials.
+                      </div>
+                    ) : (
+                      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        {bookmarkedResources.map((item) => (
+                          <ResourceCard key={item.id} item={item} />
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
+            </section>
+          )}
+
+          {activeNav === "Settings" && (
+            <section>
+              <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
+                Account
+              </p>
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                Settings
+              </h1>
+              <div className="mt-6 rounded-2xl border border-violet-100 bg-white p-6">
+                <h2 className="font-semibold text-slate-900">Account details</h2>
+                <p className="mt-2 break-all text-sm text-slate-500">
+                  {userEmail || "You are not signed in."}
+                </p>
+                <p className="mt-4 text-sm leading-6 text-slate-500">
+                  Profile editing, avatar uploads, and account preferences will
+                  be added here in a later step.
+                </p>
+                {userId && (
+                  <button
+                    onClick={handleSignOut}
+                    className="mt-5 flex items-center gap-2 rounded-xl border border-violet-200 px-4 py-2.5 text-sm font-medium text-violet-800 hover:bg-violet-50"
+                  >
+                    <LogOut size={16} /> Sign out
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
+
+          {![
+            "Home",
+            "Resources",
+            "Discussions",
+            "Profile",
+            "Settings",
+          ].includes(activeNav) && (
+            <section className="rounded-3xl border border-violet-100 bg-white px-6 py-14 text-center shadow-sm">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
+                {activeNav === "Study Rooms" && <Users size={26} />}
+                {activeNav === "Announcements" && <Megaphone size={26} />}
+                {activeNav === "Feedback" && <MessageCircle size={26} />}
+              </div>
+              <h1 className="text-2xl font-bold text-slate-900">{activeNav}</h1>
+              <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
+                This section will be connected to its database and interactive
+                features in the next development steps.
+              </p>
+            </section>
+          )}
+
+          <footer className="mt-12 border-t border-violet-100 py-6 text-center text-xs text-slate-400">
+            North Synapse · A community built around learning together.
+          </footer>
+        </div>
+      </main>
     </div>
   );
 }
