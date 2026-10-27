@@ -1,1598 +1,1069 @@
+'use client';
 
-"use client";
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 
-import { useEffect, useState } from "react";
-import {
-  BookOpen,
-  MessageSquare,
-  Users,
-  Megaphone,
-  MessageCircle,
-  Search,
-  Plus,
-  GraduationCap,
-  Bookmark,
-  Heart,
-  CalendarDays,
-  UserRound,
-  Settings,
-  LogIn,
-  LogOut,
-  Menu,
-  X,
-  ArrowUpRight,
-  FileText,
-  UserPlus,
-  Check,
-  Send,
-  RefreshCw,
-} from "lucide-react";
-import { supabase } from "@/lib/supabase/client";
+type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard';
 
-type Resource = {
+interface CommentItem {
+  id: string;
+  authorName: string;
+  authorAvatar: string;
+  text: string;
+  date: string;
+  likes: number;
+  likedByMe?: boolean;
+}
+
+interface ResourceItem {
   id: string;
   title: string;
-  subject: string | null;
-  grade: string | null;
-  resource_type: string | null;
-  description: string | null;
-  author: string | null;
-  author_id: string | null;
-  created_at: string;
-  tags: string[] | null;
-};
-
-type Discussion = {
-  id: string;
-  title: string;
-  category: string | null;
-  content: string | null;
-  author: string | null;
-  replies_count: number | null;
-  is_solved: boolean | null;
-  created_at: string;
-};
-
-type Profile = {
-  username: string | null;
-  nickname: string | null;
-  display_name: string | null;
-  grade_level: string | null;
-  gender: string | null;
-  avatar_url: string | null;
-  bio: string | null;
-  role: string | null;
-  friend_request_mode?: "approval" | "direct" | null;
-};
-
-type CommunityProfile = {
-  id: string;
-  username: string | null;
-  nickname: string | null;
-  display_name: string | null;
-  grade_level: string | null;
-  gender: string | null;
-  bio: string | null;
-  email?: string | null;
-  friend_request_mode?: "approval" | "direct" | null;
-};
-
-type FriendRequest = {
-  id: string;
-  sender_id: string;
-  receiver_id: string;
-  status: "pending" | "accepted";
-  created_at: string;
-};
-
-type DirectMessage = {
-  id: string;
-  sender_id: string;
-  receiver_id: string;
+  subject: string;
+  grade: string;
+  description: string;
   content: string;
-  created_at: string;
-};
+  authorName: string;
+  authorEmail?: string;
+  authorAvatar: string;
+  date: string;
+  likes: number;
+  bookmarks: number;
+  likedByMe?: boolean;
+  bookmarkedByMe?: boolean;
+  comments: CommentItem[];
+}
 
-const navigation = [
-  { name: "Home", icon: BookOpen },
-  { name: "Resources", icon: GraduationCap },
-  { name: "Discussions", icon: MessageSquare },
-  { name: "Study Rooms", icon: Users },
-  { name: "Announcements", icon: Megaphone },
-  { name: "Feedback", icon: MessageCircle },
-];
+interface DiscussionItem {
+  id: string;
+  title: string;
+  content: string;
+  authorEmail: string;
+  authorName: string;
+  date: string;
+  repliesCount: number;
+  replies: CommentItem[];
+}
 
-export default function HomePage() {
-  const [activeNav, setActiveNav] = useState("Home");
-  const [search, setSearch] = useState("");
-  const [resources, setResources] = useState<Resource[]>([]);
-  const [discussions, setDiscussions] = useState<Discussion[]>([]);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [myResources, setMyResources] = useState<Resource[]>([]);
-  const [bookmarkedResources, setBookmarkedResources] = useState<Resource[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [joinedAt, setJoinedAt] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [profileError, setProfileError] = useState("");
-  const [editNickname, setEditNickname] = useState("");
-  const [editGender, setEditGender] = useState("");
-  const [editGrade, setEditGrade] = useState("");
-  const [editBio, setEditBio] = useState("");
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [profileSuccess, setProfileSuccess] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [friendSearch, setFriendSearch] = useState("");
-  const [friendSearchResults, setFriendSearchResults] = useState<CommunityProfile[]>([]);
-  const [friendRecommendations, setFriendRecommendations] = useState<CommunityProfile[]>([]);
-  const [friends, setFriends] = useState<CommunityProfile[]>([]);
-  const [incomingRequests, setIncomingRequests] = useState<(FriendRequest & { sender?: CommunityProfile })[]>([]);
-  const [friendRequestIds, setFriendRequestIds] = useState<string[]>([]);
-  const [friendLoading, setFriendLoading] = useState(false);
-  const [friendError, setFriendError] = useState("");
-  const [friendNotice, setFriendNotice] = useState("");
-  const [friendRequestMode, setFriendRequestMode] = useState<"approval" | "direct">("approval");
-  const [selectedFriend, setSelectedFriend] = useState<CommunityProfile | null>(null);
-  const [messages, setMessages] = useState<DirectMessage[]>([]);
-  const [messageDraft, setMessageDraft] = useState("");
-  const [messageLoading, setMessageLoading] = useState(false);
-  const [sendingMessage, setSendingMessage] = useState(false);
+interface LoungeRoom {
+  id: string;
+  name: string;
+  subject: string;
+  activeUsers: number;
+  description: string;
+}
 
-  // Automatically dismiss success/info notices after a short delay.
-  useEffect(() => {
-    if (!friendNotice) return;
-    const timeoutId = window.setTimeout(() => setFriendNotice(""), 3500);
-    return () => window.clearTimeout(timeoutId);
-  }, [friendNotice]);
+interface AnnouncementItem {
+  id: string;
+  title: string;
+  content: string;
+  date: string;
+  authorName: string;
+}
 
-  const handleSaveProfile = async () => {
-    if (!userId) {
-      setProfileError("Please sign in before saving your profile.");
-      return;
-    }
-  
-    setSavingProfile(true);
-    setProfileError("");
-    setProfileSuccess("");
-  
-    const { data: authData, error: authError } =
-      await supabase.auth.getUser();
-  
-    if (authError || !authData.user || authData.user.id !== userId) {
-      setProfileError("Your session could not be verified. Please sign in again.");
-      setSavingProfile(false);
-      return;
-    }
-  
-    const { data, error } = await supabase
-      .from("profiles")
-      .upsert(
-        {
-          id: userId,
-          nickname: editNickname.trim() || null,
-          gender: editGender || null,
-          grade_level: editGrade || null,
-          bio: editBio.trim() || null,
-          friend_request_mode: friendRequestMode,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" }
-      )
-      .select("username, nickname, display_name, grade_level, gender, avatar_url, bio, role, friend_request_mode")
-      .single();
+export default function Home() {
+  /* ==========================================================================
+     1. 全局状态 (GLOBAL STATES)
+     ========================================================================== */
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [activeTab, setActiveTab] = useState<NavTab>('resources');
 
-    if (error || !data) {
-      console.error("Profile save error:", error);
-      setProfileError(
-        error?.message ||
-          "Profile could not be saved. Check the profiles table columns and Row Level Security policies."
-      );
-      setSavingProfile(false);
-      return;
-    }
+  // 用户与弹窗状态
+  const [user, setUser] = useState<any>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [showCreateResourceModal, setShowCreateResourceModal] = useState(false);
+  const [showCreateDiscussionModal, setShowCreateDiscussionModal] = useState(false);
 
-    setProfile(data);
-    setEditNickname(data.nickname || data.display_name || data.username || "");
-    setEditGender(data.gender || "");
-    setEditGrade(data.grade_level || "");
-    setEditBio(data.bio || "");
-    setFriendRequestMode(data.friend_request_mode === "direct" ? "direct" : "approval");
-    setProfileSuccess("Your profile has been saved.");
-    setSavingProfile(false);
-  };
+  // 认证表单
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
+  const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
+  // 个人资料
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [username, setUsername] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [grade, setGrade] = useState('Grade 12');
+  const [gender, setGender] = useState('Prefer not to say');
+  const [bio, setBio] = useState('');
 
-    async function loadCommunity() {
-      setLoading(true);
-      setErrorMessage("");
+  // 筛选与搜索
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
-      const [resourceResult, discussionResult, sessionResult] =
-        await Promise.all([
-          supabase
-            .from("resources")
-            .select(
-              "id, title, subject, grade, resource_type, description, author, author_id, created_at, tags"
-            )
-            .order("created_at", { ascending: false })
-            .limit(30),
+  // 新建资源/讨论表单
+  const [newResTitle, setNewResTitle] = useState('');
+  const [newResSubject, setNewResSubject] = useState('Mathematics');
+  const [newResGrade, setNewResGrade] = useState('Grade 12');
+  const [newResDescription, setNewResDescription] = useState('');
+  const [newResContent, setNewResContent] = useState('');
 
-          supabase
-            .from("discussions")
-            .select(
-              "id, title, category, content, author, replies_count, is_solved, created_at"
-            )
-            .order("created_at", { ascending: false })
-            .limit(30),
+  const [newDiscTitle, setNewDiscTitle] = useState('');
+  const [newDiscContent, setNewDiscContent] = useState('');
 
-          supabase.auth.getSession(),
-        ]);
-      
+  // 自习室与番茄钟
+  const [joinedRoom, setJoinedRoom] = useState<LoungeRoom | null>(null);
+  const [pomodoroTime, setPomodoroTime] = useState(1500); // 25 分钟
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
 
-      if (!mounted) return;
+  // 反馈与引用格式
+  const [feedbackCategory, setFeedbackCategory] = useState('General Suggestion');
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [citationFormat, setCitationFormat] = useState<'APA' | 'IEEE' | 'MLA' | 'BibTeX'>('APA');
 
-      if (resourceResult.error || discussionResult.error) {
-        console.error(
-          "Community loading error:",
-          resourceResult.error?.message,
-          discussionResult.error?.message
-        );
-        setErrorMessage(
-          "Some community content could not be loaded. Check your connection and database permissions."
-        );
+  // 本地持久化数据读取
+  const [resources, setResources] = useState<ResourceItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('ns_resources');
+      if (saved) {
+        try { return JSON.parse(saved); } catch (_) {}
       }
-
-      setResources(resourceResult.data ?? []);
-      setDiscussions(discussionResult.data ?? []);
-
-      const user = sessionResult.data.session?.user ?? null;
-      setUserId(user?.id ?? null);
-      setUserEmail(user?.email ?? null);
-      setJoinedAt(user?.created_at ?? null);
-      setLoading(false);
     }
-
-    loadCommunity();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      const user = session?.user ?? null;
-      setUserId(user?.id ?? null);
-      setUserEmail(user?.email ?? null);
-      setJoinedAt(user?.created_at ?? null);
-
-      if (!user) {
-        setProfile(null);
-        setMyResources([]);
-        setBookmarkedResources([]);
-        setActiveNav("Home");
+    return [
+      {
+        id: '1',
+        title: 'AP Calculus BC Derivatives & Series Master Review',
+        subject: 'Mathematics',
+        grade: 'AP Courses',
+        description: 'Comprehensive prep guide covering AP exam series convergence tests, Taylor polynomials, and parametric equations.',
+        content: 'Detailed derivatives rules:\n(1) Product Rule: (uv)\' = u\'v + uv\'.\n(2) Quotient Rule: (u/v)\' = (u\'v - uv\') / v^2.\n\nTaylor Series Expansion for e^x = 1 + x + x^2/2! + x^3/3! + ... Make sure to practice ratio tests for interval of convergence!',
+        authorName: 'Alex Smith',
+        authorEmail: 'alex.smith@tdsb.ca',
+        authorAvatar: '',
+        date: 'Oct 24, 2026',
+        likes: 12,
+        bookmarks: 8,
+        likedByMe: false,
+        bookmarkedByMe: false,
+        comments: [
+          { id: 'c1', authorName: 'Jordan Lee', authorAvatar: '', text: 'This saved my midterm review! Thanks!', date: 'Oct 24, 2026', likes: 3, likedByMe: false }
+        ]
+      },
+      {
+        id: '2',
+        title: 'Waterloo Fermat Math Competition Past Solutions',
+        subject: 'Mathematics',
+        grade: 'Academic Competitions',
+        description: 'Step-by-step solutions for past Waterloo contest papers with key shortcut tricks.',
+        content: 'Key geometry theorem: In any right triangle, a^2 + b^2 = c^2.\nFor modular arithmetic problems, always check remainder patterns mod 10 for unit digits!',
+        authorName: 'Jordan Lee',
+        authorEmail: 'jordan.lee@tdsb.ca',
+        authorAvatar: '',
+        date: 'Oct 23, 2026',
+        likes: 19,
+        bookmarks: 14,
+        likedByMe: false,
+        bookmarkedByMe: false,
+        comments: []
       }
-    });
+    ];
+  });
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+  const [discussions, setDiscussions] = useState<DiscussionItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('ns_discussions');
+      if (saved) {
+        try { return JSON.parse(saved); } catch (_) {}
+      }
+    }
+    return [
+      {
+        id: 'd1',
+        title: 'How to prepare effectively for Grade 12 Physics contest?',
+        content: 'Looking for study recommendations and resources for kinematics and mechanics problems.',
+        authorEmail: 'student@tdsb.ca',
+        authorName: 'Alex Student',
+        date: 'Oct 24, 2026',
+        repliesCount: 1,
+        replies: [
+          { id: 'r1', authorName: 'Alex Smith', authorAvatar: '', text: 'Focus on past AAPT Physics Bowl and SIN contest problems!', date: 'Oct 24, 2026', likes: 2 }
+        ]
+      }
+    ];
+  });
+
+  const [lounges] = useState<LoungeRoom[]>([
+    { id: 'l1', name: 'AP Calculus & Advanced Math Focus', subject: 'Mathematics', activeUsers: 8, description: 'Silent study & problem solving for AP Calculus and Fermat/Euclid contest prep.' },
+    { id: 'l2', name: 'Grade 11 & 12 Physics / Chemistry Lab', subject: 'Science', activeUsers: 5, description: 'Discussion & peer review for physics problem sets and chemistry labs.' },
+    { id: 'l3', name: 'Computer Science & Algorithmic Practice', subject: 'Computer Science & Tech', activeUsers: 12, description: 'CCC Contest coding practice and Python/Java algorithm discussions.' }
+  ]);
+
+  const [announcements] = useState<AnnouncementItem[]>([
+    { id: '1', title: 'Welcome to North Synapse Academic Platform', content: 'A centralized workspace for verified course resources, virtual study rooms, and academic peer discussions.', date: 'Oct 24, 2026', authorName: 'North Synapse Official' },
+    { id: '2', title: 'AP & Competition Prep Resource Categories Added', content: 'We updated our Resource Hub filter tags with AP Courses, Academic Competitions, French, and Geography!', date: 'Oct 24, 2026', authorName: 'North Synapse Official' }
+  ]);
+
+  const [previewResource, setPreviewResource] = useState<ResourceItem | null>(null);
+  const [newCommentText, setNewCommentText] = useState('');
+  const [selectedDiscussion, setSelectedDiscussion] = useState<DiscussionItem | null>(null);
+  const [newReplyText, setNewReplyText] = useState('');
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // 判断是否为管理员（邮箱中包含 northsynapse）
+  const isAdmin = user?.email?.toLowerCase().includes('northsynapse');
+
+  /* ==========================================================================
+     2. 副作用与数据同步
+     ========================================================================== */
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('ns_user');
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          setUser(parsed);
+          setUsername(parsed.username || '');
+          setNickname(parsed.nickname || parsed.username || '');
+          setGrade(parsed.grade || 'Grade 12');
+          setAvatarUrl(parsed.avatarUrl || '');
+          setBio(parsed.bio || '');
+        } catch (_) {}
+      }
+    }
   }, []);
 
   useEffect(() => {
-    if (!userId) {
-      setProfile(null);
-      setMyResources([]);
-      setBookmarkedResources([]);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ns_resources', JSON.stringify(resources));
+    }
+  }, [resources]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ns_discussions', JSON.stringify(discussions));
+    }
+  }, [discussions]);
+
+  useEffect(() => {
+    if (announcements.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrentBannerIndex((prev) => (prev + 1) % announcements.length);
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [announcements]);
+
+  useEffect(() => {
+    let timer: any = null;
+    if (isTimerRunning && pomodoroTime > 0) {
+      timer = setInterval(() => setPomodoroTime(prev => prev - 1), 1000);
+    } else if (pomodoroTime === 0) {
+      setIsTimerRunning(false);
+      alert('Focus session completed! Time to take a 5-minute break.');
+      setPomodoroTime(1500);
+    }
+    return () => clearInterval(timer);
+  }, [isTimerRunning, pomodoroTime]);
+
+  /* ==========================================================================
+     3. 业务处理函数
+     ========================================================================== */
+  function handleAuthSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+
+    const cleanEmail = authEmail.trim();
+    const cleanPassword = authPassword.trim();
+
+    if (!cleanEmail.includes('@')) {
+      alert('Please enter a valid email address.');
+      setLoading(false);
+      return;
+    }
+    if (cleanPassword.length < 6) {
+      alert('Password must be at least 6 characters long.');
+      setLoading(false);
       return;
     }
 
-    let mounted = true;
-
-    async function loadProfile() {
-      setProfileLoading(true);
-      setProfileError("");
-
-      const [profileResult, ownResourcesResult, bookmarksResult] =
-        await Promise.all([
-          supabase
-            .from("profiles")
-            .select(
-              "username, nickname, display_name, grade_level, gender, avatar_url, bio, role, friend_request_mode"
-            )
-            .eq("id", userId)
-            .maybeSingle(),
-
-          supabase
-            .from("resources")
-            .select(
-              "id, title, subject, grade, resource_type, description, author, author_id, created_at, tags"
-            )
-            .eq("author_id", userId)
-            .order("created_at", { ascending: false }),
-
-          supabase
-            .from("resource_bookmarks")
-            .select("resource_id")
-            .eq("user_id", userId),
-        ]);
-
-      if (!mounted) return;
-
-      if (profileResult.error) {
-        console.error("Profile loading error:", profileResult.error.message);
-        setProfileError("Your profile could not be loaded.");
-      } else {
-        setProfile(profileResult.data);
-        if (profileResult.data) {
-          setEditNickname(
-            profileResult.data.nickname ||
-            profileResult.data.display_name ||
-            profileResult.data.username ||
-            ""
-          );
-          setEditGender(profileResult.data.gender || "");
-          setEditGrade(profileResult.data.grade_level || "");
-          setEditBio(profileResult.data.bio || "");
-          setFriendRequestMode(profileResult.data.friend_request_mode === "direct" ? "direct" : "approval");
-        }
-      }
-
-      if (ownResourcesResult.error) {
-        console.error(
-          "Your resources loading error:",
-          ownResourcesResult.error.message
-        );
-        setProfileError((previous) =>
-          previous || "Your posts could not be loaded. Check database permissions."
-        );
-      } else {
-        setMyResources(ownResourcesResult.data ?? []);
-      }
-
-      if (bookmarksResult.error) {
-        console.error(
-          "Bookmarks loading error:",
-          bookmarksResult.error.message
-        );
-        setProfileError((previous) =>
-          previous || "Bookmarks could not be loaded. Check database permissions."
-        );
-        setBookmarkedResources([]);
-      } else {
-        const ids = (bookmarksResult.data ?? []).map(
-          (item) => item.resource_id
-        );
-
-        if (ids.length === 0) {
-          setBookmarkedResources([]);
-        } else {
-          const savedResult = await supabase
-            .from("resources")
-            .select(
-              "id, title, subject, grade, resource_type, description, author, author_id, created_at, tags"
-            )
-            .in("id", ids)
-            .order("created_at", { ascending: false });
-
-          if (!mounted) return;
-
-          if (savedResult.error) {
-            console.error(
-              "Saved resources error:",
-              savedResult.error.message
-            );
-            setProfileError((previous) =>
-              previous || "Saved resources could not be displayed."
-            );
-          } else {
-            setBookmarkedResources(savedResult.data ?? []);
-          }
-        }
-      }
-
-      setProfileLoading(false);
+    if (isSignUp && (!isStudentConfirmed || !hasAgreedTerms)) {
+      alert('Please confirm that you are a student and accept the Terms of Service.');
+      setLoading(false);
+      return;
     }
 
-    loadProfile();
-
-    return () => {
-      mounted = false;
+    const defaultName = cleanEmail.split('@')[0];
+    const userObj = {
+      email: cleanEmail,
+      username: defaultName,
+      nickname: defaultName,
+      grade: 'Grade 12',
+      createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     };
-  }, [userId]);
 
-  const profileName = (person: CommunityProfile) =>
-    person.nickname || person.display_name || person.username || person.email?.split("@")[0] || "Community member";
+    setUser(userObj);
+    setUsername(defaultName);
+    setNickname(defaultName);
 
-  async function loadFriendsData() {
-    if (!userId) return;
-    setFriendLoading(true);
-    setFriendError("");
-    const { data: requestData, error: requestError } = await supabase
-      .from("friend_requests")
-      .select("id, sender_id, receiver_id, status, created_at")
-      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      .order("created_at", { ascending: false });
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ns_user', JSON.stringify(userObj));
+    }
 
-    if (requestError) {
-      setFriendError(requestError.message);
-      setFriendLoading(false);
+    alert(isSignUp ? 'Registration successful! Logged in as ' + cleanEmail : 'Welcome back, ' + defaultName + '!');
+    setShowAuthModal(false);
+    setAuthPassword('');
+    setActiveTab('dashboard');
+    setLoading(false);
+  }
+
+  function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    if (!username.trim() || !nickname.trim()) {
+      alert('Username and Nickname cannot be empty.');
       return;
     }
 
-    const requests = (requestData ?? []) as FriendRequest[];
-    const incoming = requests.filter((r) => r.receiver_id === userId && r.status === "pending");
-    const relatedIds = Array.from(new Set(requests.map((r) => r.sender_id === userId ? r.receiver_id : r.sender_id)));
+    const updatedUser = {
+      ...user,
+      username: username.trim(),
+      nickname: nickname.trim(),
+      grade: grade,
+      gender: gender,
+      bio: bio.trim(),
+      avatarUrl: avatarUrl
+    };
 
-    let profileMap = new Map<string, CommunityProfile>();
-    if (relatedIds.length) {
-      const { data: people, error: peopleError } = await supabase
-        .from("profiles")
-        .select("id, username, nickname, display_name, grade_level, gender, bio, friend_request_mode")
-        .in("id", relatedIds);
-      if (peopleError) {
-        setFriendError("Friend requests loaded, but profile details could not be loaded: " + peopleError.message);
-      } else {
-        profileMap = new Map((people ?? []).map((p: any) => [p.id, p as CommunityProfile]));
+    setUser(updatedUser);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ns_user', JSON.stringify(updatedUser));
+    }
+
+    alert('Profile updated successfully!');
+    setShowEditProfileModal(false);
+  }
+
+  function handleSignOut() {
+    setUser(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('ns_user');
+    }
+    setActiveTab('resources');
+    alert('Logged out successfully.');
+  }
+
+  function handleDeleteAccount() {
+    if (!window.confirm('Are you sure you want to delete this account? All local session data will be reset.')) return;
+
+    setUser(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('ns_user');
+    }
+    setShowEditProfileModal(false);
+    setActiveTab('resources');
+    alert('Account deleted and session cleared.');
+  }
+
+  function handleCreateResourceSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) {
+      alert('Please sign in first.');
+      setShowAuthModal(true);
+      return;
+    }
+    if (!newResTitle.trim() || !newResContent.trim()) return;
+
+    const newRes: ResourceItem = {
+      id: Date.now().toString(),
+      title: newResTitle.trim(),
+      subject: newResSubject,
+      grade: newResGrade,
+      description: newResDescription.trim() || newResContent.slice(0, 90) + '...',
+      content: newResContent.trim(),
+      authorName: nickname || username || user.email.split('@')[0],
+      authorEmail: user.email,
+      authorAvatar: avatarUrl,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      likes: 0,
+      bookmarks: 0,
+      likedByMe: false,
+      bookmarkedByMe: false,
+      comments: []
+    };
+
+    setResources([newRes, ...resources]);
+    setShowCreateResourceModal(false);
+    setNewResTitle('');
+    setNewResDescription('');
+    setNewResContent('');
+    alert('Academic resource note published!');
+  }
+
+  function handleCreateDiscussionSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) {
+      alert('Please sign in first.');
+      setShowAuthModal(true);
+      return;
+    }
+    if (!newDiscTitle.trim() || !newDiscContent.trim()) return;
+
+    const newDisc: DiscussionItem = {
+      id: 'd_' + Date.now(),
+      title: newDiscTitle.trim(),
+      content: newDiscContent.trim(),
+      authorEmail: user.email,
+      authorName: nickname || username || user.email.split('@')[0],
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      repliesCount: 0,
+      replies: []
+    };
+
+    setDiscussions([newDisc, ...discussions]);
+    setShowCreateDiscussionModal(false);
+    setNewDiscTitle('');
+    setNewDiscContent('');
+    alert('Discussion topic posted!');
+  }
+
+  function handleAddDiscussionReply(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) {
+      alert('Please sign in to reply.');
+      setShowAuthModal(true);
+      return;
+    }
+    if (!newReplyText.trim() || !selectedDiscussion) return;
+
+    const replyObj: CommentItem = {
+      id: 'r_' + Date.now(),
+      authorName: nickname || username || user.email.split('@')[0],
+      authorAvatar: avatarUrl,
+      text: newReplyText.trim(),
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      likes: 0
+    };
+
+    const updatedDisc = {
+      ...selectedDiscussion,
+      repliesCount: selectedDiscussion.repliesCount + 1,
+      replies: [...selectedDiscussion.replies, replyObj]
+    };
+
+    setSelectedDiscussion(updatedDisc);
+    setDiscussions(prev => prev.map(d => d.id === selectedDiscussion.id ? updatedDisc : d));
+    setNewReplyText('');
+  }
+
+  function handleLikeResource(id: string, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    setResources(prev => prev.map(res => {
+      if (res.id === id) {
+        const isLiked = res.likedByMe;
+        return { ...res, likes: isLiked ? res.likes - 1 : res.likes + 1, likedByMe: !isLiked };
       }
-    }
-
-    setIncomingRequests(incoming.map((r) => ({ ...r, sender: profileMap.get(r.sender_id) })));
-    setFriends(
-      requests
-        .filter((r) => r.status === "accepted")
-        .map((r) => profileMap.get(r.sender_id === userId ? r.receiver_id : r.sender_id))
-        .filter((p): p is CommunityProfile => Boolean(p))
-    );
-    setFriendRequestIds(requests.filter((r) => r.status === "pending").map((r) => r.sender_id === userId ? r.receiver_id : r.sender_id));
-
-    const { data: suggestions, error: suggestionError } = await supabase.rpc("random_community_profiles");
-    if (!suggestionError && suggestions) {
-      const exclude = new Set([...relatedIds, userId]);
-      const candidates = (suggestions as CommunityProfile[]).filter((p) => !exclude.has(p.id));
-      setFriendRecommendations(candidates.slice(0, 6));
-    } else if (suggestionError) {
-      console.error("Friend recommendations error:", suggestionError.message);
-    }
-    setFriendLoading(false);
+      return res;
+    }));
   }
 
-  async function searchFriends() {
-    if (!userId) {
-      window.location.href = "/login";
+  function handleBookmarkResource(id: string, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    if (!user) {
+      alert('Please sign in first to save notes to your profile.');
+      setShowAuthModal(true);
       return;
     }
-    const term = friendSearch.trim();
-    if (term.length < 2) {
-      setFriendError("Enter at least 2 characters to search.");
-      setFriendSearchResults([]);
+    setResources(prev => prev.map(res => {
+      if (res.id === id) {
+        const isBookmarked = res.bookmarkedByMe;
+        return { ...res, bookmarks: isBookmarked ? res.bookmarks - 1 : res.bookmarks + 1, bookmarkedByMe: !isBookmarked };
+      }
+      return res;
+    }));
+  }
+
+  function handleAddComment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) {
+      alert('Please sign in to comment.');
+      setShowAuthModal(true);
       return;
     }
-    setFriendLoading(true);
-    setFriendError("");
-    const { data, error } = await supabase.rpc("search_community_profiles", { search_term: term });
-    if (error) {
-      setFriendError("Search failed: " + error.message);
-      setFriendSearchResults([]);
-    } else {
-      setFriendSearchResults((data ?? []).filter((p: CommunityProfile) => p.id !== userId));
+    if (!newCommentText.trim() || !previewResource) return;
+
+    const commentObj: CommentItem = {
+      id: Date.now().toString(),
+      authorName: nickname || username || user.email.split('@')[0],
+      authorAvatar: avatarUrl,
+      text: newCommentText.trim(),
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      likes: 0,
+      likedByMe: false
+    };
+
+    const updatedResource = { ...previewResource, comments: [...previewResource.comments, commentObj] };
+    setPreviewResource(updatedResource);
+    setResources(prev => prev.map(r => r.id === previewResource.id ? updatedResource : r));
+    setNewCommentText('');
+  }
+
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setAvatarUrl(reader.result as string);
+      reader.readAsDataURL(file);
     }
-    setFriendLoading(false);
   }
 
-  async function sendFriendRequest(person: CommunityProfile) {
-    if (!userId) return;
-    setFriendError("");
-    setFriendNotice("");
-    const direct = person.friend_request_mode === "direct";
-    const { error } = await supabase.from("friend_requests").insert({
-      sender_id: userId,
-      receiver_id: person.id,
-      status: direct ? "accepted" : "pending",
-    });
-    if (error) {
-      setFriendError(error.code === "23505" ? "A request already exists or you are already friends. You can send another request after the previous request is declined or removed." : error.message);
-      return;
+  /* ==========================================================================
+     4. 主题样式与计算
+     ========================================================================== */
+  const theme = {
+    bg: isDarkMode ? '#0E1117' : '#F8FAFC',
+    cardBg: isDarkMode ? '#161B22' : '#FFFFFF',
+    border: isDarkMode ? '#21262D' : '#E2E8F0',
+    textMain: isDarkMode ? '#F0F6FC' : '#0F172A',
+    textMuted: isDarkMode ? '#8B949E' : '#64748B',
+    accent: '#8B5CF6',
+  };
+
+  const subjectsList = ['Mathematics', 'Science', 'ESL & Languages', 'French', 'History & Social Sciences', 'Geography', 'Business & Economics', 'Art & Music', 'Computer Science & Tech'];
+  const gradesList = ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'AP Courses', 'Academic Competitions'];
+
+  const filteredResources = resources.filter(res => {
+    const matchesSubject = selectedSubjects.length === 0 || selectedSubjects.includes(res.subject);
+    const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(res.grade);
+    const matchesSearch = searchQuery === '' || res.title.toLowerCase().includes(searchQuery.toLowerCase()) || res.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSubject && matchesGrade && matchesSearch;
+  });
+
+  const citationText = useMemo(() => {
+    if (!previewResource) return '';
+    switch (citationFormat) {
+      case 'APA':
+        return `${previewResource.authorName}. (${previewResource.date.split(' ').pop()}). ${previewResource.title}. North Synapse Academic Platform.`;
+      case 'IEEE':
+        return `[1] ${previewResource.authorName}, "${previewResource.title}," North Synapse Academic Hub, ${previewResource.date}.`;
+      case 'MLA':
+        return `${previewResource.authorName}. "${previewResource.title}." North Synapse, ${previewResource.date}.`;
+      case 'BibTeX':
+        return `@article{northsynapse_${previewResource.id},\n  author = {${previewResource.authorName}},\n  title = {${previewResource.title}},\n  journal = {North Synapse Hub},\n  year = {2026}\n}`;
     }
-    setFriendNotice(direct ? `You are now friends with ${profileName(person)}.` : `Friend request sent to ${profileName(person)}.`);
-    await loadFriendsData();
-    if (friendSearch.trim()) await searchFriends();
-  }
+  }, [previewResource, citationFormat]);
 
-  async function acceptFriendRequest(request: FriendRequest) {
-    const { error } = await supabase
-      .from("friend_requests")
-      .update({ status: "accepted", updated_at: new Date().toISOString() })
-      .eq("id", request.id)
-      .eq("receiver_id", userId);
-    if (error) {
-      setFriendError(error.message);
-      return;
-    }
-    setFriendNotice("Friend request accepted.");
-    await loadFriendsData();
-  }
+  const formatTimer = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
-  async function declineFriendRequest(request: FriendRequest) {
-    if (!userId) return;
-    setFriendError("");
-    setFriendNotice("");
-    const { error } = await supabase
-      .from("friend_requests")
-      .delete()
-      .eq("id", request.id)
-      .eq("receiver_id", userId)
-      .eq("status", "pending");
-    if (error) {
-      setFriendError(error.message);
-      return;
-    }
-    setFriendNotice("Friend request dismissed.");
-    await loadFriendsData();
-  }
-
-  async function loadMessages(person: CommunityProfile) {
-    if (!userId) return;
-    setSelectedFriend(person);
-    setMessageLoading(true);
-    const { data, error } = await supabase
-      .from("direct_messages")
-      .select("id, sender_id, receiver_id, content, created_at")
-      .or(`and(sender_id.eq.${userId},receiver_id.eq.${person.id}),and(sender_id.eq.${person.id},receiver_id.eq.${userId})`)
-      .order("created_at", { ascending: true });
-    if (error) {
-      setFriendError(error.message);
-      setMessages([]);
-    } else {
-      setMessages((data ?? []) as DirectMessage[]);
-    }
-    setMessageLoading(false);
-  }
-
-  async function sendDirectMessage() {
-    if (!userId || !selectedFriend || !messageDraft.trim()) return;
-    setSendingMessage(true);
-    setFriendError("");
-    const { error } = await supabase.from("direct_messages").insert({
-      sender_id: userId,
-      receiver_id: selectedFriend.id,
-      content: messageDraft.trim(),
-    });
-    if (error) {
-      setFriendError(error.message);
-    } else {
-      setMessageDraft("");
-      await loadMessages(selectedFriend);
-    }
-    setSendingMessage(false);
-  }
-
-  const filteredResources = resources.filter((item) =>
-    [
-      item.title,
-      item.subject,
-      item.grade,
-      item.resource_type,
-      item.description,
-      item.author,
-      ...(item.tags ?? []),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase()
-      .includes(search.toLowerCase().trim())
-  );
-
-  const filteredDiscussions = discussions.filter((item) =>
-    [item.title, item.category, item.content, item.author]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase()
-      .includes(search.toLowerCase().trim())
-  );
-
-  function formatDate(date: string) {
-    return new Date(date).toLocaleDateString("en-CA", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  }
-
-  function navigate(name: string) {
-    setActiveNav(name);
-    setSearch("");
-    setMobileMenuOpen(false);
-  }
-
-  async function handleSignOut() {
-    window.alert("You cannot sign out right now.");
-    return;
-  }
-
-  function requireLogin(action: string) {
-    if (!userId) {
-      window.location.href = "/login";
-      return;
-    }
-
-    window.alert(`${action} will be connected in the next development step.`);
-  }
-
-  const displayName =
-    profile?.nickname ||
-    profile?.display_name ||
-    profile?.username ||
-    userEmail?.split("@")[0] ||
-    "Community member";
-
-  const initials = displayName.trim().charAt(0).toUpperCase() || "N";
-
-  function ResourceCard({ item }: { item: Resource }) {
-    return (
-      <article className="group rounded-2xl border border-violet-100 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-violet-200 hover:shadow-lg hover:shadow-violet-100/70">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
-            <FileText size={21} />
-          </div>
-          <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700">
-            {item.resource_type || "Study notes"}
-          </span>
-        </div>
-
-        <h3 className="line-clamp-2 font-semibold leading-6 text-slate-900">
-          {item.title}
-        </h3>
-        <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
-          {item.description || "No description provided."}
-        </p>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {item.subject && (
-            <span className="rounded-lg bg-violet-50 px-2.5 py-1 text-xs text-violet-700">
-              {item.subject}
-            </span>
-          )}
-          {item.grade && (
-            <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-              {item.grade}
-            </span>
-          )}
-        </div>
-
-        <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs text-slate-500">
-          <span className="truncate">By {item.author || "Student"}</span>
-          <span className="shrink-0">{formatDate(item.created_at)}</span>
-        </div>
-      </article>
-    );
-  }
-
-  function DiscussionCard({ item }: { item: Discussion }) {
-    return (
-      <article className="rounded-2xl border border-violet-100 bg-white p-5 transition hover:border-violet-200 hover:shadow-md hover:shadow-violet-100/60">
-        <div className="flex items-start gap-4">
-          <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700 sm:flex">
-            <MessageSquare size={19} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              {item.category && (
-                <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">
-                  {item.category}
-                </span>
-              )}
-              {item.is_solved && (
-                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                  Solved
-                </span>
-              )}
-            </div>
-            <h3 className="mt-2 font-semibold leading-6 text-slate-900">
-              {item.title}
-            </h3>
-            <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-500">
-              {item.content || "Open discussion"}
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
-              <span>{item.author || "Student"}</span>
-              <span className="flex items-center gap-1">
-                <MessageCircle size={14} />
-                {item.replies_count ?? 0} replies
-              </span>
-              <span>{formatDate(item.created_at)}</span>
-            </div>
-          </div>
-        </div>
-      </article>
-    );
-  }
+  const myResources = resources.filter(r => r.authorEmail === user?.email);
+  const bookmarkedResources = resources.filter(r => r.bookmarkedByMe);
 
   return (
-    <div className="min-h-screen bg-[#f7f5ff] text-slate-800">
-      {mobileMenuOpen && (
-        <button
-          aria-label="Close navigation"
-          onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-950/40 md:hidden"
-        />
-      )}
+    <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+      
+      {/* 顶部 Header */}
+      <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.4rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer' }}>
+          <svg width="34" height="38" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 75,20 C 75,10 25,10 25,35 C 25,60 75,60 75,85 C 75,100 25,100 25,90" stroke="#A78BFA" strokeWidth="6" strokeLinecap="round" fill="none" />
+            <circle cx="75" cy="20" r="4.5" fill="#A78BFA" />
+            <circle cx="25" cy="35" r="4.5" fill="#A78BFA" />
+            <circle cx="75" cy="85" r="4.5" fill="#A78BFA" />
+          </svg>
+          <span>North Synapse</span>
+          {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>ADMIN</span>}
+        </div>
 
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[250px] flex-col bg-[#30205f] px-4 py-5 text-white shadow-xl shadow-violet-950/10 transition-transform duration-200 md:translate-x-0 ${
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="mb-8 flex items-center justify-between px-2">
-          <button
-            onClick={() => navigate("Home")}
-            className="flex items-center gap-3 text-left"
-          >
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-400 text-white shadow-lg shadow-violet-950/20">
-              <BookOpen size={23} />
-            </div>
-            <div>
-              <p className="text-lg font-bold tracking-tight">North Synapse</p>
-              <p className="text-xs text-violet-200">Learn together.</p>
-            </div>
+        <nav style={{ display: 'flex', gap: '1.6rem' }}>
+          {(['resources', 'lounges', 'announcements', 'discussions', 'feedback'] as NavTab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: activeTab === tab ? theme.accent : theme.textMuted,
+                fontWeight: activeTab === tab ? '700' : '500',
+                cursor: 'pointer',
+                fontSize: '0.95rem',
+                borderBottom: activeTab === tab ? `2px solid ${theme.accent}` : '2px solid transparent',
+                textTransform: 'capitalize'
+              }}
+            >
+              {tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounge' : tab}
+            </button>
+          ))}
+          {user && (
+            <button onClick={() => setActiveTab('dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>
+              Dashboard
+            </button>
+          )}
+        </nav>
+
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button onClick={() => setIsDarkMode(!isDarkMode)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}>
+            {isDarkMode ? 'Light Mode' : 'Dark Mode'}
           </button>
 
-          <button
-            onClick={() => setMobileMenuOpen(false)}
-            className="rounded-lg p-2 text-violet-200 hover:bg-white/10 md:hidden"
-            aria-label="Close menu"
-          >
-            <X size={19} />
+          {user ? (
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <span onClick={() => setActiveTab('dashboard')} style={{ fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', color: theme.accent }}>
+                {nickname || 'User'}
+              </span>
+              <button onClick={handleSignOut} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setShowAuthModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem 1.4rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}>
+              Sign In
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* 主界面区域 */}
+      <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
+        
+        {/* 公告轮播栏 */}
+        <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', border: `1px solid ${theme.accent}`, borderRadius: '12px', padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, overflow: 'hidden' }}>
+            <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
+              NOTICE ({currentBannerIndex + 1}/{announcements.length})
+            </span>
+
+            <div style={{ flex: 1, overflow: 'hidden', height: '52px', position: 'relative' }}>
+              {announcements.map((item, idx) => (
+                <div key={item.id} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '52px', display: 'flex', alignItems: 'center', gap: '0.8rem', opacity: idx === currentBannerIndex ? 1 : 0, transform: idx === currentBannerIndex ? 'translateY(0)' : 'translateY(15px)', transition: 'all 0.4s ease-in-out' }}>
+                  <span style={{ fontSize: '0.9rem', color: theme.textMain, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</span>
+                  <span style={{ fontSize: '0.8rem', color: theme.textMuted, flexShrink: 0 }}>• {item.date}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button onClick={() => setActiveTab('announcements')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', flexShrink: 0 }}>
+            View All
           </button>
         </div>
 
-        <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-violet-300">
-          Community
-        </p>
+        {/* RESOURCE HUB 视图 */}
+        {activeTab === 'resources' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '700', display: 'inline-block', marginBottom: '0.5rem' }}>
+                  Academic Platform
+                </span>
+                <h1 style={{ fontSize: '2.2rem', fontWeight: '900' }}>North Synapse Resource Hub</h1>
+              </div>
 
-        <nav className="space-y-1">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const active = activeNav === item.name;
-
-            return (
-              <button
-                key={item.name}
-                onClick={() => navigate(item.name)}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
-                  active
-                    ? "bg-violet-400 text-white shadow-md shadow-violet-950/20"
-                    : "text-violet-100/80 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <Icon size={19} strokeWidth={1.8} />
-                {item.name}
+              <button onClick={() => { if (!user) { alert('Please sign in first.'); setShowAuthModal(true); return; } setShowCreateResourceModal(true); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem 1.6rem', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
+                + Share Notes / Resource
               </button>
-            );
-          })}
-        </nav>
+            </div>
 
-        <div className="my-5 border-t border-white/10" />
+            <input 
+              type="text" 
+              placeholder="Search notes, topics, or study guide titles..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, outline: 'none' }}
+            />
 
-        {userId && (
-          <>
-        <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-violet-300">
-          Personal
-        </p>
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              <div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>LEVEL &amp; TRACK:</span>
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  {gradesList.map((grd) => (
+                    <button key={grd} onClick={() => setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, grd])} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedGrades.includes(grd) ? theme.accent : theme.border}`, backgroundColor: selectedGrades.includes(grd) ? theme.accent : theme.bg, color: selectedGrades.includes(grd) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
+                      {grd}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-        <nav className="space-y-1">
-          <button
-            onClick={() => { navigate("Friends"); loadFriendsData(); }}
-            className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
-              activeNav === "Friends"
-                ? "bg-violet-400 text-white"
-                : "text-violet-100/80 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            <Users size={19} />
-            Friends
-          </button>
-          <button
-            onClick={() => navigate("Profile")}
-            className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
-              activeNav === "Profile"
-                ? "bg-violet-400 text-white"
-                : "text-violet-100/80 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            <UserRound size={19} />
-            My Profile
-          </button>
-          <button
-            onClick={() => navigate("Settings")}
-            className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
-              activeNav === "Settings"
-                ? "bg-violet-400 text-white"
-                : "text-violet-100/80 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            <Settings size={19} />
-            Settings
-          </button>
-        </nav>
-          </>
+              <div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  {subjectsList.map((sub) => (
+                    <button key={sub} onClick={() => setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub])} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedSubjects.includes(sub) ? theme.accent : theme.border}`, backgroundColor: selectedSubjects.includes(sub) ? theme.accent : theme.bg, color: selectedSubjects.includes(sub) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
+                      {sub}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {filteredResources.map((res) => (
+                <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.6rem' }}>
+                    <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px' }}>{res.subject}</span>
+                    <span style={{ backgroundColor: theme.bg, color: theme.textMuted, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>{res.grade}</span>
+                  </div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
+                  <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '1rem' }}>{res.description}</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${theme.border}`, paddingTop: '0.8rem' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by {res.authorName}</span>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                      <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>
+                        Like ({res.likes})
+                      </button>
+                      <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>
+                        Save ({res.bookmarks})
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
-        <div className="mt-auto rounded-2xl border border-white/10 bg-white/[0.07] p-4">
-          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-400/20 text-violet-200">
-            <Users size={19} />
-          </div>
-          <p className="text-sm font-semibold">Learn as a community</p>
-          <p className="mt-1 text-xs leading-5 text-violet-200/75">
-            Share knowledge. Ask questions. Grow together.
-          </p>
-        </div>
-      </aside>
-
-      <main className="min-h-screen min-w-0 md:ml-[250px]">
-        <header className="sticky top-0 z-30 border-b border-violet-100 bg-white/90 backdrop-blur-xl">
-          <div className="flex min-h-[76px] items-center gap-3 px-4 sm:px-6 lg:px-9">
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="rounded-lg p-2 text-violet-800 hover:bg-violet-50 md:hidden"
-              aria-label="Open navigation"
-            >
-              <Menu size={21} />
-            </button>
-
-            <div className="relative max-w-xl flex-1">
-              <Search
-                size={18}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-violet-400"
-              />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search notes and discussions..."
-                className="w-full rounded-xl border border-violet-100 bg-violet-50/60 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
-              />
-            </div>
-
-            {userId ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => navigate("Profile")}
-                  className="flex items-center gap-2 rounded-xl p-1.5 pr-2 hover:bg-violet-50"
-                  title="My Profile"
-                >
-                  {profile?.avatar_url ? (
-                    <img
-                      src={profile.avatar_url}
-                      alt="Profile avatar"
-                      className="h-9 w-9 rounded-full object-cover"
-                    />
-                  ) : (
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-200 text-sm font-bold text-violet-800">
-                      {initials}
-                    </span>
-                  )}
-                  <span className="hidden max-w-32 truncate text-sm font-medium text-slate-700 sm:block">
-                    {displayName}
-                  </span>
+        {/* STUDY LOUNGE 视图 */}
+        {activeTab === 'lounges' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Virtual Study Lounge Rooms</h1>
+            {joinedRoom ? (
+              <div style={{ backgroundColor: theme.cardBg, border: `2px solid ${theme.accent}`, borderRadius: '16px', padding: '2rem', textAlign: 'center' }}>
+                <h2>{joinedRoom.name}</h2>
+                <div style={{ fontSize: '3.5rem', fontWeight: '900', color: theme.accent, margin: '1rem 0' }}>{formatTimer(pomodoroTime)}</div>
+                <button onClick={() => setIsTimerRunning(!isTimerRunning)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.5rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                  {isTimerRunning ? 'Pause Session' : 'Start Focus Session'}
                 </button>
-                <button
-                  onClick={handleSignOut}
-                  className="rounded-xl border border-violet-100 p-2.5 text-slate-500 transition hover:bg-violet-50 hover:text-violet-800"
-                  title="Sign out"
-                  aria-label="Sign out"
-                >
-                  <LogOut size={17} />
+                <button onClick={() => setJoinedRoom(null)} style={{ marginLeft: '1rem', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMain, padding: '0.6rem 1rem', borderRadius: '8px', cursor: 'pointer' }}>
+                  Leave Room
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-1 sm:gap-2">
-                <button
-                  onClick={() => (window.location.href = "/login")}
-                  className="rounded-xl px-3 py-2.5 text-sm font-medium text-violet-800 hover:bg-violet-50"
-                >
-                  Sign in
-                </button>
-                <button
-                  onClick={() => (window.location.href = "/register")}
-                  className="rounded-xl bg-violet-700 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-800 sm:px-4"
-                >
-                  Join us
-                </button>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                {lounges.map(room => (
+                  <div key={room.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem' }}>
+                    <h3>{room.name}</h3>
+                    <p style={{ fontSize: '0.85rem', color: theme.textMuted, margin: '0.5rem 0 1rem' }}>{room.description}</p>
+                    <button onClick={() => setJoinedRoom(room)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', width: '100%' }}>
+                      Join Study Room
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
-        </header>
+        )}
 
-        <div className="mx-auto max-w-[1400px] px-4 py-7 sm:px-6 lg:px-9 lg:py-9">
-          {errorMessage && (
-            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              {errorMessage}
+        {/* DISCUSSIONS 视图 */}
+        {activeTab === 'discussions' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Academic Peer Discussions</h1>
+              <button onClick={() => { if (!user) { alert('Please sign in first.'); setShowAuthModal(true); return; } setShowCreateDiscussionModal(true); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
+                + Start New Topic
+              </button>
             </div>
-          )}
-
-          {activeNav === "Home" && (
-            <>
-              <section className="relative mb-9 overflow-hidden rounded-[28px] bg-gradient-to-br from-[#39266e] via-[#6043ad] to-[#8b70dc] px-6 py-9 text-white shadow-xl shadow-violet-200/70 sm:px-9 lg:px-12 lg:py-12">
-                <div className="pointer-events-none absolute -right-12 -top-20 h-64 w-64 rounded-full border border-white/10" />
-                <div className="pointer-events-none absolute -right-2 -top-10 h-44 w-44 rounded-full border border-white/10" />
-                <div className="relative max-w-2xl">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-violet-200">
-                    North Synapse Community
-                  </p>
-                  <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-[42px]">
-                    Knowledge grows
-                    <br className="hidden sm:block" /> when we share it.
-                  </h1>
-                  <p className="mt-4 max-w-xl text-sm leading-6 text-violet-100 sm:text-base">
-                    Discover student-made notes, ask questions, and exchange
-                    ideas with a community that learns together.
-                  </p>
-                  <div className="mt-7 flex flex-wrap gap-3">
-                    <button
-                      onClick={() => navigate("Resources")}
-                      className="flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-violet-800 transition hover:bg-violet-50"
-                    >
-                      Explore resources <ArrowUpRight size={17} />
-                    </button>
-                    <button
-                      onClick={() => navigate("Discussions")}
-                      className="flex items-center gap-2 rounded-xl border border-white/30 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-                    >
-                      <MessageSquare size={17} /> Join discussions
-                    </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {discussions.map((disc) => (
+                <div key={disc.id} onClick={() => setSelectedDiscussion(disc)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <strong style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{disc.title}</strong>
+                    <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{disc.repliesCount} Replies</span>
                   </div>
+                  <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem' }}>{disc.content}</p>
+                  <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by {disc.authorName} on {disc.date}</span>
                 </div>
-              </section>
+              ))}
+            </div>
+          </div>
+        )}
 
-              <section className="mb-10">
-                <div className="mb-5 flex items-end justify-between gap-4">
-                  <div>
-                    <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
-                      Shared knowledge
-                    </p>
-                    <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-                      Latest resources
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Notes and study materials shared by students.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => navigate("Resources")}
-                    className="shrink-0 text-sm font-semibold text-violet-700 hover:text-violet-900"
-                  >
-                    View all →
-                  </button>
+        {/* ANNOUNCEMENTS 视图 */}
+        {activeTab === 'announcements' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Official Announcements</h1>
+            {announcements.map((item) => (
+              <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
+                  <strong style={{ color: theme.accent }}>{item.authorName}</strong>
+                  <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
                 </div>
-
-                {loading ? (
-                  <p className="py-8 text-sm text-slate-500">
-                    Loading resources...
-                  </p>
-                ) : filteredResources.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-violet-200 bg-white px-6 py-10 text-center">
-                    <BookOpen className="mx-auto mb-3 text-violet-400" size={28} />
-                    <p className="font-semibold text-slate-700">
-                      No resources to show yet
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Student-shared notes will appear here.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {filteredResources.slice(0, 6).map((item) => (
-                      <ResourceCard key={item.id} item={item} />
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section>
-                <div className="mb-5 flex items-end justify-between gap-4">
-                  <div>
-                    <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
-                      Exchange ideas
-                    </p>
-                    <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-                      Community discussions
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Questions, advice, and conversations from students.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => navigate("Discussions")}
-                    className="shrink-0 text-sm font-semibold text-violet-700 hover:text-violet-900"
-                  >
-                    View all →
-                  </button>
-                </div>
-
-                {loading ? (
-                  <p className="py-8 text-sm text-slate-500">
-                    Loading discussions...
-                  </p>
-                ) : filteredDiscussions.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-violet-200 bg-white px-6 py-10 text-center">
-                    <MessageSquare className="mx-auto mb-3 text-violet-400" size={28} />
-                    <p className="font-semibold text-slate-700">
-                      No discussions to show yet
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Community conversations will appear here.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredDiscussions.slice(0, 5).map((item) => (
-                      <DiscussionCard key={item.id} item={item} />
-                    ))}
-                  </div>
-                )}
-              </section>
-            </>
-          )}
-
-          {activeNav === "Resources" && (
-            <section>
-              <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
-                    Resource library
-                  </p>
-                  <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                    Resources
-                  </h1>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Browse notes and study materials shared by students.
-                  </p>
-                </div>
-                <button
-                  onClick={() => requireLogin("Resource submission")}
-                  className="flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-violet-800"
-                >
-                  <Plus size={17} /> Share a resource
-                </button>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{item.title}</h3>
+                <p style={{ marginTop: '0.5rem', color: theme.textMain }}>{item.content}</p>
               </div>
-              {loading ? (
-                <p className="py-8 text-sm text-slate-500">Loading resources...</p>
-              ) : filteredResources.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-violet-200 bg-white p-10 text-center text-sm text-slate-500">
-                  No matching resources found.
-                </div>
+            ))}
+          </div>
+        )}
+
+        {/* FEEDBACK 视图 */}
+        {activeTab === 'feedback' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Issue Reporting</h1>
+            <form onSubmit={(e) => { e.preventDefault(); alert('Thank you! Your feedback has been recorded locally.'); setFeedbackComment(''); }} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Category</label>
+                <select value={feedbackCategory} onChange={(e) => setFeedbackCategory(e.target.value)} style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}>
+                  <option value="General Suggestion">General Suggestion</option>
+                  <option value="Report Issue / Bug">Report Issue / Bug</option>
+                  <option value="Content Request">Content Request</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Details</label>
+                <textarea required rows={4} placeholder="Describe your suggestion..." value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>Submit Feedback</button>
+            </form>
+          </div>
+        )}
+
+        {/* DASHBOARD 视图 */}
+        {activeTab === 'dashboard' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{nickname || 'Student Profile'}</h1>
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem' }}>@{username || 'username'} • {grade}</p>
+                {bio && <p style={{ fontSize: '0.85rem', marginTop: '0.5rem', fontStyle: 'italic' }}>&quot;{bio}&quot;</p>}
+              </div>
+              <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.6rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                Edit Profile
+              </button>
+            </div>
+
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Published Resources ({myResources.length})</h2>
+              {myResources.length > 0 ? (
+                myResources.map(res => (
+                  <div key={res.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem' }}>
+                    <strong>{res.title}</strong>
+                  </div>
+                ))
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {filteredResources.map((item) => (
-                    <ResourceCard key={item.id} item={item} />
-                  ))}
-                </div>
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t shared any resources yet.</p>
               )}
-            </section>
-          )}
+            </div>
 
-          {activeNav === "Discussions" && (
-            <section>
-              <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
-                    Student conversations
-                  </p>
-                  <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                    Discussions
-                  </h1>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Ask questions and exchange ideas with other students.
-                  </p>
-                </div>
-                <button
-                  onClick={() => requireLogin("Discussion creation")}
-                  className="flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-800"
-                >
-                  <Plus size={17} /> Start a discussion
-                </button>
-              </div>
-              {loading ? (
-                <p className="py-8 text-sm text-slate-500">Loading discussions...</p>
-              ) : filteredDiscussions.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-violet-200 bg-white p-10 text-center text-sm text-slate-500">
-                  No matching discussions found.
-                </div>
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Saved Bookmarks ({bookmarkedResources.length})</h2>
+              {bookmarkedResources.length > 0 ? (
+                bookmarkedResources.map(bm => (
+                  <div key={bm.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem' }}>
+                    <strong>{bm.title}</strong>
+                  </div>
+                ))
               ) : (
-                <div className="space-y-3">
-                  {filteredDiscussions.map((item) => (
-                    <DiscussionCard key={item.id} item={item} />
-                  ))}
-                </div>
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t bookmarked any notes yet.</p>
               )}
-            </section>
-          )}
+            </div>
+          </div>
+        )}
 
-          {activeNav === "Profile" && (
-            <section>
-              {!userId ? (
-                <div className="rounded-3xl border border-violet-100 bg-white px-6 py-14 text-center shadow-sm">
-                  <UserRound className="mx-auto mb-4 text-violet-500" size={36} />
-                  <h1 className="text-2xl font-bold">Your profile</h1>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Sign in to view your personal profile and saved resources.
-                  </p>
-                  <button
-                    onClick={() => (window.location.href = "/login")}
-                    className="mt-6 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-800"
-                  >
-                    <span className="flex items-center gap-2">
-                      <LogIn size={16} /> Sign in
-                    </span>
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                      <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
-                        Your space
-                      </p>
-                      <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                        My Profile
-                      </h1>
-                    </div>
-                    <button
-                      onClick={() => navigate("Settings")}
-                      className="flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm font-semibold text-violet-800 hover:bg-violet-50"
-                    >
-                      <Settings size={17} /> Profile settings
-                    </button>
-                  </div>
-
-                  <div className="mb-7 overflow-hidden rounded-3xl border border-violet-100 bg-white shadow-sm">
-                    <div className="h-28 bg-gradient-to-r from-[#39266e] via-[#6949b9] to-[#a38be8]" />
-                    <div className="px-6 pb-6 sm:px-8">
-                      <div className="-mt-11 flex flex-wrap items-end gap-4">
-                        {profile?.avatar_url ? (
-                          <img
-                            src={profile.avatar_url}
-                            alt="Profile avatar"
-                            className="h-24 w-24 rounded-2xl border-4 border-white bg-white object-cover shadow-md"
-                          />
-                        ) : (
-                          <div className="flex h-24 w-24 items-center justify-center rounded-2xl border-4 border-white bg-violet-100 text-3xl font-bold text-violet-800 shadow-md">
-                            {initials}
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1 pb-1">
-                          <h2 className="text-xl font-bold text-slate-900">
-                            {displayName}
-                          </h2>
-                          <p className="mt-1 break-all text-sm text-slate-500">
-                            {userEmail}
-                          </p>
-                        </div>
-                      </div>
-
-                      <p className="mt-5 max-w-2xl text-sm leading-6 text-slate-600">
-                        {profile?.bio || "This student has not added a bio yet."}
-                      </p>
-
-                      <div className="mt-5 flex flex-wrap gap-2">
-                        {profile?.grade_level && (
-                          <span className="rounded-full bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700">
-                            {profile.grade_level}
-                          </span>
-                        )}
-                        {profile?.gender && (
-                          <span className="rounded-full bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700">
-                            {profile.gender}
-                          </span>
-                        )}
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-600">
-                          <CalendarDays size={13} />
-                          Joined {joinedAt ? formatDate(joinedAt) : "Recently"}
-                        </span>
-                      </div>
-
-                      {!profile && !profileLoading && (
-                        <p className="mt-4 text-xs leading-5 text-amber-700">
-                          No profile record was found for this account. Some
-                          profile fields may appear after a profile row is created.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {profileError && (
-                    <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      {profileError}
-                    </div>
-                  )}
-
-                  <div className="mb-8 grid gap-4 sm:grid-cols-3">
-                    <div className="rounded-2xl border border-violet-100 bg-white p-5">
-                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
-                        <FileText size={20} />
-                      </div>
-                      <p className="text-2xl font-bold text-slate-900">
-                        {myResources.length}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-500">Resources shared</p>
-                    </div>
-                    <div className="rounded-2xl border border-violet-100 bg-white p-5">
-                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
-                        <Bookmark size={20} />
-                      </div>
-                      <p className="text-2xl font-bold text-slate-900">
-                        {bookmarkedResources.length}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-500">Saved resources</p>
-                    </div>
-                    <div className="rounded-2xl border border-violet-100 bg-white p-5">
-                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                        <MessageSquare size={20} />
-                      </div>
-                      <p className="text-2xl font-bold text-slate-900">—</p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Discussions started
-                      </p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        Will be connected next
-                      </p>
-                    </div>
-                  </div>
-
-                  <section className="mb-8">
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                      <div>
-                        <h2 className="text-lg font-bold text-slate-900">
-                          My shared resources
-                        </h2>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Notes and materials you have posted.
-                        </p>
-                      </div>
-                    </div>
-                    {profileLoading ? (
-                      <p className="py-6 text-sm text-slate-500">
-                        Loading your profile...
-                      </p>
-                    ) : myResources.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-violet-200 bg-white p-7 text-sm text-slate-500">
-                        You have not shared any resources yet.
-                      </div>
-                    ) : (
-                      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                        {myResources.map((item) => (
-                          <ResourceCard key={item.id} item={item} />
-                        ))}
-                      </div>
-                    )}
-                  </section>
-
-                  <section>
-                    <div className="mb-4">
-                      <h2 className="text-lg font-bold text-slate-900">
-                        Saved resources
-                      </h2>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Materials you have bookmarked for later.
-                      </p>
-                    </div>
-                    {profileLoading ? (
-                      <p className="py-6 text-sm text-slate-500">
-                        Loading saved resources...
-                      </p>
-                    ) : bookmarkedResources.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-violet-200 bg-white p-7 text-sm text-slate-500">
-                        Your saved resources will appear here when you bookmark
-                        materials.
-                      </div>
-                    ) : (
-                      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                        {bookmarkedResources.map((item) => (
-                          <ResourceCard key={item.id} item={item} />
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                </>
-              )}
-            </section>
-          )}
-
-
-          {activeNav === "Friends" && (
-            <section>
-              {!userId ? (
-                <div className="rounded-3xl border border-violet-100 bg-white px-6 py-14 text-center">
-                  <Users className="mx-auto mb-4 text-violet-500" size={36} />
-                  <h1 className="text-2xl font-bold">Friends</h1>
-                  <p className="mt-2 text-sm text-slate-500">Sign in to find and message friends.</p>
-                  <button onClick={() => (window.location.href = "/login")} className="mt-5 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white">Sign in</button>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
-                    <div>
-                      <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">Your community</p>
-                      <h1 className="text-3xl font-bold text-slate-900">Friends</h1>
-                      <p className="mt-2 text-sm text-slate-500">Find classmates, manage requests, and message your friends.</p>
-                    </div>
-                    <button onClick={loadFriendsData} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-800"><RefreshCw size={16}/> Refresh</button>
-                  </div>
-
-                  {friendError && <p className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{friendError}</p>}
-                  {friendNotice && <p className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">{friendNotice}</p>}
-
-                  <div className="mb-6 rounded-2xl border border-violet-100 bg-white p-5">
-                    <h2 className="font-semibold text-slate-900">Find people</h2>
-                    <form onSubmit={(e) => { e.preventDefault(); searchFriends(); }} className="mt-3 flex flex-col gap-2 sm:flex-row">
-                      <div className="relative flex-1">
-                        <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-400"/>
-                        <input value={friendSearch} onChange={(e) => setFriendSearch(e.target.value)} placeholder="Search by name, username, or email" className="w-full rounded-xl border border-violet-200 py-3 pl-10 pr-4 text-sm outline-none focus:border-violet-500"/>
-                      </div>
-                      <button type="submit" className="rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-800">Search</button>
-                    </form>
-                    {friendSearchResults.length > 0 && (
-                      <div className="mt-4 space-y-3">
-                        {friendSearchResults.map((person) => (
-                          <div key={person.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-100 p-3">
-                            <div className="min-w-0">
-                              <p className="font-semibold text-slate-900">{profileName(person)}</p>
-                              <p className="text-xs text-slate-500">{[person.username ? `@${person.username}` : null, person.grade_level, person.gender].filter(Boolean).join(" · ") || "Community member"}</p>
-                              {person.bio && <p className="mt-1 text-sm text-slate-600">{person.bio}</p>}
-                            </div>
-                            {friends.some((f) => f.id === person.id) ? <span className="text-sm text-green-700">Already friends</span> :
-                              friendRequestIds.includes(person.id) ? <span className="text-sm text-slate-500">Request pending</span> :
-                              <button onClick={() => sendFriendRequest(person)} className="inline-flex items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white"><UserPlus size={15}/>{person.friend_request_mode === "direct" ? "Add friend" : "Request"}</button>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {friendSearch.trim().length >= 2 && !friendLoading && friendSearchResults.length === 0 && <p className="mt-4 text-sm text-slate-500">No matching people found.</p>}
-                  </div>
-
-                  {friendRecommendations.length > 0 && (
-                    <div className="mb-6 rounded-2xl border border-violet-100 bg-white p-5">
-                      <h2 className="mb-3 font-semibold text-slate-900">People you may know</h2>
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {friendRecommendations.map((person) => (
-                          <div key={person.id} className="rounded-xl border border-violet-100 p-4">
-                            <p className="font-semibold text-slate-900">{profileName(person)}</p>
-                            <p className="mt-1 text-xs text-slate-500">{[person.username ? `@${person.username}` : null, person.grade_level].filter(Boolean).join(" · ") || "Community member"}</p>
-                            {person.bio && <p className="mt-2 line-clamp-2 text-sm text-slate-600">{person.bio}</p>}
-                            {friends.some((friend) => friend.id === person.id) ? (
-                              <span className="mt-3 inline-block text-sm font-medium text-green-700">Already friends</span>
-                            ) : friendRequestIds.includes(person.id) ? (
-                              <span className="mt-3 inline-block text-sm text-slate-500">Request pending</span>
-                            ) : (
-                              <button onClick={() => sendFriendRequest(person)} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white"><UserPlus size={15}/>{person.friend_request_mode === "direct" ? "Add friend" : "Request"}</button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {incomingRequests.length > 0 && (
-                    <div className="mb-6 rounded-2xl border border-violet-100 bg-white p-5">
-                      <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900"><UserPlus size={18}/> Friend requests ({incomingRequests.length})</h2>
-                      <div className="space-y-3">
-                        {incomingRequests.map((request) => (
-                          <div key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-violet-50/70 p-3">
-                            <div><p className="font-semibold">{request.sender ? profileName(request.sender) : "Community member"}</p><p className="text-xs text-slate-500">Wants to connect with you</p></div>
-                            <div className="flex items-center gap-2">
-                              <button onClick={() => acceptFriendRequest(request)} className="inline-flex items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white"><Check size={15}/> Accept</button>
-                              <button onClick={() => declineFriendRequest(request)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"><X size={15}/> Decline</button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="mb-6 rounded-2xl border border-violet-100 bg-white p-5">
-                    <h2 className="mb-3 font-semibold text-slate-900">Your friends ({friends.length})</h2>
-                    {friendLoading && friends.length === 0 ? <p className="text-sm text-slate-500">Loading your friends...</p> : friends.length === 0 ? <p className="text-sm text-slate-500">Your accepted friends will appear here. Once a request is accepted or a direct add succeeds, that person will appear here and you can message them.</p> :
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {friends.map((person) => (
-                          <div key={person.id} className={`rounded-xl border p-4 ${selectedFriend?.id === person.id ? "border-violet-400 bg-violet-50" : "border-violet-100"}`}>
-                            <p className="font-semibold text-slate-900">{profileName(person)}</p>
-                            <p className="mt-1 text-xs text-slate-500">{[person.username ? `@${person.username}` : null, person.grade_level].filter(Boolean).join(" · ") || "Community member"}</p>
-                            <button onClick={() => loadMessages(person)} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm font-medium text-violet-800"><MessageCircle size={15}/> Message</button>
-                          </div>
-                        ))}
-                      </div>}
-                  </div>
-
-                  {selectedFriend && (
-                    <div className="rounded-2xl border border-violet-100 bg-white p-5">
-                      <div className="mb-4 flex items-center justify-between gap-3 border-b border-violet-100 pb-3">
-                        <div><h2 className="font-semibold text-slate-900">Chat with {profileName(selectedFriend)}</h2><p className="text-xs text-slate-500">Messages are visible to you and this friend.</p></div>
-                        <button onClick={() => loadMessages(selectedFriend)} className="rounded-lg p-2 text-violet-700 hover:bg-violet-50" aria-label="Refresh messages"><RefreshCw size={16}/></button>
-                      </div>
-                      <div className="max-h-80 min-h-28 space-y-2 overflow-y-auto rounded-xl bg-slate-50 p-3">
-                        {messageLoading ? <p className="text-sm text-slate-500">Loading messages...</p> :
-                          messages.length === 0 ? <p className="text-sm text-slate-500">No messages yet. Start the conversation.</p> :
-                          messages.map((message) => <div key={message.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${message.sender_id === userId ? "ml-auto bg-violet-700 text-white" : "bg-white text-slate-800 border border-slate-200"}`}><p>{message.content}</p><p className={`mt-1 text-[10px] ${message.sender_id === userId ? "text-violet-200" : "text-slate-400"}`}>{new Date(message.created_at).toLocaleString()}</p></div>)}
-                      </div>
-                      <form onSubmit={(e) => { e.preventDefault(); sendDirectMessage(); }} className="mt-3 flex gap-2">
-                        <input value={messageDraft} onChange={(e) => setMessageDraft(e.target.value)} maxLength={2000} placeholder="Write a message..." className="min-w-0 flex-1 rounded-xl border border-violet-200 px-4 py-3 text-sm outline-none focus:border-violet-500"/>
-                        <button disabled={sendingMessage || !messageDraft.trim()} className="inline-flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"><Send size={16}/> Send</button>
-                      </form>
-                    </div>
-                  )}
-                </>
-              )}
-            </section>
-          )}
-
-          {activeNav === "Settings" && userId && (
-            <section>
-              <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
-                ACCOUNT
-              </p>
-              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                Settings
-              </h1>
-              <p className="mt-2 text-sm text-slate-500">
-                Manage your profile and account information.
-              </p>
-          
-              <div className="mt-6 rounded-2xl border border-violet-100 bg-white p-6 shadow-sm">
-                <h2 className="font-semibold text-slate-900">
-                  Personal information
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Update the information other students see on your profile.
-                </p>
-          
-                <div className="mt-6 grid gap-5 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">
-                      Nickname
-                    </span>
-                    <input
-                      value={editNickname}
-                      onChange={(e) => setEditNickname(e.target.value)}
-                      maxLength={40}
-                      placeholder="Your nickname"
-                      className="w-full rounded-xl border border-violet-200 px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
-                    />
-                  </label>
-          
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">
-                      Gender
-                    </span>
-                    <select
-                      value={editGender}
-                      onChange={(e) => setEditGender(e.target.value)}
-                      className="w-full rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
-                    >
-                      <option value="">Prefer not to say</option>
-                      <option value="Female">Female</option>
-                      <option value="Male">Male</option>
-                      <option value="Non-binary">Non-binary</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </label>
-          
-                  <label className="block sm:col-span-2">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">
-                      Grade
-                    </span>
-                    <select
-                      value={editGrade}
-                      onChange={(e) => setEditGrade(e.target.value)}
-                      className="w-full rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
-                    >
-                      <option value="">Select your grade</option>
-                      <option value="Grade 9">Grade 9</option>
-                      <option value="Grade 10">Grade 10</option>
-                      <option value="Grade 11">Grade 11</option>
-                      <option value="Grade 12">Grade 12</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </label>
-          
-                  <label className="block sm:col-span-2">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">
-                      Friend requests
-                    </span>
-                    <select
-                      value={friendRequestMode}
-                      onChange={(e) => setFriendRequestMode(e.target.value as "approval" | "direct")}
-                      className="w-full rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
-                    >
-                      <option value="approval">Require approval before becoming friends</option>
-                      <option value="direct">Allow people to add me directly</option>
-                    </select>
-                  </label>
-
-                  <label className="block sm:col-span-2">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">
-                      About me
-                    </span>
-                    <textarea
-                      value={editBio}
-                      onChange={(e) => setEditBio(e.target.value)}
-                      maxLength={300}
-                      rows={4}
-                      placeholder="Tell the community a little about yourself..."
-                      className="w-full resize-y rounded-xl border border-violet-200 px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
-                    />
-                    <span className="mt-1 block text-right text-xs text-slate-400">
-                      {editBio.length}/300
-                    </span>
-                  </label>
-                </div>
-          
-                {profileError && (
-                  <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {profileError}
-                  </p>
-                )}
-          
-                {profileSuccess && (
-                  <p className="mt-4 rounded-xl bg-green-50 px-4 py-3 text-sm text-green-700">
-                    {profileSuccess}
-                  </p>
-                )}
-          
-                <button
-                  type="button"
-                  disabled={savingProfile || !userId}
-                  onClick={handleSaveProfile}
-                  className="mt-6 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {savingProfile ? "Saving..." : "Save changes"}
-                </button>
-              </div>
-          
-              <div className="mt-5 rounded-2xl border border-violet-100 bg-white p-6">
-                <h2 className="font-semibold text-slate-900">Account details</h2>
-                <p className="mt-2 break-all text-sm text-slate-500">
-                  {userEmail || "You are not signed in."}
-                </p>
-          
-                {userId && (
-                  <button
-                    onClick={handleSignOut}
-                    className="mt-5 flex items-center gap-2 rounded-xl border border-violet-200 px-4 py-2.5 text-sm font-medium text-violet-800 hover:bg-violet-50"
-                  >
-                    <LogOut size={16} /> Sign out
-                  </button>
-                )}
-              </div>
-            </section>
-          )}
-
-          {![
-            "Home",
-            "Resources",
-            "Discussions",
-            "Profile",
-            "Settings",
-            "Friends",
-          ].includes(activeNav) && (
-            <section className="rounded-3xl border border-violet-100 bg-white px-6 py-14 text-center shadow-sm">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
-                {activeNav === "Study Rooms" && <Users size={26} />}
-                {activeNav === "Announcements" && <Megaphone size={26} />}
-                {activeNav === "Feedback" && <MessageCircle size={26} />}
-              </div>
-              <h1 className="text-2xl font-bold text-slate-900">{activeNav}</h1>
-              <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
-                This section will be connected to its database and interactive
-                features in the next development steps.
-              </p>
-            </section>
-          )}
-
-          <footer className="mt-12 border-t border-violet-100 py-6 text-center text-xs text-slate-400">
-            North Synapse · A community built around learning together.
-          </footer>
-        </div>
       </main>
+
+      {/* 预览与学术引用弹窗 */}
+      {previewResource && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '960px', height: '80vh', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '1.2rem 2rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2>{previewResource.title}</h2>
+              <button onClick={() => setPreviewResource(null)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.4rem' }}>X</button>
+            </div>
+
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+              <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', borderRight: `1px solid ${theme.border}` }}>
+                <div style={{ fontSize: '0.95rem', lineHeight: '1.7', whiteSpace: 'pre-wrap', marginBottom: '2rem' }}>
+                  {previewResource.content}
+                </div>
+
+                <div style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1.2rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: theme.accent }}>ACADEMIC CITATION GENERATOR</span>
+                  <div style={{ display: 'flex', gap: '0.5rem', margin: '0.6rem 0' }}>
+                    {(['APA', 'IEEE', 'MLA', 'BibTeX'] as const).map((fmt) => (
+                      <button key={fmt} onClick={() => setCitationFormat(fmt)} style={{ padding: '0.22rem 0.6rem', borderRadius: '4px', border: `1px solid ${citationFormat === fmt ? theme.accent : theme.border}`, backgroundColor: citationFormat === fmt ? theme.accent : 'transparent', color: citationFormat === fmt ? '#FFF' : theme.textMuted, fontSize: '0.75rem', cursor: 'pointer' }}>
+                        {fmt}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: '0.8rem', fontFamily: 'monospace', backgroundColor: theme.cardBg, padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>
+                    {citationText}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ width: '360px', backgroundColor: theme.bg, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Comments ({previewResource.comments.length})</h3>
+                <form onSubmit={handleAddComment} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <textarea rows={3} placeholder="Write a comment..." value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box' }} />
+                  <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end' }}>Post Comment</button>
+                </form>
+
+                {previewResource.comments.map((c) => (
+                  <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
+                    <strong>{c.authorName}</strong>
+                    <p style={{ fontSize: '0.85rem', marginTop: '0.3rem' }}>{c.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 讨论回复弹窗 */}
+      {selectedDiscussion && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '680px', maxHeight: '80vh', border: `1px solid ${theme.border}`, padding: '2rem', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold' }}>{selectedDiscussion.title}</h2>
+              <button onClick={() => setSelectedDiscussion(null)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
+            </div>
+
+            <p style={{ fontSize: '0.95rem', marginBottom: '1.5rem', whiteSpace: 'pre-wrap' }}>{selectedDiscussion.content}</p>
+
+            <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: '1rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>Replies ({selectedDiscussion.repliesCount})</h3>
+
+              <form onSubmit={handleAddDiscussionReply} style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.5rem' }}>
+                <input type="text" placeholder="Write a reply..." value={newReplyText} onChange={(e) => setNewReplyText(e.target.value)} style={{ flex: 1, padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
+                <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Reply</button>
+              </form>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                {selectedDiscussion.replies.map(r => (
+                  <div key={r.id} style={{ backgroundColor: theme.bg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                      <strong style={{ fontSize: '0.85rem' }}>{r.authorName}</strong>
+                      <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{r.date}</span>
+                    </div>
+                    <p style={{ fontSize: '0.85rem' }}>{r.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 登录/注册弹窗 */}
+      {showAuthModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+              <h2>{isSignUp ? 'Sign Up' : 'Sign In'}</h2>
+              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+            </div>
+
+            <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Email</label>
+                <input type="email" required placeholder="student@tdsb.ca" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+                <span style={{ fontSize: '0.7rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>Tip: Enter an email containing &quot;northsynapse&quot; to toggle admin rights.</span>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Password</label>
+                <input type="password" required placeholder="••••••••" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              {isSignUp && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.8rem', color: theme.textMuted }}>
+                    <input type="checkbox" required checked={isStudentConfirmed} onChange={(e) => setIsStudentConfirmed(e.target.checked)} /> Confirm Student/Alumni
+                  </label>
+                  <label style={{ fontSize: '0.8rem', color: theme.textMuted }}>
+                    <input type="checkbox" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} /> Agree Terms of Service
+                  </label>
+                </div>
+              )}
+
+              <button type="submit" disabled={loading} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
+              </button>
+            </form>
+
+            <p onClick={() => setIsSignUp(!isSignUp)} style={{ color: theme.accent, marginTop: '1rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}>
+              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 编辑资料与注销弹窗 */}
+      {showEditProfileModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
+              <h2>Edit Profile</h2>
+              <button onClick={() => setShowEditProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <input type="file" ref={fileInputRef} accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
+                <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '0.5rem 1rem', borderRadius: '6px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer' }}>
+                  {avatarUrl ? 'Change Avatar' : 'Upload Avatar'}
+                </button>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username</label>
+                <input type="text" required value={username} onChange={(e) => setUsername(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
+                <input type="text" required value={nickname} onChange={(e) => setNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio</label>
+                <textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+                <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                  Save Profile
+                </button>
+                <button type="button" onClick={handleDeleteAccount} style={{ backgroundColor: 'transparent', border: '1px solid #EF4444', color: '#EF4444', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  Delete Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 发布资源弹窗 */}
+      {showCreateResourceModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '540px', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
+              <h2>Share Resource Note</h2>
+              <button onClick={() => setShowCreateResourceModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+            </div>
+
+            <form onSubmit={handleCreateResourceSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <input type="text" required placeholder="Title" value={newResTitle} onChange={(e) => setNewResTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              <textarea required rows={5} placeholder="Content / Formulas / Notes" value={newResContent} onChange={(e) => setNewResContent(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Publish Note</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 发起讨论弹窗 */}
+      {showCreateDiscussionModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
+              <h2>Start Discussion</h2>
+              <button onClick={() => setShowCreateDiscussionModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+            </div>
+
+            <form onSubmit={handleCreateDiscussionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <input type="text" required placeholder="Topic Title" value={newDiscTitle} onChange={(e) => setNewDiscTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              <textarea required rows={4} placeholder="Content" value={newDiscContent} onChange={(e) => setNewDiscContent(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Post Topic</button>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
