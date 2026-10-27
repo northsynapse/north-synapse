@@ -22,6 +22,10 @@ import {
   X,
   ArrowUpRight,
   FileText,
+  UserPlus,
+  Check,
+  Send,
+  RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -58,6 +62,35 @@ type Profile = {
   avatar_url: string | null;
   bio: string | null;
   role: string | null;
+  friend_request_mode?: "approval" | "direct" | null;
+};
+
+type CommunityProfile = {
+  id: string;
+  username: string | null;
+  nickname: string | null;
+  display_name: string | null;
+  grade_level: string | null;
+  gender: string | null;
+  bio: string | null;
+  email?: string | null;
+  friend_request_mode?: "approval" | "direct" | null;
+};
+
+type FriendRequest = {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  status: "pending" | "accepted";
+  created_at: string;
+};
+
+type DirectMessage = {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  content: string;
+  created_at: string;
 };
 
 const navigation = [
@@ -91,6 +124,21 @@ export default function HomePage() {
   const [profileSuccess, setProfileSuccess] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [friendSearch, setFriendSearch] = useState("");
+  const [friendSearchResults, setFriendSearchResults] = useState<CommunityProfile[]>([]);
+  const [friendRecommendations, setFriendRecommendations] = useState<CommunityProfile[]>([]);
+  const [friends, setFriends] = useState<CommunityProfile[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<(FriendRequest & { sender?: CommunityProfile })[]>([]);
+  const [friendRequestIds, setFriendRequestIds] = useState<string[]>([]);
+  const [friendLoading, setFriendLoading] = useState(false);
+  const [friendError, setFriendError] = useState("");
+  const [friendNotice, setFriendNotice] = useState("");
+  const [friendRequestMode, setFriendRequestMode] = useState<"approval" | "direct">("approval");
+  const [selectedFriend, setSelectedFriend] = useState<CommunityProfile | null>(null);
+  const [messages, setMessages] = useState<DirectMessage[]>([]);
+  const [messageDraft, setMessageDraft] = useState("");
+  const [messageLoading, setMessageLoading] = useState(false);
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   const handleSaveProfile = async () => {
     if (!userId) {
@@ -120,11 +168,12 @@ export default function HomePage() {
           gender: editGender || null,
           grade_level: editGrade || null,
           bio: editBio.trim() || null,
+          friend_request_mode: friendRequestMode,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "id" }
       )
-      .select("username, nickname, display_name, grade_level, gender, avatar_url, bio, role")
+      .select("username, nickname, display_name, grade_level, gender, avatar_url, bio, role, friend_request_mode")
       .single();
 
     if (error || !data) {
@@ -142,6 +191,7 @@ export default function HomePage() {
     setEditGender(data.gender || "");
     setEditGrade(data.grade_level || "");
     setEditBio(data.bio || "");
+    setFriendRequestMode(data.friend_request_mode === "direct" ? "direct" : "approval");
     setProfileSuccess("Your profile has been saved.");
     setSavingProfile(false);
   };
@@ -241,7 +291,7 @@ export default function HomePage() {
           supabase
             .from("profiles")
             .select(
-              "username, nickname, display_name, grade_level, gender, avatar_url, bio, role"
+              "username, nickname, display_name, grade_level, gender, avatar_url, bio, role, friend_request_mode"
             )
             .eq("id", userId)
             .maybeSingle(),
@@ -277,6 +327,7 @@ export default function HomePage() {
           setEditGender(profileResult.data.gender || "");
           setEditGrade(profileResult.data.grade_level || "");
           setEditBio(profileResult.data.bio || "");
+          setFriendRequestMode(profileResult.data.friend_request_mode === "direct" ? "direct" : "approval");
         }
       }
 
@@ -342,6 +393,154 @@ export default function HomePage() {
       mounted = false;
     };
   }, [userId]);
+
+  const profileName = (person: CommunityProfile) =>
+    person.nickname || person.display_name || person.username || person.email?.split("@")[0] || "Community member";
+
+  async function loadFriendsData() {
+    if (!userId) return;
+    setFriendLoading(true);
+    setFriendError("");
+    const { data: requestData, error: requestError } = await supabase
+      .from("friend_requests")
+      .select("id, sender_id, receiver_id, status, created_at")
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .order("created_at", { ascending: false });
+
+    if (requestError) {
+      setFriendError(requestError.message);
+      setFriendLoading(false);
+      return;
+    }
+
+    const requests = (requestData ?? []) as FriendRequest[];
+    const incoming = requests.filter((r) => r.receiver_id === userId && r.status === "pending");
+    const relatedIds = Array.from(new Set(requests.map((r) => r.sender_id === userId ? r.receiver_id : r.sender_id)));
+
+    let profileMap = new Map<string, CommunityProfile>();
+    if (relatedIds.length) {
+      const { data: people, error: peopleError } = await supabase
+        .from("profiles")
+        .select("id, username, nickname, display_name, grade_level, gender, bio, friend_request_mode")
+        .in("id", relatedIds);
+      if (peopleError) {
+        setFriendError("Friend requests loaded, but profile details could not be loaded: " + peopleError.message);
+      } else {
+        profileMap = new Map((people ?? []).map((p: any) => [p.id, p as CommunityProfile]));
+      }
+    }
+
+    setIncomingRequests(incoming.map((r) => ({ ...r, sender: profileMap.get(r.sender_id) })));
+    setFriends(
+      requests
+        .filter((r) => r.status === "accepted")
+        .map((r) => profileMap.get(r.sender_id === userId ? r.receiver_id : r.sender_id))
+        .filter((p): p is CommunityProfile => Boolean(p))
+    );
+    setFriendRequestIds(requests.filter((r) => r.status === "pending").map((r) => r.sender_id === userId ? r.receiver_id : r.sender_id));
+
+    const { data: suggestions, error: suggestionError } = await supabase.rpc("random_community_profiles");
+    if (!suggestionError && suggestions) {
+      const exclude = new Set([...relatedIds, userId]);
+      const candidates = (suggestions as CommunityProfile[]).filter((p) => !exclude.has(p.id));
+      setFriendRecommendations(candidates.slice(0, 6));
+    } else if (suggestionError) {
+      console.error("Friend recommendations error:", suggestionError.message);
+    }
+    setFriendLoading(false);
+  }
+
+  async function searchFriends() {
+    if (!userId) {
+      window.location.href = "/login";
+      return;
+    }
+    const term = friendSearch.trim();
+    if (term.length < 2) {
+      setFriendError("Enter at least 2 characters to search.");
+      setFriendSearchResults([]);
+      return;
+    }
+    setFriendLoading(true);
+    setFriendError("");
+    const { data, error } = await supabase.rpc("search_community_profiles", { search_term: term });
+    if (error) {
+      setFriendError("Search failed: " + error.message);
+      setFriendSearchResults([]);
+    } else {
+      setFriendSearchResults((data ?? []).filter((p: CommunityProfile) => p.id !== userId));
+    }
+    setFriendLoading(false);
+  }
+
+  async function sendFriendRequest(person: CommunityProfile) {
+    if (!userId) return;
+    setFriendError("");
+    setFriendNotice("");
+    const direct = person.friend_request_mode === "direct";
+    const { error } = await supabase.from("friend_requests").insert({
+      sender_id: userId,
+      receiver_id: person.id,
+      status: direct ? "accepted" : "pending",
+    });
+    if (error) {
+      setFriendError(error.code === "23505" ? "You have already sent a request to this person." : error.message);
+      return;
+    }
+    setFriendNotice(direct ? `You are now friends with ${profileName(person)}.` : `Friend request sent to ${profileName(person)}.`);
+    await loadFriendsData();
+    if (friendSearch.trim()) await searchFriends();
+  }
+
+  async function acceptFriendRequest(request: FriendRequest) {
+    const { error } = await supabase
+      .from("friend_requests")
+      .update({ status: "accepted", updated_at: new Date().toISOString() })
+      .eq("id", request.id)
+      .eq("receiver_id", userId);
+    if (error) {
+      setFriendError(error.message);
+      return;
+    }
+    setFriendNotice("Friend request accepted.");
+    await loadFriendsData();
+  }
+
+  async function loadMessages(person: CommunityProfile) {
+    if (!userId) return;
+    setSelectedFriend(person);
+    setMessageLoading(true);
+    const { data, error } = await supabase
+      .from("direct_messages")
+      .select("id, sender_id, receiver_id, content, created_at")
+      .or(`and(sender_id.eq.${userId},receiver_id.eq.${person.id}),and(sender_id.eq.${person.id},receiver_id.eq.${userId})`)
+      .order("created_at", { ascending: true });
+    if (error) {
+      setFriendError(error.message);
+      setMessages([]);
+    } else {
+      setMessages((data ?? []) as DirectMessage[]);
+    }
+    setMessageLoading(false);
+  }
+
+  async function sendDirectMessage() {
+    if (!userId || !selectedFriend || !messageDraft.trim()) return;
+    setSendingMessage(true);
+    setFriendError("");
+    const { error } = await supabase.from("direct_messages").insert({
+      sender_id: userId,
+      receiver_id: selectedFriend.id,
+      content: messageDraft.trim(),
+    });
+    if (error) {
+      setFriendError(error.message);
+    } else {
+      setMessageDraft("");
+      await loadMessages(selectedFriend);
+    }
+    setSendingMessage(false);
+  }
 
   const filteredResources = resources.filter((item) =>
     [
@@ -566,6 +765,17 @@ export default function HomePage() {
         </p>
 
         <nav className="space-y-1">
+          <button
+            onClick={() => { navigate("Friends"); loadFriendsData(); }}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
+              activeNav === "Friends"
+                ? "bg-violet-400 text-white"
+                : "text-violet-100/80 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <Users size={19} />
+            Friends
+          </button>
           <button
             onClick={() => navigate("Profile")}
             className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
@@ -1073,6 +1283,123 @@ export default function HomePage() {
           )}
 
 
+          {activeNav === "Friends" && (
+            <section>
+              {!userId ? (
+                <div className="rounded-3xl border border-violet-100 bg-white px-6 py-14 text-center">
+                  <Users className="mx-auto mb-4 text-violet-500" size={36} />
+                  <h1 className="text-2xl font-bold">Friends</h1>
+                  <p className="mt-2 text-sm text-slate-500">Sign in to find and message friends.</p>
+                  <button onClick={() => (window.location.href = "/login")} className="mt-5 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white">Sign in</button>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">Your community</p>
+                      <h1 className="text-3xl font-bold text-slate-900">Friends</h1>
+                      <p className="mt-2 text-sm text-slate-500">Find classmates, manage requests, and message your friends.</p>
+                    </div>
+                    <button onClick={loadFriendsData} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-800"><RefreshCw size={16}/> Refresh</button>
+                  </div>
+
+                  {friendError && <p className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{friendError}</p>}
+                  {friendNotice && <p className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">{friendNotice}</p>}
+
+                  <div className="mb-6 rounded-2xl border border-violet-100 bg-white p-5">
+                    <h2 className="font-semibold text-slate-900">Find people</h2>
+                    <form onSubmit={(e) => { e.preventDefault(); searchFriends(); }} className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <div className="relative flex-1">
+                        <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-400"/>
+                        <input value={friendSearch} onChange={(e) => setFriendSearch(e.target.value)} placeholder="Search by name, username, or email" className="w-full rounded-xl border border-violet-200 py-3 pl-10 pr-4 text-sm outline-none focus:border-violet-500"/>
+                      </div>
+                      <button type="submit" className="rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-800">Search</button>
+                    </form>
+                    {friendSearchResults.length > 0 && (
+                      <div className="mt-4 space-y-3">
+                        {friendSearchResults.map((person) => (
+                          <div key={person.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-100 p-3">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-900">{profileName(person)}</p>
+                              <p className="text-xs text-slate-500">{[person.username ? `@${person.username}` : null, person.grade_level, person.gender].filter(Boolean).join(" · ") || "Community member"}</p>
+                              {person.bio && <p className="mt-1 text-sm text-slate-600">{person.bio}</p>}
+                            </div>
+                            {friends.some((f) => f.id === person.id) ? <span className="text-sm text-green-700">Already friends</span> :
+                              friendRequestIds.includes(person.id) ? <span className="text-sm text-slate-500">Request pending</span> :
+                              <button onClick={() => sendFriendRequest(person)} className="inline-flex items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white"><UserPlus size={15}/>{person.friend_request_mode === "direct" ? "Add friend" : "Request"}</button>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {friendSearch.trim().length >= 2 && !friendLoading && friendSearchResults.length === 0 && <p className="mt-4 text-sm text-slate-500">No matching people found.</p>}
+                  </div>
+
+                  {friendRecommendations.length > 0 && (
+                    <div className="mb-6 rounded-2xl border border-violet-100 bg-white p-5">
+                      <h2 className="mb-3 font-semibold text-slate-900">People you may know</h2>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {friendRecommendations.map((person) => (
+                          <div key={person.id} className="rounded-xl border border-violet-100 p-4">
+                            <p className="font-semibold text-slate-900">{profileName(person)}</p>
+                            <p className="mt-1 text-xs text-slate-500">{[person.username ? `@${person.username}` : null, person.grade_level].filter(Boolean).join(" · ") || "Community member"}</p>
+                            {person.bio && <p className="mt-2 line-clamp-2 text-sm text-slate-600">{person.bio}</p>}
+                            <button onClick={() => sendFriendRequest(person)} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white"><UserPlus size={15}/>{person.friend_request_mode === "direct" ? "Add friend" : "Request"}</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {incomingRequests.length > 0 && (
+                    <div className="mb-6 rounded-2xl border border-violet-100 bg-white p-5">
+                      <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900"><UserPlus size={18}/> Friend requests ({incomingRequests.length})</h2>
+                      <div className="space-y-3">
+                        {incomingRequests.map((request) => (
+                          <div key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-violet-50/70 p-3">
+                            <div><p className="font-semibold">{request.sender ? profileName(request.sender) : "Community member"}</p><p className="text-xs text-slate-500">Wants to connect with you</p></div>
+                            <button onClick={() => acceptFriendRequest(request)} className="inline-flex items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white"><Check size={15}/> Accept</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mb-6 rounded-2xl border border-violet-100 bg-white p-5">
+                    <h2 className="mb-3 font-semibold text-slate-900">Your friends ({friends.length})</h2>
+                    {friends.length === 0 ? <p className="text-sm text-slate-500">Your accepted friends will appear here.</p> :
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {friends.map((person) => (
+                          <div key={person.id} className={`rounded-xl border p-4 ${selectedFriend?.id === person.id ? "border-violet-400 bg-violet-50" : "border-violet-100"}`}>
+                            <p className="font-semibold text-slate-900">{profileName(person)}</p>
+                            <p className="mt-1 text-xs text-slate-500">{[person.username ? `@${person.username}` : null, person.grade_level].filter(Boolean).join(" · ") || "Community member"}</p>
+                            <button onClick={() => loadMessages(person)} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm font-medium text-violet-800"><MessageCircle size={15}/> Message</button>
+                          </div>
+                        ))}
+                      </div>}
+                  </div>
+
+                  {selectedFriend && (
+                    <div className="rounded-2xl border border-violet-100 bg-white p-5">
+                      <div className="mb-4 flex items-center justify-between gap-3 border-b border-violet-100 pb-3">
+                        <div><h2 className="font-semibold text-slate-900">Chat with {profileName(selectedFriend)}</h2><p className="text-xs text-slate-500">Messages are visible to you and this friend.</p></div>
+                        <button onClick={() => loadMessages(selectedFriend)} className="rounded-lg p-2 text-violet-700 hover:bg-violet-50" aria-label="Refresh messages"><RefreshCw size={16}/></button>
+                      </div>
+                      <div className="max-h-80 min-h-28 space-y-2 overflow-y-auto rounded-xl bg-slate-50 p-3">
+                        {messageLoading ? <p className="text-sm text-slate-500">Loading messages...</p> :
+                          messages.length === 0 ? <p className="text-sm text-slate-500">No messages yet. Start the conversation.</p> :
+                          messages.map((message) => <div key={message.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${message.sender_id === userId ? "ml-auto bg-violet-700 text-white" : "bg-white text-slate-800 border border-slate-200"}`}><p>{message.content}</p><p className={`mt-1 text-[10px] ${message.sender_id === userId ? "text-violet-200" : "text-slate-400"}`}>{new Date(message.created_at).toLocaleString()}</p></div>)}
+                      </div>
+                      <form onSubmit={(e) => { e.preventDefault(); sendDirectMessage(); }} className="mt-3 flex gap-2">
+                        <input value={messageDraft} onChange={(e) => setMessageDraft(e.target.value)} maxLength={2000} placeholder="Write a message..." className="min-w-0 flex-1 rounded-xl border border-violet-200 px-4 py-3 text-sm outline-none focus:border-violet-500"/>
+                        <button disabled={sendingMessage || !messageDraft.trim()} className="inline-flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"><Send size={16}/> Send</button>
+                      </form>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+
           {activeNav === "Settings" && userId && (
             <section>
               <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
@@ -1144,6 +1471,20 @@ export default function HomePage() {
           
                   <label className="block sm:col-span-2">
                     <span className="mb-2 block text-sm font-medium text-slate-700">
+                      Friend requests
+                    </span>
+                    <select
+                      value={friendRequestMode}
+                      onChange={(e) => setFriendRequestMode(e.target.value as "approval" | "direct")}
+                      className="w-full rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                    >
+                      <option value="approval">Require approval before becoming friends</option>
+                      <option value="direct">Allow people to add me directly</option>
+                    </select>
+                  </label>
+
+                  <label className="block sm:col-span-2">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">
                       About me
                     </span>
                     <textarea
@@ -1206,6 +1547,7 @@ export default function HomePage() {
             "Discussions",
             "Profile",
             "Settings",
+            "Friends",
           ].includes(activeNav) && (
             <section className="rounded-3xl border border-violet-100 bg-white px-6 py-14 text-center shadow-sm">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
