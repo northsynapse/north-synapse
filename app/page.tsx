@@ -119,6 +119,56 @@ export default function HomePage() {
 
           supabase.auth.getSession(),
         ]);
+      
+        const handleSaveProfile = async () => {
+          if (!userId) {
+            setProfileError("Please sign in before saving your profile.");
+            return;
+          }
+        
+          setSavingProfile(true);
+          setProfileError("");
+          setProfileSuccess("");
+        
+          const { data: authData, error: authError } =
+            await supabase.auth.getUser();
+        
+          if (authError || !authData.user || authData.user.id !== userId) {
+            setProfileError("Your session could not be verified. Please sign in again.");
+            setSavingProfile(false);
+            return;
+          }
+        
+          const { data, error } = await supabase
+            .from("profiles")
+            .update({
+              nickname: editNickname.trim() || null,
+              gender: editGender || null,
+              grade_level: editGrade || null,
+              bio: editBio.trim() || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", userId)
+            .select("username, nickname, display_name, grade_level, gender, avatar_url, bio, role")
+            .maybeSingle();
+        
+          if (error || !data) {
+            setProfileError(
+              error?.message || "Profile was not updated. Check your profile record and permissions."
+            );
+            setSavingProfile(false);
+            return;
+          }
+        
+          setProfile(data);
+          setEditNickname(data.nickname || data.display_name || data.username || "");
+          setEditGender(data.gender || "");
+          setEditGrade(data.grade_level || "");
+          setEditBio(data.bio || "");
+          setProfileSuccess("Your profile has been saved.");
+          setSavingProfile(false);
+        };
+
 
       if (!mounted) return;
 
