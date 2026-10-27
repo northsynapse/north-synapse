@@ -506,6 +506,24 @@ export default function HomePage() {
     await loadFriendsData();
   }
 
+  async function declineFriendRequest(request: FriendRequest) {
+    if (!userId) return;
+    setFriendError("");
+    setFriendNotice("");
+    const { error } = await supabase
+      .from("friend_requests")
+      .delete()
+      .eq("id", request.id)
+      .eq("receiver_id", userId)
+      .eq("status", "pending");
+    if (error) {
+      setFriendError(error.message);
+      return;
+    }
+    setFriendNotice("Friend request dismissed.");
+    await loadFriendsData();
+  }
+
   async function loadMessages(person: CommunityProfile) {
     if (!userId) return;
     setSelectedFriend(person);
@@ -1357,7 +1375,10 @@ export default function HomePage() {
                         {incomingRequests.map((request) => (
                           <div key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-violet-50/70 p-3">
                             <div><p className="font-semibold">{request.sender ? profileName(request.sender) : "Community member"}</p><p className="text-xs text-slate-500">Wants to connect with you</p></div>
-                            <button onClick={() => acceptFriendRequest(request)} className="inline-flex items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white"><Check size={15}/> Accept</button>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => acceptFriendRequest(request)} className="inline-flex items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white"><Check size={15}/> Accept</button>
+                              <button onClick={() => declineFriendRequest(request)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"><X size={15}/> Decline</button>
+                            </div>
                           </div>
                         ))}
                       </div>
