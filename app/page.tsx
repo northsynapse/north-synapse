@@ -347,6 +347,31 @@ export default function Home() {
           alert('An account with this email already exists. Please sign in instead.');
           return;
         }
+        
+        const defaultName = cleanEmail.split('@')[0];
+        const defaultUsernameError = validateUsername(defaultName);
+        
+        if (defaultUsernameError) {
+          alert(
+            'Your email prefix cannot be used as the default username. ' +
+            'Please use an email with a prefix of 3–30 supported characters.'
+          );
+          return;
+        }
+        
+        const usernameTaken = accounts.some(
+          (account) =>
+            normalizeName(account.user?.username || '').toLocaleLowerCase() ===
+            defaultName.toLocaleLowerCase()
+        );
+        
+        if (usernameTaken) {
+          alert(
+            'The username generated from your email is already taken. ' +
+            'Please sign up with another email address.'
+          );
+          return;
+        }
         const defaultName = cleanEmail.split('@')[0];
         const userObj = {
           email: cleanEmail,
@@ -437,8 +462,8 @@ function handleSaveProfile(e: React.FormEvent) {
 
     const updatedUser = {
       ...user,
-      username: username.trim(),
-      nickname: nickname.trim(),
+    username: cleanUsername,
+    nickname: cleanNickname,
       grade: grade,
       gender: gender,
       bio: bio.trim(),
@@ -1157,16 +1182,37 @@ function handleSaveProfile(e: React.FormEvent) {
                 </div>
               </div>
 
+
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username</label>
-                <input type="text" required value={username} onChange={(e) => setUsername(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+                <input
+                  type="text"
+                  required
+                  minLength={USERNAME_MIN}
+                  maxLength={USERNAME_MAX}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}
+                />
+                <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: '0.3rem 0 0' }}>
+                  3–30 characters. Letters, numbers, spaces, and common symbols are allowed.
+                </p>
               </div>
-
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
-                <input type="text" required value={nickname} onChange={(e) => setNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+                <input
+                  type="text"
+                  required
+                  minLength={NICKNAME_MIN}
+                  maxLength={NICKNAME_MAX}
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}
+                />
+                <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: '0.3rem 0 0' }}>
+                  2–24 characters. You can use the same nickname as another student.
+                </p>
               </div>
-
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade (optional)</label>
                 <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
