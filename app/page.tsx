@@ -54,6 +54,7 @@ type Profile = {
   nickname: string | null;
   display_name: string | null;
   grade_level: string | null;
+  gender: string | null;
   avatar_url: string | null;
   bio: string | null;
   role: string | null;
@@ -179,7 +180,7 @@ export default function HomePage() {
           supabase
             .from("profiles")
             .select(
-              "username, nickname, display_name, grade_level, avatar_url, bio, role"
+              "username, nickname, display_name, grade_level, genderavatar_url, bio, role"
             )
             .eq("id", userId)
             .maybeSingle(),
@@ -875,6 +876,11 @@ export default function HomePage() {
                         {profile?.grade_level && (
                           <span className="rounded-full bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700">
                             {profile.grade_level}
+                          </span>
+                        )}
+                        {profile?.gender && (
+                          <span className="rounded-full bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700">
+                            {profile.gender}
                           </span>
                         )}
                         {profile?.role && (
