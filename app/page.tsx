@@ -212,6 +212,17 @@ export default function HomePage() {
         setProfileError("Your profile could not be loaded.");
       } else {
         setProfile(profileResult.data);
+        if (profileResult.data) {
+          setEditNickname(
+            profileResult.data.nickname ||
+            profileResult.data.display_name ||
+            profileResult.data.username ||
+            ""
+          );
+          setEditGender(profileResult.data.gender || "");
+          setEditGrade(profileResult.data.grade_level || "");
+          setEditBio(profileResult.data.bio || "");
+        }
       }
 
       if (ownResourcesResult.error) {
@@ -1007,23 +1018,122 @@ export default function HomePage() {
             </section>
           )}
 
+
           {activeNav === "Settings" && (
             <section>
               <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-violet-600">
-                Account
+                ACCOUNT
               </p>
               <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
                 Settings
               </h1>
-              <div className="mt-6 rounded-2xl border border-violet-100 bg-white p-6">
+              <p className="mt-2 text-sm text-slate-500">
+                Manage your profile and account information.
+              </p>
+          
+              <div className="mt-6 rounded-2xl border border-violet-100 bg-white p-6 shadow-sm">
+                <h2 className="font-semibold text-slate-900">
+                  Personal information
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Update the information other students see on your profile.
+                </p>
+          
+                <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">
+                      Nickname
+                    </span>
+                    <input
+                      value={editNickname}
+                      onChange={(e) => setEditNickname(e.target.value)}
+                      maxLength={40}
+                      placeholder="Your nickname"
+                      className="w-full rounded-xl border border-violet-200 px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                    />
+                  </label>
+          
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">
+                      Gender
+                    </span>
+                    <select
+                      value={editGender}
+                      onChange={(e) => setEditGender(e.target.value)}
+                      className="w-full rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                    >
+                      <option value="">Prefer not to say</option>
+                      <option value="Female">Female</option>
+                      <option value="Male">Male</option>
+                      <option value="Non-binary">Non-binary</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </label>
+          
+                  <label className="block sm:col-span-2">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">
+                      Grade
+                    </span>
+                    <select
+                      value={editGrade}
+                      onChange={(e) => setEditGrade(e.target.value)}
+                      className="w-full rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                    >
+                      <option value="">Select your grade</option>
+                      <option value="Grade 9">Grade 9</option>
+                      <option value="Grade 10">Grade 10</option>
+                      <option value="Grade 11">Grade 11</option>
+                      <option value="Grade 12">Grade 12</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </label>
+          
+                  <label className="block sm:col-span-2">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">
+                      About me
+                    </span>
+                    <textarea
+                      value={editBio}
+                      onChange={(e) => setEditBio(e.target.value)}
+                      maxLength={300}
+                      rows={4}
+                      placeholder="Tell the community a little about yourself..."
+                      className="w-full resize-y rounded-xl border border-violet-200 px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                    />
+                    <span className="mt-1 block text-right text-xs text-slate-400">
+                      {editBio.length}/300
+                    </span>
+                  </label>
+                </div>
+          
+                {profileError && (
+                  <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {profileError}
+                  </p>
+                )}
+          
+                {profileSuccess && (
+                  <p className="mt-4 rounded-xl bg-green-50 px-4 py-3 text-sm text-green-700">
+                    {profileSuccess}
+                  </p>
+                )}
+          
+                <button
+                  type="button"
+                  disabled={savingProfile || !userId}
+                  onClick={handleSaveProfile}
+                  className="mt-6 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingProfile ? "Saving..." : "Save changes"}
+                </button>
+              </div>
+          
+              <div className="mt-5 rounded-2xl border border-violet-100 bg-white p-6">
                 <h2 className="font-semibold text-slate-900">Account details</h2>
                 <p className="mt-2 break-all text-sm text-slate-500">
                   {userEmail || "You are not signed in."}
                 </p>
-                <p className="mt-4 text-sm leading-6 text-slate-500">
-                  Profile editing, avatar uploads, and account preferences will
-                  be added here in a later step.
-                </p>
+          
                 {userId && (
                   <button
                     onClick={handleSignOut}
