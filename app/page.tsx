@@ -83,6 +83,12 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [editNickname, setEditNickname] = useState("");
+  const [editGender, setEditGender] = useState("");
+  const [editGrade, setEditGrade] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileSuccess, setProfileSuccess] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
