@@ -204,8 +204,8 @@ export default function Home() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // 判断是否为管理员（邮箱中包含 northsynapse）
-  const isAdmin = user?.email?.toLowerCase().includes('northsynapse');
+  // 仅指定邮箱拥有管理员标识
+  const isAdmin = user?.email?.trim().toLowerCase() === 'northsynapse@gmail.com';
 
   // 用户名和昵称的长度限制
   const USERNAME_MIN = 3;
@@ -311,14 +311,15 @@ export default function Home() {
   /* ==========================================================================
      3. 业务处理函数
      ========================================================================== */
+  // 本地演示版账号存储。正式上线前应改用服务端认证，不能将密码明文保存在浏览器中。
   function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
 
-    const cleanEmail = authEmail.trim();
-    const cleanPassword = authPassword.trim();
+    const cleanEmail = authEmail.trim().toLowerCase();
+    const cleanPassword = authPassword;
 
-    if (!cleanEmail.includes('@')) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       alert('Please enter a valid email address.');
       setLoading(false);
       return;
@@ -335,24 +336,95 @@ export default function Home() {
       return;
     }
 
-    const defaultName = cleanEmail.split('@')[0];
-    const userObj = {
-      email: cleanEmail,
-      username: defaultName,
-      nickname: defaultName,
-      grade: 'Grade 12',
-      createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    };
-
-    setUser(userObj);
-    setUsername(defaultName);
-    setNickname(defaultName);
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('ns_user', JSON.stringify(userObj));
+    if (typeof window === 'undefined') {
+      setLoading(false);
+      return;
     }
 
-    alert(isSignUp ? 'Registration successful! Logged in as ' + cleanEmail : 'Welcome back, ' + defaultName + '!');
+    type LocalAccount = {
+      email: string;
+      password: string;
+      profile: any;
+    };
+
+    let accounts: LocalAccount[] = [];
+    try {
+      accounts = JSON.parse(localStorage.getItem('ns_accounts') || '[]');
+      if (!Array.isArray(accounts)) accounts = [];
+    } catch (_) {
+      accounts = [];
+    }
+
+    const accountIndex = accounts.findIndex(
+      (account) => account.email?.toLowerCase() === cleanEmail
+    );
+
+    if (isSignUp) {
+      if (accountIndex !== -1) {
+        alert('An account with this email already exists. Please sign in.');
+        setLoading(false);
+        return;
+      }
+
+      // 如果旧版本仍保留着同邮箱的资料，则注册时沿用这些资料。
+      let legacyProfile: any = null;
+      try {
+        const savedUser = JSON.parse(localStorage.getItem('ns_user') || 'null');
+        if (savedUser?.email?.toLowerCase() === cleanEmail) legacyProfile = savedUser;
+      } catch (_) {}
+
+      const defaultName = cleanEmail.split('@')[0];
+      const profile = {
+        ...(legacyProfile || {}),
+        email: cleanEmail,
+        username: legacyProfile?.username || defaultName,
+        nickname: legacyProfile?.nickname || legacyProfile?.username || defaultName,
+        grade: legacyProfile?.grade || 'Grade 12',
+        gender: legacyProfile?.gender || 'Prefer not to say',
+        bio: legacyProfile?.bio || '',
+        avatarUrl: legacyProfile?.avatarUrl || '',
+        createdAt: legacyProfile?.createdAt || new Date().toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric'
+        })
+      };
+
+      accounts.push({ email: cleanEmail, password: cleanPassword, profile });
+      localStorage.setItem('ns_accounts', JSON.stringify(accounts));
+      localStorage.setItem('ns_user', JSON.stringify(profile));
+      setUser(profile);
+      setUsername(profile.username);
+      setNickname(profile.nickname);
+      setGrade(profile.grade);
+      setGender(profile.gender);
+      setBio(profile.bio);
+      setAvatarUrl(profile.avatarUrl);
+      alert('Registration successful! Logged in as ' + cleanEmail);
+    } else {
+      if (accountIndex === -1) {
+        alert('No account with this email was found on this browser. Please sign up first.');
+        setLoading(false);
+        return;
+      }
+
+      const account = accounts[accountIndex];
+      if (account.password !== cleanPassword) {
+        alert('Incorrect email or password. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      const profile = account.profile || { email: cleanEmail, username: cleanEmail.split('@')[0] };
+      localStorage.setItem('ns_user', JSON.stringify(profile));
+      setUser(profile);
+      setUsername(profile.username || '');
+      setNickname(profile.nickname || profile.username || '');
+      setGrade(profile.grade || 'Grade 12');
+      setGender(profile.gender || 'Prefer not to say');
+      setBio(profile.bio || '');
+      setAvatarUrl(profile.avatarUrl || '');
+      alert('Welcome back, ' + (profile.nickname || profile.username || cleanEmail) + '!');
+    }
+
     setShowAuthModal(false);
     setAuthPassword('');
     setActiveTab('dashboard');
@@ -388,6 +460,20 @@ export default function Home() {
     setUser(updatedUser);
     if (typeof window !== 'undefined') {
       localStorage.setItem('ns_user', JSON.stringify(updatedUser));
+
+      // 同步更新账号档案，确保退出后重新登录仍能恢复修改过的资料。
+      try {
+        const accounts = JSON.parse(localStorage.getItem('ns_accounts') || '[]');
+        const accountIndex = Array.isArray(accounts)
+          ? accounts.findIndex((account: any) => account.email?.toLowerCase() === updatedUser.email?.toLowerCase())
+          : -1;
+        if (accountIndex !== -1) {
+          accounts[accountIndex].profile = updatedUser;
+          localStorage.setItem('ns_accounts', JSON.stringify(accounts));
+        }
+      } catch (_) {
+        // 主档案已保存；如果账号缓存损坏，避免阻止界面继续使用。
+      }
     }
 
     alert('Profile updated successfully!');
@@ -1010,7 +1096,6 @@ export default function Home() {
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Email</label>
                 <input type="email" required placeholder="student@tdsb.ca" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-                <span style={{ fontSize: '0.7rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>Tip: Enter an email containing &quot;northsynapse&quot; to toggle admin rights.</span>
               </div>
 
               <div>
