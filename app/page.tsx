@@ -79,15 +79,14 @@ export default function Home() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
   const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // 个人资料
   const [avatarUrl, setAvatarUrl] = useState('');
   const [username, setUsername] = useState('');
   const [nickname, setNickname] = useState('');
-  const [grade, setGrade] = useState('');
-  const [gender, setGender] = useState('');
+  const [grade, setGrade] = useState('Grade 12');
+  const [gender, setGender] = useState('Prefer not to say');
   const [bio, setBio] = useState('');
 
   // 筛选与搜索
@@ -207,55 +206,53 @@ export default function Home() {
 
   // 判断是否为管理员（邮箱中包含 northsynapse）
   const isAdmin = user?.email?.toLowerCase().includes('northsynapse');
-  // Username and Nickname validation
+
+  // 用户名和昵称的长度限制
   const USERNAME_MIN = 3;
   const USERNAME_MAX = 30;
   const NICKNAME_MIN = 2;
   const NICKNAME_MAX = 24;
-  
+
+  // 去除首尾空白，保留名称内部的空格和符号
   function normalizeName(value: string): string {
     return value.trim();
   }
-  
+
+  // 按 Unicode 字符计算长度，避免将部分 emoji 错算成两个字符
   function getCharacterLength(value: string): number {
     return Array.from(value).length;
   }
-  
+
+  // 兼容较旧 TypeScript 编译目标：拒绝控制字符，但允许国际文字、数字、空格和常见符号
   function hasInvalidCharacters(value: string): boolean {
-    // Reject control, formatting, and other Unicode "Other" characters.
-    // Ordinary international letters, numbers, spaces, punctuation, and symbols are allowed.
-    return /\p{C}/u.test(value);
+    return /[\u0000-\u001F\u007F-\u009F]/.test(value);
   }
-  
+
   function validateUsername(value: string): string | null {
     const clean = normalizeName(value);
     const length = getCharacterLength(clean);
-  
+
     if (!clean) return 'Username cannot be empty.';
     if (length < USERNAME_MIN || length > USERNAME_MAX) {
       return `Username must be ${USERNAME_MIN}–${USERNAME_MAX} characters long.`;
     }
-    if (!/\S/u.test(clean)) return 'Username cannot contain only spaces.';
     if (hasInvalidCharacters(clean)) {
-      return 'Username contains unsupported characters.';
+      return 'Username contains unsupported control characters.';
     }
-  
     return null;
   }
-  
+
   function validateNickname(value: string): string | null {
     const clean = normalizeName(value);
     const length = getCharacterLength(clean);
-  
+
     if (!clean) return 'Nickname cannot be empty.';
     if (length < NICKNAME_MIN || length > NICKNAME_MAX) {
       return `Nickname must be ${NICKNAME_MIN}–${NICKNAME_MAX} characters long.`;
     }
-    if (!/\S/u.test(clean)) return 'Nickname cannot contain only spaces.';
     if (hasInvalidCharacters(clean)) {
-      return 'Nickname contains unsupported characters.';
+      return 'Nickname contains unsupported control characters.';
     }
-  
     return null;
   }
 
@@ -271,8 +268,7 @@ export default function Home() {
           setUser(parsed);
           setUsername(parsed.username || '');
           setNickname(parsed.nickname || parsed.username || '');
-          setGrade(parsed.grade || '');
-          setGender(parsed.gender || '');
+          setGrade(parsed.grade || 'Grade 12');
           setAvatarUrl(parsed.avatarUrl || '');
           setBio(parsed.bio || '');
         } catch (_) {}
@@ -315,154 +311,74 @@ export default function Home() {
   /* ==========================================================================
      3. 业务处理函数
      ========================================================================== */
-  async function handleAuthSubmit(e: React.FormEvent) {
+  function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
 
-    const cleanEmail = authEmail.trim().toLowerCase();
-    const cleanPassword = authPassword;
+    const cleanEmail = authEmail.trim();
+    const cleanPassword = authPassword.trim();
 
-    try {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-        alert('Please enter a valid email address.');
-        return;
-      }
-      if (cleanPassword.length < 8) {
-        alert('Password must be at least 8 characters long.');
-        return;
-      }
-      if (isSignUp && (!isStudentConfirmed || !hasAgreedTerms)) {
-        alert('Please confirm that you are a student/alumni and accept the Terms of Service.');
-        return;
-      }
-
-      // Front-end demo account registry. Production authentication should use Supabase Auth.
-      const accounts: Array<{ email: string; passwordHash: string; user: any }> =
-        JSON.parse(localStorage.getItem('ns_accounts') || '[]');
-      const existing = accounts.find((account) => account.email === cleanEmail);
-      const passwordHash = await hashPassword(cleanPassword);
-
-      if (isSignUp) {
-        if (existing) {
-          alert('An account with this email already exists. Please sign in instead.');
-          return;
-        }
-        
-        const defaultName = cleanEmail.split('@')[0];
-        const defaultUsernameError = validateUsername(defaultName);
-        
-        if (defaultUsernameError) {
-          alert(
-            'Your email prefix cannot be used as the default username. ' +
-            'Please use an email with a prefix of 3–30 supported characters.'
-          );
-          return;
-        }
-        
-        const usernameTaken = accounts.some(
-          (account) =>
-            normalizeName(account.user?.username || '').toLocaleLowerCase() ===
-            defaultName.toLocaleLowerCase()
-        );
-        
-        if (usernameTaken) {
-          alert(
-            'The username generated from your email is already taken. ' +
-            'Please sign up with another email address.'
-          );
-          return;
-        }
-        const userObj = {
-          email: cleanEmail,
-          username: defaultName,
-          nickname: defaultName,
-          grade: '',
-          gender: '',
-          bio: '',
-          avatarUrl: '',
-          createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-        };
-        localStorage.setItem('ns_accounts', JSON.stringify([...accounts, { email: cleanEmail, passwordHash, user: userObj }]));
-        setUser(userObj);
-        setUsername(defaultName);
-        setNickname(defaultName);
-        setGrade('');
-        setGender('');
-        setBio('');
-        setAvatarUrl('');
-        localStorage.setItem('ns_user', JSON.stringify(userObj));
-        alert('Registration successful!');
-      } else {
-        if (!existing || existing.passwordHash !== passwordHash) {
-          alert('Incorrect email or password. Please try again.');
-          return;
-        }
-        const userObj = existing.user;
-        setUser(userObj);
-        setUsername(userObj.username || '');
-        setNickname(userObj.nickname || userObj.username || '');
-        setGrade(userObj.grade || '');
-        setGender(userObj.gender || '');
-        setBio(userObj.bio || '');
-        setAvatarUrl(userObj.avatarUrl || '');
-        localStorage.setItem('ns_user', JSON.stringify(userObj));
-        alert('Welcome back, ' + (userObj.nickname || userObj.username || cleanEmail.split('@')[0]) + '!');
-      }
-      setShowAuthModal(false);
-      setAuthPassword('');
-      setActiveTab('dashboard');
-    } catch (error) {
-      console.error('Authentication error:', error);
-      alert('Unable to process this account. Please try again.');
-    } finally {
+    if (!cleanEmail.includes('@')) {
+      alert('Please enter a valid email address.');
       setLoading(false);
+      return;
     }
+    if (cleanPassword.length < 6) {
+      alert('Password must be at least 6 characters long.');
+      setLoading(false);
+      return;
+    }
+
+    if (isSignUp && (!isStudentConfirmed || !hasAgreedTerms)) {
+      alert('Please confirm that you are a student and accept the Terms of Service.');
+      setLoading(false);
+      return;
+    }
+
+    const defaultName = cleanEmail.split('@')[0];
+    const userObj = {
+      email: cleanEmail,
+      username: defaultName,
+      nickname: defaultName,
+      grade: 'Grade 12',
+      createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    };
+
+    setUser(userObj);
+    setUsername(defaultName);
+    setNickname(defaultName);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ns_user', JSON.stringify(userObj));
+    }
+
+    alert(isSignUp ? 'Registration successful! Logged in as ' + cleanEmail : 'Welcome back, ' + defaultName + '!');
+    setShowAuthModal(false);
+    setAuthPassword('');
+    setActiveTab('dashboard');
+    setLoading(false);
   }
 
-  async function hashPassword(password: string) {
-    const data = new TextEncoder().encode(password);
-    const digest = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
-  }
-
-function handleSaveProfile(e: React.FormEvent) {
-  e.preventDefault();
-
-  const cleanUsername = normalizeName(username);
-  const cleanNickname = normalizeName(nickname);
-
-  const usernameError = validateUsername(cleanUsername);
-  if (usernameError) {
-    alert(usernameError);
-    return;
-  }
-
-  const nicknameError = validateNickname(cleanNickname);
-  if (nicknameError) {
-    alert(nicknameError);
-    return;
-  }
-
-  // Check usernames among locally registered accounts.
-  const accounts: Array<{ email: string; passwordHash: string; user: any }> =
-    JSON.parse(localStorage.getItem('ns_accounts') || '[]');
-
-  const duplicateUsername = accounts.some(
-    (account) =>
-      account.email !== String(user?.email || '').toLowerCase() &&
-      normalizeName(account.user?.username || '').toLocaleLowerCase() ===
-        cleanUsername.toLocaleLowerCase()
-  );
-
-  if (duplicateUsername) {
-    alert('This username is already taken. Please choose another one.');
-    return;
-  }
+  function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    // 保存前检查用户名和昵称，防止空白、超长或包含控制字符的内容
+    const cleanUsername = normalizeName(username);
+    const cleanNickname = normalizeName(nickname);
+    const usernameError = validateUsername(cleanUsername);
+    if (usernameError) {
+      alert(usernameError);
+      return;
+    }
+    const nicknameError = validateNickname(cleanNickname);
+    if (nicknameError) {
+      alert(nicknameError);
+      return;
+    }
 
     const updatedUser = {
       ...user,
-    username: cleanUsername,
-    nickname: cleanNickname,
+      username: cleanUsername,
+      nickname: cleanNickname,
       grade: grade,
       gender: gender,
       bio: bio.trim(),
@@ -472,11 +388,6 @@ function handleSaveProfile(e: React.FormEvent) {
     setUser(updatedUser);
     if (typeof window !== 'undefined') {
       localStorage.setItem('ns_user', JSON.stringify(updatedUser));
-      const accounts: Array<{ email: string; passwordHash: string; user: any }> =
-        JSON.parse(localStorage.getItem('ns_accounts') || '[]');
-      localStorage.setItem('ns_accounts', JSON.stringify(accounts.map((account) =>
-        account.email === String(user?.email || '').toLowerCase() ? { ...account, user: updatedUser } : account
-      )));
     }
 
     alert('Profile updated successfully!');
@@ -495,13 +406,10 @@ function handleSaveProfile(e: React.FormEvent) {
   function handleDeleteAccount() {
     if (!window.confirm('Are you sure you want to delete this account? All local session data will be reset.')) return;
 
+    setUser(null);
     if (typeof window !== 'undefined') {
-      const accounts: Array<{ email: string; passwordHash: string; user: any }> =
-        JSON.parse(localStorage.getItem('ns_accounts') || '[]');
-      localStorage.setItem('ns_accounts', JSON.stringify(accounts.filter((account) => account.email !== String(user?.email || '').toLowerCase())));
       localStorage.removeItem('ns_user');
     }
-    setUser(null);
     setShowEditProfileModal(false);
     setActiveTab('resources');
     alert('Account deleted and session cleared.');
@@ -772,23 +680,23 @@ function handleSaveProfile(e: React.FormEvent) {
       <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
         
         {/* 公告轮播栏 */}
-        <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', border: `1px solid ${theme.accent}`, borderRadius: '12px', padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
+        <div className="ns-notice-banner" style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', border: `1px solid ${theme.accent}`, borderRadius: '12px', padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, overflow: 'hidden' }}>
-            <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
+            <span className="ns-notice-count" style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
               NOTICE ({currentBannerIndex + 1}/{announcements.length})
             </span>
 
             <div style={{ flex: 1, overflow: 'hidden', height: '52px', position: 'relative' }}>
               {announcements.map((item, idx) => (
                 <div key={item.id} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '52px', display: 'flex', alignItems: 'center', gap: '0.8rem', opacity: idx === currentBannerIndex ? 1 : 0, transform: idx === currentBannerIndex ? 'translateY(0)' : 'translateY(15px)', transition: 'all 0.4s ease-in-out' }}>
-                  <span style={{ fontSize: '0.9rem', color: theme.textMain, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</span>
-                  <span style={{ fontSize: '0.8rem', color: theme.textMuted, flexShrink: 0 }}>• {item.date}</span>
+                  <span className="ns-notice-title" style={{ fontSize: '0.9rem', color: theme.textMain, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</span>
+                  <span className="ns-notice-date" style={{ fontSize: '0.8rem', color: theme.textMuted, flexShrink: 0 }}>• {item.date}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <button onClick={() => setActiveTab('announcements')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', flexShrink: 0 }}>
+          <button className="ns-notice-viewall" onClick={() => setActiveTab('announcements')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', flexShrink: 0 }}>
             View All
           </button>
         </div>
@@ -966,10 +874,9 @@ function handleSaveProfile(e: React.FormEvent) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', overflowWrap: 'anywhere' }}>{nickname || 'Profile'}</h1>
-                <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem', overflowWrap: 'anywhere' }}>@{username || 'username'}</p>
-                {(grade || gender) && <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.35rem' }}>{[grade, gender].filter(Boolean).join(' · ')}</p>}
-                {bio.trim() && <p style={{ fontSize: '0.9rem', marginTop: '0.65rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{bio}</p>}
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{nickname || 'Student Profile'}</h1>
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '0.2rem' }}>@{username || 'username'} • {grade}</p>
+                {bio && <p style={{ fontSize: '0.85rem', marginTop: '0.5rem', fontStyle: 'italic' }}>&quot;{bio}&quot;</p>}
               </div>
               <button onClick={() => setShowEditProfileModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 1.6rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
                 Edit Profile
@@ -1103,11 +1010,12 @@ function handleSaveProfile(e: React.FormEvent) {
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Email</label>
                 <input type="email" required placeholder="student@tdsb.ca" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+                <span style={{ fontSize: '0.7rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>Tip: Enter an email containing &quot;northsynapse&quot; to toggle admin rights.</span>
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Password</label>
-                <input type="password" required minLength={8} placeholder="At least 8 characters" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+                <input type="password" required placeholder="••••••••" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
               </div>
 
               {isSignUp && (
@@ -1115,9 +1023,8 @@ function handleSaveProfile(e: React.FormEvent) {
                   <label style={{ fontSize: '0.8rem', color: theme.textMuted }}>
                     <input type="checkbox" required checked={isStudentConfirmed} onChange={(e) => setIsStudentConfirmed(e.target.checked)} /> Confirm Student/Alumni
                   </label>
-                  <label style={{ fontSize: '0.8rem', color: theme.textMuted, display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
-                    <input type="checkbox" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} style={{ marginTop: '0.15rem' }} />
-                    <span>I agree to the <button type="button" onClick={() => setShowTermsModal(true)} style={{ background: 'none', border: 'none', padding: 0, color: theme.accent, textDecoration: 'underline', cursor: 'pointer' }}>Terms of Service / User Notice</button>.</span>
+                  <label style={{ fontSize: '0.8rem', color: theme.textMuted }}>
+                    <input type="checkbox" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} /> Agree Terms of Service
                   </label>
                 </div>
               )}
@@ -1127,34 +1034,9 @@ function handleSaveProfile(e: React.FormEvent) {
               </button>
             </form>
 
-            <p onClick={() => { setIsSignUp(!isSignUp); setHasAgreedTerms(false); setIsStudentConfirmed(false); }} style={{ color: theme.accent, marginTop: '1rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}>
+            <p onClick={() => setIsSignUp(!isSignUp)} style={{ color: theme.accent, marginTop: '1rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}>
               {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
             </p>
-          </div>
-        </div>
-      )}
-
-      {/* Terms of Service / User Notice modal */}
-      {showTermsModal && (
-        <div onClick={() => setShowTermsModal(false)} style={{ position: 'fixed', inset: 0, padding: '1rem', backgroundColor: 'rgba(0,0,0,0.82)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000001 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: theme.cardBg, color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: 'clamp(1rem, 4vw, 2rem)', width: '100%', maxWidth: '620px', maxHeight: '85dvh', overflowY: 'auto', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-              <h2 style={{ margin: 0 }}>Terms of Service & User Notice</h2>
-              <button type="button" onClick={() => setShowTermsModal(false)} aria-label="Close terms" style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
-            </div>
-            <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Please read these basic rules before using North Synapse.</p>
-            <ol style={{ paddingLeft: '1.3rem', lineHeight: 1.65, display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
-              <li><strong>Academic purpose:</strong> Use this platform to share study notes, learning resources, and constructive academic discussion.</li>
-              <li><strong>Respect others:</strong> Do not harass, threaten, discriminate against, impersonate, or reveal another person&apos;s private information.</li>
-              <li><strong>Share responsibly:</strong> Only upload material you created or have permission to share. Respect copyright and school rules.</li>
-              <li><strong>Appropriate content:</strong> Do not post illegal, dangerous, hateful, sexually explicit, or otherwise inappropriate material.</li>
-              <li><strong>Privacy:</strong> Do not publish passwords, home addresses, phone numbers, student numbers, private messages, or other sensitive information.</li>
-              <li><strong>Accuracy and attribution:</strong> Credit original authors, label your own work clearly, and do not present someone else&apos;s work as yours.</li>
-              <li><strong>Moderation:</strong> Content may be reviewed or removed if it violates these rules. Repeated misuse may result in access restrictions.</li>
-              <li><strong>Account responsibility:</strong> Keep your login details private and use only an account you are authorized to access.</li>
-              <li><strong>Prototype notice:</strong> Some features may still be under development. Do not rely on this prototype to store confidential or important information.</li>
-            </ol>
-            <button type="button" onClick={() => setShowTermsModal(false)} style={{ width: '100%', marginTop: '1rem', backgroundColor: theme.accent, color: '#fff', border: 'none', padding: '0.75rem', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Close</button>
           </div>
         </div>
       )}
@@ -1162,74 +1044,30 @@ function handleSaveProfile(e: React.FormEvent) {
       {/* 编辑资料与注销弹窗 */}
       {showEditProfileModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: 'clamp(1rem, 4vw, 2rem)', borderRadius: '12px', width: '90%', maxWidth: '520px', maxHeight: '90dvh', overflowY: 'auto', border: `1px solid ${theme.border}`, boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
               <h2>Edit Profile</h2>
               <button onClick={() => setShowEditProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
             </div>
 
-            <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: '0 0 1.2rem' }}>Customize how other students see you. Grade, gender, and bio are optional.</p>
             <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '1rem', border: `1px solid ${theme.border}`, borderRadius: '10px', backgroundColor: theme.bg }}>
-                {avatarUrl ? <img src={avatarUrl} alt="Profile avatar preview" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: '64px', height: '64px', borderRadius: '50%', display: 'grid', placeItems: 'center', backgroundColor: theme.cardBg, color: theme.accent, fontSize: '1.5rem', fontWeight: 800 }}>{(nickname || username || '?').slice(0, 1).toUpperCase()}</div>}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1, minWidth: '150px' }}>
-                  <input type="file" ref={fileInputRef} accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
-                  <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '0.55rem 0.8rem', borderRadius: '6px', backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer', alignSelf: 'flex-start' }}>
-                    {avatarUrl ? 'Change Profile Photo' : 'Choose Profile Photo'}
-                  </button>
-                  <span style={{ color: theme.textMuted, fontSize: '0.75rem' }}>On phones, choose a photo from your photo library. On computers, choose an image file.</span>
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <input type="file" ref={fileInputRef} accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
+                <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '0.5rem 1rem', borderRadius: '6px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer' }}>
+                  {avatarUrl ? 'Change Avatar' : 'Upload Avatar'}
+                </button>
               </div>
-
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username</label>
-                <input
-                  type="text"
-                  required
-                  minLength={USERNAME_MIN}
-                  maxLength={USERNAME_MAX}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}
-                />
-                <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: '0.3rem 0 0' }}>
-                  3–30 characters. Letters, numbers, spaces, and common symbols are allowed.
-                </p>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
-                <input
-                  type="text"
-                  required
-                  minLength={NICKNAME_MIN}
-                  maxLength={NICKNAME_MAX}
-                  value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}
-                />
-                <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: '0.3rem 0 0' }}>
-                  2–24 characters. You can use the same nickname as another student.
-                </p>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade (optional)</label>
-                <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
-                  <option value="">Not specified</option>
-                  {['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'Alumni'].map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
+                <input type="text" required minLength={USERNAME_MIN} maxLength={USERNAME_MAX} value={username} onChange={(e) => setUsername(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+          <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: '0.3rem 0 0' }}>3–30 characters. Letters, numbers, spaces, and common symbols are allowed.</p>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (optional)</label>
-                <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
-                  <option value="">Not specified</option>
-                  <option value="Female">Female</option>
-                  <option value="Male">Male</option>
-                  <option value="Non-binary">Non-binary</option>
-                  <option value="Prefer not to say">Prefer not to say</option>
-                  <option value="Self-describe">Self-describe</option>
-                </select>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
+                <input type="text" required minLength={NICKNAME_MIN} maxLength={NICKNAME_MAX} value={nickname} onChange={(e) => setNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+          <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: '0.3rem 0 0' }}>2–24 characters. Nicknames do not have to be unique.</p>
               </div>
 
               <div>
@@ -1289,6 +1127,33 @@ function handleSaveProfile(e: React.FormEvent) {
 
       <style>{`
         @media (max-width: 640px) {
+          /* 在窄屏设备上保持公告标题清晰可读。 */
+          .ns-notice-banner {
+            padding: 0 0.55rem !important;
+            gap: 0.4rem !important;
+            height: 48px !important;
+          }
+
+          .ns-notice-count {
+            font-size: 0.58rem !important;
+            padding: 0.22rem 0.35rem !important;
+          }
+
+          .ns-notice-title {
+            font-size: 0.68rem !important;
+            white-space: normal !important;
+            line-height: 1.2 !important;
+            overflow: hidden !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+          }
+
+          .ns-notice-date,
+          .ns-notice-viewall {
+            display: none !important;
+          }
+
           * {
             min-width: 0;
           }
@@ -1391,12 +1256,12 @@ function handleSaveProfile(e: React.FormEvent) {
             max-width: 100%;
           }
 
-          /* Resource Hub title and share button */
+          /* 资源中心标题与分享按钮 */
           main > div > div:first-child {
             gap: 1rem !important;
           }
 
-          /* Resource cards and their metadata wrap instead of overflowing */
+          /* 资源卡片及其信息自动换行，避免溢出 */
           main > div > div > div {
             min-width: 0;
           }
@@ -1406,7 +1271,7 @@ function handleSaveProfile(e: React.FormEvent) {
             gap: 0.65rem !important;
           }
 
-          /* Modals fit the phone viewport */
+          /* 弹窗适配手机屏幕 */
           [style*="position: fixed"][style*="width: 100vw"] {
             box-sizing: border-box !important;
             padding: 0.65rem !important;
@@ -1464,3 +1329,5 @@ function handleSaveProfile(e: React.FormEvent) {
     </div>
   );
 }
+
+
