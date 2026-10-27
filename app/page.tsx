@@ -1043,11 +1043,11 @@ export default function Home() {
             <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Please read these basic rules before using North Synapse.</p>
             <ol style={{ paddingLeft: '1.3rem', lineHeight: 1.65, display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
               <li><strong>Academic purpose:</strong> Use this platform to share study notes, learning resources, and constructive academic discussion.</li>
-              <li><strong>Respect others:</strong> Do not harass, threaten, discriminate against, impersonate, or reveal another person's private information.</li>
+              <li><strong>Respect others:</strong> Do not harass, threaten, discriminate against, impersonate, or reveal another person&apos;s private information.</li>
               <li><strong>Share responsibly:</strong> Only upload material you created or have permission to share. Respect copyright and school rules.</li>
               <li><strong>Appropriate content:</strong> Do not post illegal, dangerous, hateful, sexually explicit, or otherwise inappropriate material.</li>
               <li><strong>Privacy:</strong> Do not publish passwords, home addresses, phone numbers, student numbers, private messages, or other sensitive information.</li>
-              <li><strong>Accuracy and attribution:</strong> Credit original authors, label your own work clearly, and do not present someone else's work as yours.</li>
+              <li><strong>Accuracy and attribution:</strong> Credit original authors, label your own work clearly, and do not present someone else&apos;s work as yours.</li>
               <li><strong>Moderation:</strong> Content may be reviewed or removed if it violates these rules. Repeated misuse may result in access restrictions.</li>
               <li><strong>Account responsibility:</strong> Keep your login details private and use only an account you are authorized to access.</li>
               <li><strong>Prototype notice:</strong> Some features may still be under development. Do not rely on this prototype to store confidential or important information.</li>
