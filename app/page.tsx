@@ -941,53 +941,48 @@ export default function Home() {
     setNewReplyText('');
   }
 
-  function handleLikeResource(id: string, e?: React.MouseEvent) {
+  async function handleLikeResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
     if (isAdmin) return;
-    setResources(prev => prev.map(res => {
-      if (res.id === id) {
-        const isLiked = res.likedByMe;
-        return { ...res, likes: isLiked ? res.likes - 1 : res.likes + 1, likedByMe: !isLiked };
-      }
-      return res;
-    }));
+    if (!user?.id) { alert('Please sign in to like notes.'); setShowAuthModal(true); return; }
+    const resource = resources.find(item => item.id === id);
+    if (!resource || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) return;
+    const wasLiked = !!resource.likedByMe;
+    const result = wasLiked
+      ? await supabase.from('resource_likes').delete().eq('resource_id', id).eq('user_id', user.id)
+      : await supabase.from('resource_likes').insert({ resource_id: id, user_id: user.id });
+    if (result.error) { console.error('Like update failed:', result.error.message); alert('Could not update like. Please try again.'); return; }
+    setResources(prev => prev.map(res => res.id === id ? { ...res, likes: Math.max(0, res.likes + (wasLiked ? -1 : 1)), likedByMe: !wasLiked } : res));
   }
 
-  function handleBookmarkResource(id: string, e?: React.MouseEvent) {
+  async function handleBookmarkResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
     if (isAdmin) return;
-    if (!user) {
-      alert('Please sign in first to save notes to your profile.');
-      setShowAuthModal(true);
-      return;
-    }
-    setResources(prev => prev.map(res => {
-      if (res.id === id) {
-        const isBookmarked = res.bookmarkedByMe;
-        return { ...res, bookmarks: isBookmarked ? res.bookmarks - 1 : res.bookmarks + 1, bookmarkedByMe: !isBookmarked };
-      }
-      return res;
-    }));
+    if (!user?.id) { alert('Please sign in first to save notes to your profile.'); setShowAuthModal(true); return; }
+    const resource = resources.find(item => item.id === id);
+    if (!resource || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) return;
+    const wasSaved = !!resource.bookmarkedByMe;
+    const result = wasSaved
+      ? await supabase.from('resource_bookmarks').delete().eq('resource_id', id).eq('user_id', user.id)
+      : await supabase.from('resource_bookmarks').insert({ resource_id: id, user_id: user.id });
+    if (result.error) { console.error('Bookmark update failed:', result.error.message); alert('Could not update saved notes. Please try again.'); return; }
+    setResources(prev => prev.map(res => res.id === id ? { ...res, bookmarks: Math.max(0, res.bookmarks + (wasSaved ? -1 : 1)), bookmarkedByMe: !wasSaved } : res));
   }
 
-  function handleBookmarkDiscussion(id: string, e?: React.MouseEvent) {
+  async function handleBookmarkDiscussion(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
     if (isAdmin) return;
-    if (!user) {
-      alert('Please sign in first to save discussions to your profile.');
-      setShowAuthModal(true);
-      return;
-    }
-    setDiscussions(prev => prev.map(d => {
-      if (d.id !== id) return d;
-      const isBookmarked = !!d.bookmarkedByMe;
-      return { ...d, bookmarkedByMe: !isBookmarked, bookmarks: Math.max(0, (d.bookmarks || 0) + (isBookmarked ? -1 : 1)) };
-    }));
-    setSelectedDiscussion(prev => {
-      if (!prev || prev.id !== id) return prev;
-      const isBookmarked = !!prev.bookmarkedByMe;
-      return { ...prev, bookmarkedByMe: !isBookmarked, bookmarks: Math.max(0, (prev.bookmarks || 0) + (isBookmarked ? -1 : 1)) };
-    });
+    if (!user?.id) { alert('Please sign in first to save discussions to your profile.'); setShowAuthModal(true); return; }
+    const discussion = discussions.find(item => item.id === id);
+    if (!discussion || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) return;
+    const wasSaved = !!discussion.bookmarkedByMe;
+    const result = wasSaved
+      ? await supabase.from('discussion_bookmarks').delete().eq('discussion_id', id).eq('user_id', user.id)
+      : await supabase.from('discussion_bookmarks').insert({ discussion_id: id, user_id: user.id });
+    if (result.error) { console.error('Discussion bookmark update failed:', result.error.message); alert('Could not update saved discussions. Please try again.'); return; }
+    const update = (d: DiscussionItem) => d.id === id ? { ...d, bookmarkedByMe: !wasSaved, bookmarks: Math.max(0, (d.bookmarks || 0) + (wasSaved ? -1 : 1)) } : d;
+    setDiscussions(prev => prev.map(update));
+    setSelectedDiscussion(prev => prev ? update(prev) : prev);
   }
 
   // 仅允许评论作者删除自己的评论，并同步更新笔记列表与当前预览。
