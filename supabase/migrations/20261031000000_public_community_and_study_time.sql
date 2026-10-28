@@ -26,6 +26,16 @@ create policy "Public can read discussion bookmarks" on public.discussion_bookma
 drop policy if exists "Public can read reply likes" on public.reply_likes;
 create policy "Public can read reply likes" on public.reply_likes for select to anon, authenticated using (true);
 
+grant select on public.resources, public.discussions, public.resource_attachments,
+  public.resource_comments, public.discussion_replies, public.resource_likes,
+  public.resource_bookmarks, public.comment_likes, public.discussion_bookmarks,
+  public.reply_likes to anon, authenticated;
+
+-- 明确允许已登录用户为正式笔记创建自己的评论。
+drop policy if exists "Users can create own comments" on public.resource_comments;
+create policy "Users can create own comments" on public.resource_comments
+for insert to authenticated with check (author_id = (select auth.uid()));
+
 -- 原子累加活跃学习秒数，避免多个标签页的旧值覆盖数据库里的新值。
 create or replace function public.add_study_time(p_seconds integer)
 returns bigint
