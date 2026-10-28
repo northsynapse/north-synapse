@@ -564,7 +564,7 @@ export default function Home() {
             element.replaceWith(...Array.from(element.childNodes));
             return;
           }
-          [...element.attributes].forEach((attribute) => {
+          Array.from(element.attributes).forEach((attribute) => {
             if (element.tagName === 'SPAN' && attribute.name === 'style') {
               const color = element.style.color;
               element.removeAttribute('style');
