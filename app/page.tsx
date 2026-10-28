@@ -467,8 +467,9 @@ export default function Home() {
           bookmarks: discussionBookmarks.filter((x: any) => x.discussion_id === d.id).length
         };
       });
-      setResources(previous => [...previous.filter((x) => !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(x.id)), ...mappedResources]);
-      setDiscussions(previous => [...previous.filter((x) => !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(x.id)), ...mappedDiscussions]);
+      // 数据库查询已按 created_at 倒序；把数据库内容放在前面，确保最新发布的笔记/讨论优先显示。
+      setResources(previous => [...mappedResources, ...previous.filter((x) => !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(x.id))]);
+      setDiscussions(previous => [...mappedDiscussions, ...previous.filter((x) => !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(x.id))]);
     };
 
     void loadCommunityData();
@@ -874,21 +875,45 @@ export default function Home() {
     return parsed.body.innerHTML;
   }
 
-  function openPublicProfile(name: string, email?: string) {
-    let found: any = null;
-    try {
-      const accounts = JSON.parse(localStorage.getItem('ns_accounts') || '[]');
-      if (Array.isArray(accounts)) {
-        const account = accounts.find((item: any) =>
-          (email && item.email?.toLowerCase() === email.toLowerCase()) ||
-          item.profile?.username?.toLowerCase() === name.toLowerCase() ||
-          item.profile?.nickname?.toLowerCase() === name.toLowerCase()
-        );
-        found = account?.profile || null;
-      }
-    } catch (_) {}
-    if (!found && user && (user.email?.toLowerCase() === email?.toLowerCase() || user.username?.toLowerCase() === name.toLowerCase() || user.nickname?.toLowerCase() === name.toLowerCase())) found = user;
-    setPublicProfile(found || { username: name, nickname: name, grade: '', gender: '', bio: '', avatarUrl: '', createdAt: '', totalStudySeconds: 0, resources: [], discussions: [] });
+  async function openPublicProfile(name: string, email?: string) {
+    // 公开资料直接从 profiles 读取，避免旧版 localStorage 缓存与主页数据库数据不一致。
+    if (!email) {
+      setPublicProfile({ username: name, nickname: name, grade: '', gender: '', bio: '', avatarUrl: '', createdAt: '', totalStudySeconds: 0, resources: [], discussions: [] });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,email,username,nickname,grade,gender,bio,avatar_path,created_at,total_study_seconds')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Unable to load public profile:', error.message);
+      alert('Could not load this profile. Please try again.');
+      return;
+    }
+
+    // 账号已注销或没有对应 profile 时，不展示可点击的个人主页信息。
+    if (!data) {
+      setPublicProfile({ username: name, nickname: name, grade: '', gender: '', bio: '', avatarUrl: '', createdAt: '', totalStudySeconds: 0, resources: [], discussions: [] });
+      return;
+    }
+
+    setPublicProfile({
+      id: data.id,
+      email: data.email || '',
+      username: data.username || name,
+      nickname: data.nickname || data.username || name,
+      grade: data.grade || '',
+      gender: data.gender || '',
+      bio: data.bio || '',
+      avatarUrl: data.avatar_path || '',
+      createdAt: data.created_at ? new Date(data.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+      totalStudySeconds: Math.max(0, Number(data.total_study_seconds) || 0),
+      resources: resources.filter((item) => item.authorEmail?.toLowerCase() === email.toLowerCase()),
+      discussions: discussions.filter((item) => item.authorEmail?.toLowerCase() === email.toLowerCase())
+    });
   }
 
   function handleResourceFileSelection(e: React.ChangeEvent<HTMLInputElement>) {
