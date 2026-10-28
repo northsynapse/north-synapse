@@ -67,6 +67,11 @@ interface LoungeRoom {
   subject: string;
   activeUsers: number;
   description: string;
+  isPrivate: boolean;
+  roomCode?: string;
+  createdAt: string;
+  lastActivityAt: string;
+  createdBy: string;
 }
 
 interface AnnouncementItem {
@@ -143,6 +148,17 @@ export default function Home() {
 
   // 自习室与番茄钟
   const [joinedRoom, setJoinedRoom] = useState<LoungeRoom | null>(null);
+  const [lounges, setLounges] = useState<LoungeRoom[]>([]);
+  const [roomSearchQuery, setRoomSearchQuery] = useState('');
+  const [roomSortBy, setRoomSortBy] = useState<'created' | 'active'>('created');
+  const [showCreateRoomForm, setShowCreateRoomForm] = useState(false);
+  const [newRoomName, setNewRoomName] = useState('');
+  const [newRoomSubject, setNewRoomSubject] = useState('General Study');
+  const [newRoomDescription, setNewRoomDescription] = useState('');
+  const [newRoomIsPrivate, setNewRoomIsPrivate] = useState(false);
+  const [roomCodeInput, setRoomCodeInput] = useState('');
+  const [roomListLoading, setRoomListLoading] = useState(false);
+  const [roomActionLoading, setRoomActionLoading] = useState(false);
   const [pomodoroTime, setPomodoroTime] = useState(1500); // 25 分钟
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [roomPresence, setRoomPresence] = useState<any[]>([]);
@@ -165,11 +181,7 @@ export default function Home() {
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [discussions, setDiscussions] = useState<DiscussionItem[]>([]);
 
-  const [lounges] = useState<LoungeRoom[]>([
-    { id: 'l1', name: 'AP Calculus & Advanced Math Focus', subject: 'Mathematics', activeUsers: 8, description: 'Silent study & problem solving for AP Calculus and Fermat/Euclid contest prep.' },
-    { id: 'l2', name: 'Grade 11 & 12 Physics / Chemistry Lab', subject: 'Science', activeUsers: 5, description: 'Discussion & peer review for physics problem sets and chemistry labs.' },
-    { id: 'l3', name: 'Computer Science & Algorithmic Practice', subject: 'Computer Science & Tech', activeUsers: 12, description: 'CCC Contest coding practice and Python/Java algorithm discussions.' }
-  ]);
+
 
   const [announcements] = useState<AnnouncementItem[]>([
     { id: '1', title: 'Welcome to North Synapse Academic Platform', content: 'A centralized workspace for verified course resources, virtual study rooms, and academic peer discussions.', date: 'Oct 24, 2026', authorName: 'North Synapse Official' },
@@ -595,6 +607,41 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [isTimerRunning, pomodoroTime]);
 
+  // 自习室列表来自数据库，名称、创建时间和最近活动时间都持久化。
+  useEffect(() => {
+    let active = true;
+    const loadRooms = async () => {
+      setRoomListLoading(true);
+      const { data, error } = await supabase
+        .from('study_rooms')
+        .select('id,name,subject,description,is_private,room_code,created_at,last_activity_at,created_by')
+        .order(roomSortBy === 'created' ? 'created_at' : 'last_activity_at', { ascending: false });
+      if (!active) return;
+      setRoomListLoading(false);
+      if (error) {
+        console.error('Unable to load study rooms:', error.message);
+        setLounges([]);
+        return;
+      }
+      const roomRows = data || [];
+      const ids = roomRows.map((room: any) => room.id);
+      const { data: presenceRows } = ids.length
+        ? await supabase.from('study_room_presence').select('room_id,user_id,last_seen_at').in('room_id', ids.map(String)).gte('last_seen_at', new Date(Date.now() - 90000).toISOString())
+        : { data: [] as any[] };
+      if (!active) return;
+      setLounges(roomRows.map((room: any) => ({
+        id: String(room.id), name: room.name, subject: room.subject || 'General Study',
+        description: room.description || '', isPrivate: Boolean(room.is_private),
+        roomCode: room.created_by === user?.id ? room.room_code : undefined,
+        createdAt: room.created_at, lastActivityAt: room.last_activity_at || room.created_at,
+        createdBy: room.created_by,
+        activeUsers: (presenceRows || []).filter((person: any) => person.room_id === String(room.id)).length
+      })));
+    };
+    void loadRooms();
+    return () => { active = false; };
+  }, [roomSortBy, user?.id]);
+
   // 自习室在线名单与聊天记录从 Supabase 读取；在线状态定期心跳更新，聊天消息长期保存。
   useEffect(() => {
     const roomId = joinedRoom?.id;
@@ -648,6 +695,92 @@ export default function Home() {
       void supabase.from('study_room_presence').delete().eq('room_id', roomId).eq('user_id', userId);
     };
   }, [joinedRoom?.id, user?.id, nickname, username, user?.email, avatarUrl]);
+
+  async function createStudyRoom(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user?.id) { setShowAuthModal(true); return; }
+    const name = newRoomName.trim();
+    if (!name || roomActionLoading) return;
+    setRoomActionLoading(true);
+    const roomId = crypto.randomUUID();
+    const roomCode = newRoomIsPrivate ? Math.random().toString(36).slice(2, 8).toUpperCase() : null;
+    const { data, error } = await supabase.from('study_rooms').insert({
+      id: roomId, name, subject: newRoomSubject, description: newRoomDescription.trim(),
+      is_private: newRoomIsPrivate, room_code: roomCode, created_by: user.id
+    }).select('id,name,subject,description,is_private,room_code,created_at,last_activity_at,created_by').single();
+    if (error || !data) {
+      console.error('Unable to create study room:', error?.message);
+      setRoomActionLoading(false);
+      alert('Could not create the study room. Please check that the latest study-room migration has been run.');
+      return;
+    }
+    const { error: memberError } = await supabase.from('study_room_members').insert({ room_id: data.id, user_id: user.id });
+    setRoomActionLoading(false);
+    if (memberError) {
+      console.error('Unable to add room owner as a member:', memberError.message);
+      alert('The room was created, but joining it failed. Please try joining it again.');
+      return;
+    }
+    const room: LoungeRoom = {
+      id: String(data.id), name: data.name, subject: data.subject || 'General Study',
+      description: data.description || '', isPrivate: Boolean(data.is_private),
+      roomCode: data.room_code || undefined, createdAt: data.created_at,
+      lastActivityAt: data.last_activity_at || data.created_at, createdBy: data.created_by, activeUsers: 0
+    };
+    setLounges(previous => [room, ...previous.filter(item => item.id !== room.id)]);
+    setNewRoomName(''); setNewRoomDescription(''); setNewRoomSubject('General Study');
+    setNewRoomIsPrivate(false); setShowCreateRoomForm(false); setRoomStudySeconds(0); setJoinedRoom(room);
+  }
+
+  async function joinStudyRoom(room: LoungeRoom) {
+    if (!user?.id) { setShowAuthModal(true); return; }
+    setRoomActionLoading(true);
+    const { error } = await supabase.from('study_room_members').upsert(
+      { room_id: room.id, user_id: user.id }, { onConflict: 'room_id,user_id', ignoreDuplicates: true }
+    );
+    setRoomActionLoading(false);
+    if (error) {
+      console.error('Unable to join study room:', error.message);
+      alert('Could not join this study room. If it is private, make sure you have the correct room code.');
+      return;
+    }
+    setRoomStudySeconds(0);
+    setJoinedRoom(room);
+  }
+
+  async function joinPrivateRoomByCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user?.id) { setShowAuthModal(true); return; }
+    const code = roomCodeInput.trim().toUpperCase();
+    if (!code || roomActionLoading) return;
+    setRoomActionLoading(true);
+    const { data: room, error } = await supabase.from('study_rooms')
+      .select('id,name,subject,description,is_private,room_code,created_at,last_activity_at,created_by')
+      .eq('room_code', code).eq('is_private', true).maybeSingle();
+    if (error || !room) {
+      setRoomActionLoading(false);
+      alert('No private study room was found for that room code.');
+      return;
+    }
+    const { error: memberError } = await supabase.from('study_room_members')
+      .upsert({ room_id: room.id, user_id: user.id }, { onConflict: 'room_id,user_id', ignoreDuplicates: true });
+    setRoomActionLoading(false);
+    if (memberError) {
+      console.error('Unable to join private study room:', memberError.message);
+      alert('Could not join this private room. Please try again.');
+      return;
+    }
+    const joined: LoungeRoom = {
+      id: String(room.id), name: room.name, subject: room.subject || 'General Study',
+      description: room.description || '', isPrivate: true, roomCode: undefined,
+      createdAt: room.created_at, lastActivityAt: room.last_activity_at || room.created_at,
+      createdBy: room.created_by, activeUsers: 0
+    };
+    setRoomCodeInput('');
+    setLounges(previous => [joined, ...previous.filter(item => item.id !== joined.id)]);
+    setRoomStudySeconds(0);
+    setJoinedRoom(joined);
+  }
 
   async function saveRoomGoal(e: React.FormEvent) {
     e.preventDefault();
@@ -1736,14 +1869,44 @@ export default function Home() {
                 </section>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                {lounges.map(room => (
-                  <div key={room.id} style={{ backgroundColor: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1.5rem' }}>
-                    <h3>{room.name}</h3>
-                    <p style={{ fontSize: '0.85rem', color: theme.textMuted, margin: '0.5rem 0 1rem' }}>{room.description}</p>
-                    <button onClick={() => { if (!user) { setShowAuthModal(true); return; } setRoomStudySeconds(0); setJoinedRoom(room); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', width: '100%' }}>Join Study Room</button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input value={roomSearchQuery} onChange={e => setRoomSearchQuery(e.target.value)} placeholder="Search study rooms by name" aria-label="Search study rooms by name" style={{ flex: '1 1 240px', minWidth: 0, padding: '0.7rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain }} />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: theme.textMuted, fontSize: '0.85rem' }}>Sort by
+                    <select value={roomSortBy} onChange={e => setRoomSortBy(e.target.value as 'created' | 'active')} style={{ padding: '0.65rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain }}>
+                      <option value="created">Creation date</option><option value="active">Recent activity</option>
+                    </select>
+                  </label>
+                  <button type="button" onClick={() => setShowCreateRoomForm(value => !value)} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: 8, padding: '0.7rem 0.9rem', cursor: 'pointer' }}>{showCreateRoomForm ? 'Cancel' : '+ Create room'}</button>
+                </div>
+                <form onSubmit={joinPrivateRoomByCode} style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', padding: '0.9rem', border: '1px solid ' + theme.border, borderRadius: 10, background: theme.cardBg }}>
+                  <input value={roomCodeInput} onChange={e => setRoomCodeInput(e.target.value.toUpperCase().slice(0, 12))} placeholder="Enter private room code" aria-label="Private room code" style={{ flex: '1 1 200px', minWidth: 0, padding: '0.65rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain, letterSpacing: '0.08em' }} />
+                  <button type="submit" disabled={roomActionLoading || !roomCodeInput.trim()} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: 8, padding: '0.65rem 1rem', cursor: 'pointer', opacity: roomActionLoading ? 0.6 : 1 }}>{roomActionLoading ? 'Joining…' : 'Join with code'}</button>
+                </form>
+                {showCreateRoomForm && <form onSubmit={createStudyRoom} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', padding: '1rem', border: '1px solid ' + theme.border, borderRadius: 10, background: theme.cardBg }}>
+                  <h3 style={{ margin: 0 }}>Create a study room</h3>
+                  <input required maxLength={100} value={newRoomName} onChange={e => setNewRoomName(e.target.value)} placeholder="Room name" style={{ padding: '0.7rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain }} />
+                  <select value={newRoomSubject} onChange={e => setNewRoomSubject(e.target.value)} style={{ padding: '0.7rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain }}>
+                    {['General Study', 'Mathematics', 'Science', 'English & ESL', 'Computer Science & Tech', 'French', 'History & Social Sciences'].map(subject => <option key={subject} value={subject}>{subject}</option>)}
+                  </select>
+                  <textarea maxLength={500} rows={3} value={newRoomDescription} onChange={e => setNewRoomDescription(e.target.value)} placeholder="What will this room focus on?" style={{ padding: '0.7rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain }} />
+                  <label style={{ display: 'flex', gap: '0.55rem', alignItems: 'center' }}><input type="checkbox" checked={newRoomIsPrivate} onChange={e => setNewRoomIsPrivate(e.target.checked)} />Private room (invite with a room code)</label>
+                  <button type="submit" disabled={roomActionLoading || !newRoomName.trim()} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: 8, padding: '0.75rem', cursor: 'pointer', opacity: roomActionLoading ? 0.6 : 1 }}>{roomActionLoading ? 'Creating…' : 'Create room'}</button>
+                </form>}
+                {roomListLoading ? <p style={{ color: theme.textMuted }}>Loading study rooms…</p> : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+                    {lounges.filter(room => !room.isPrivate || room.createdBy === user?.id).filter(room => room.name.toLowerCase().includes(roomSearchQuery.trim().toLowerCase())).sort((a, b) => roomSortBy === 'created' ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() : new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()).map(room => (
+                      <div key={room.id} style={{ backgroundColor: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1.25rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}><h3 style={{ margin: 0 }}>{room.name}</h3><span style={{ fontSize: '0.72rem', color: theme.textMuted }}>{room.isPrivate ? 'Private' : 'Public'}</span></div>
+                        <p style={{ color: theme.textMuted, fontSize: '0.8rem', margin: '0.5rem 0' }}>{room.subject} · {room.activeUsers} online</p>
+                        <p style={{ fontSize: '0.85rem', color: theme.textMuted, margin: '0 0 1rem', whiteSpace: 'pre-wrap' }}>{room.description || 'A quiet space to focus together.'}</p>
+                        <p style={{ fontSize: '0.72rem', color: theme.textMuted, margin: '0 0 0.8rem' }}>Created {new Date(room.createdAt).toLocaleDateString()}</p>
+                        <button disabled={roomActionLoading} onClick={() => void joinStudyRoom(room)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', width: '100%', opacity: roomActionLoading ? 0.6 : 1 }}>Join Study Room</button>
+                        {room.isPrivate && room.createdBy === user?.id && room.roomCode && <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem' }}>Room code: <strong style={{ letterSpacing: '0.1em' }}>{room.roomCode}</strong></p>}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
             <style>{'@media (max-width: 900px) { .ns-study-room-grid { grid-template-columns: 1fr !important; } }'}</style>
