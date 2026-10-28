@@ -25,6 +25,9 @@ create index if not exists study_room_members_user_idx on public.study_room_memb
 
 alter table public.study_rooms enable row level security;
 alter table public.study_room_members enable row level security;
+grant select on public.study_rooms to anon, authenticated;
+grant insert, update on public.study_rooms to authenticated;
+grant select, insert, delete on public.study_room_members to authenticated;
 
 drop policy if exists "Users can view public rooms and rooms they belong to" on public.study_rooms;
 create policy "Users can view public rooms and rooms they belong to" on public.study_rooms
