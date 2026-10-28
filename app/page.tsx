@@ -31,6 +31,7 @@ interface ResourceItem {
   content: string;
   authorName: string;
   authorEmail?: string;
+  authorId?: string;
   authorAvatar: string;
   tags?: string[];
   date: string;
@@ -457,7 +458,7 @@ export default function Home() {
         });
         return {
           id: r.id, title: r.title, subject: r.subject || '', grade: r.grade || '', description: r.description || '', content: r.content || '', tags: Array.isArray(r.tags) ? r.tags : [],
-          authorName: r.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account', authorEmail: author?.email || '', authorAvatar: author?.avatar_path || '',
+          authorName: r.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account', authorEmail: author?.email || '', authorId: r.author_id || '', authorAvatar: author?.avatar_path || '',
           date: formatDate(r.created_at), createdAt: r.created_at, likes: likes.filter((x: any) => x.resource_id === r.id).length,
           bookmarks: bookmarks.filter((x: any) => x.resource_id === r.id).length,
           likedByMe: likes.some((x: any) => x.resource_id === r.id && x.user_id === userId),
@@ -889,18 +890,17 @@ export default function Home() {
     return parsed.body.innerHTML;
   }
 
-  async function openPublicProfile(name: string, email?: string) {
+  async function openPublicProfile(name: string, email?: string, profileId?: string) {
     // 公开资料直接从 profiles 读取，避免旧版 localStorage 缓存与主页数据库数据不一致。
-    if (!email) {
+    if (!email && !profileId) {
       setPublicProfile({ username: name, nickname: name, grade: '', gender: '', bio: '', avatarUrl: '', createdAt: '', totalStudySeconds: 0, resources: [], discussions: [] });
       return;
     }
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id,email,username,nickname,grade,gender,bio,avatar_path,created_at,total_study_seconds')
-      .eq('email', email)
-      .maybeSingle();
+    const profileQuery = email
+      ? supabase.from('profiles').select('id,email,username,nickname,grade,gender,bio,avatar_path,created_at,total_study_seconds').eq('email', email)
+      : supabase.from('public_author_profiles').select('id,username,nickname,grade,gender,bio,avatar_path,created_at').eq('id', profileId);
+    const { data, error } = await profileQuery.maybeSingle();
 
     if (error) {
       console.error('Unable to load public profile:', error.message);
@@ -925,8 +925,8 @@ export default function Home() {
       avatarUrl: data.avatar_path || '',
       createdAt: data.created_at ? new Date(data.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
       totalStudySeconds: Math.max(0, Number(data.total_study_seconds) || 0),
-      resources: resources.filter((item) => item.authorEmail?.toLowerCase() === email.toLowerCase()),
-      discussions: discussions.filter((item) => item.authorEmail?.toLowerCase() === email.toLowerCase())
+      resources: resources.filter((item) => item.authorId === data.id),
+      discussions: discussions.filter((item) => item.authorId === data.id)
     });
   }
 
@@ -1457,7 +1457,7 @@ export default function Home() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
                       {res.authorAvatar ? <img src={res.authorAvatar} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 30, height: 30, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{(res.authorName || 'S').slice(0, 1).toUpperCase()}</div>}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
-                        {res.authorEmail ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(res.authorName, res.authorEmail); }} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left', font: 'inherit', fontWeight: 600 }}>{res.authorName}</button> : <span style={{ fontWeight: 600 }}>{res.authorName}</span>}
+                        {res.authorId ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(res.authorName, res.authorEmail, res.authorId); }} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left', font: 'inherit', fontWeight: 600 }}>{res.authorName}</button> : <span style={{ fontWeight: 600 }}>{res.authorName}</span>}
                         <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>{res.date}</span>
                       </div>
                     </div>
