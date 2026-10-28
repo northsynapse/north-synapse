@@ -40,13 +40,8 @@ drop policy if exists "Room owners can update their rooms" on public.study_rooms
 create policy "Room owners can update their rooms" on public.study_rooms
 for update to authenticated using (created_by = (select auth.uid())) with check (created_by = (select auth.uid()));
 drop policy if exists "Users can view study room memberships in rooms they can access" on public.study_room_members;
-create policy "Users can view study room memberships in rooms they can access" on public.study_room_members
-for select to authenticated using (
-  user_id = (select auth.uid())
-  or exists (select 1 from public.study_rooms r where r.id = room_id and (not r.is_private or r.created_by = (select auth.uid()) or exists (
-    select 1 from public.study_room_members own_member where own_member.room_id = r.id and own_member.user_id = (select auth.uid())
-  )))
-);
+create policy "Users can view their own study room memberships" on public.study_room_members
+for select to authenticated using (user_id = (select auth.uid()));
 drop policy if exists "Room owners can add members" on public.study_room_members;
 create policy "Room owners can add members" on public.study_room_members
 for insert to authenticated with check (
