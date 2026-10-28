@@ -2071,9 +2071,16 @@ export default function Home() {
           }
 
           header > div:first-child {
-            flex: 1 1 42% !important;
+            flex: 0 1 auto !important;
             gap: 0.45rem !important;
             font-size: 1.05rem !important;
+          }
+
+          /* 登录/注册入口在手机端固定靠右，品牌区域可收缩以避免挤压按钮。 */
+          .ns-header-actions {
+            margin-left: auto !important;
+            flex: 0 0 auto !important;
+            justify-content: flex-end !important;
           }
 
           header > div:first-child svg {
