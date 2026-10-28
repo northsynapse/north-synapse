@@ -875,8 +875,8 @@ export default function Home() {
   function handleResourceFileSelection(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
     files.forEach((file) => {
-      if (file.size > 20 * 1024 * 1024) {
-        alert(`${file.name} is larger than 20 MB. Please choose a smaller file.`);
+      if (file.size > 50 * 1024 * 1024) {
+        alert(`${file.name} is larger than 50 MB. Please choose a smaller file.`);
         return;
       }
       // 文件先保留在表单状态，提交笔记时再上传到 Supabase Storage。
