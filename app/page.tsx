@@ -1087,42 +1087,44 @@ export default function Home() {
     setSelectedDiscussion(prev => prev?.id === discussionId ? null : prev);
   }
 
-  function handleLikeResourceComment(resourceId: string, commentId: string) {
+  async function handleLikeResourceComment(resourceId: string, commentId: string) {
     if (isAdmin) return;
-    if (!user) {
-      alert('Please sign in to like comments.');
-      setShowAuthModal(true);
-      return;
-    }
+    if (!user?.id) { alert('Please sign in to like comments.'); setShowAuthModal(true); return; }
+    const comment = resources.find(item => item.id === resourceId)?.comments.find(item => item.id === commentId);
+    if (!comment || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(commentId)) return;
+    const wasLiked = !!comment.likedByMe;
+    const result = wasLiked
+      ? await supabase.from('comment_likes').delete().eq('comment_id', commentId).eq('user_id', user.id)
+      : await supabase.from('comment_likes').insert({ comment_id: commentId, user_id: user.id });
+    if (result.error) { console.error('Comment like failed:', result.error.message); alert('Could not update comment like. Please try again.'); return; }
     const updateResource = (resource: ResourceItem): ResourceItem => ({
       ...resource,
-      comments: resource.comments.map(comment => {
-        if (comment.id !== commentId) return comment;
-        const liked = !!comment.likedByMe;
-        return { ...comment, likedByMe: !liked, likes: Math.max(0, (comment.likes || 0) + (liked ? -1 : 1)) };
-      })
+      comments: resource.comments.map(item => item.id === commentId
+        ? { ...item, likedByMe: !wasLiked, likes: Math.max(0, (item.likes || 0) + (wasLiked ? -1 : 1)) }
+        : item)
     });
     setResources(prev => prev.map(resource => resource.id === resourceId ? updateResource(resource) : resource));
-    setPreviewResource(prev => prev && prev.id === resourceId ? updateResource(prev) : prev);
+    setPreviewResource(prev => prev?.id === resourceId ? updateResource(prev) : prev);
   }
 
-  function handleLikeDiscussionReply(discussionId: string, replyId: string) {
+  async function handleLikeDiscussionReply(discussionId: string, replyId: string) {
     if (isAdmin) return;
-    if (!user) {
-      alert('Please sign in to like replies.');
-      setShowAuthModal(true);
-      return;
-    }
+    if (!user?.id) { alert('Please sign in to like replies.'); setShowAuthModal(true); return; }
+    const reply = discussions.find(item => item.id === discussionId)?.replies.find(item => item.id === replyId);
+    if (!reply || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(replyId)) return;
+    const wasLiked = !!reply.likedByMe;
+    const result = wasLiked
+      ? await supabase.from('reply_likes').delete().eq('reply_id', replyId).eq('user_id', user.id)
+      : await supabase.from('reply_likes').insert({ reply_id: replyId, user_id: user.id });
+    if (result.error) { console.error('Reply like failed:', result.error.message); alert('Could not update reply like. Please try again.'); return; }
     const updateDiscussion = (discussion: DiscussionItem): DiscussionItem => ({
       ...discussion,
-      replies: discussion.replies.map(reply => {
-        if (reply.id !== replyId) return reply;
-        const liked = !!reply.likedByMe;
-        return { ...reply, likedByMe: !liked, likes: Math.max(0, (reply.likes || 0) + (liked ? -1 : 1)) };
-      })
+      replies: discussion.replies.map(item => item.id === replyId
+        ? { ...item, likedByMe: !wasLiked, likes: Math.max(0, (item.likes || 0) + (wasLiked ? -1 : 1)) }
+        : item)
     });
-    setDiscussions(prev => prev.map(discussion => discussion.id === discussionId ? updateDiscussion(discussion) : discussion));
-    setSelectedDiscussion(prev => prev && prev.id === discussionId ? updateDiscussion(prev) : prev);
+    setDiscussions(prev => prev.map(item => item.id === discussionId ? updateDiscussion(item) : item));
+    setSelectedDiscussion(prev => prev?.id === discussionId ? updateDiscussion(prev) : prev);
   }
 
   async function handleAddComment(e: React.FormEvent) {
