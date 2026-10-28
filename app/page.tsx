@@ -152,75 +152,9 @@ export default function Home() {
   const [citationFormat, setCitationFormat] = useState<'APA' | 'IEEE' | 'MLA' | 'BibTeX'>('APA');
 
   // 本地持久化数据读取
-  const [resources, setResources] = useState<ResourceItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('ns_resources');
-      if (saved) {
-        try { return JSON.parse(saved); } catch (_) {}
-      }
-    }
-    return [
-      {
-        id: '1',
-        title: 'AP Calculus BC Derivatives & Series Master Review',
-        subject: 'Mathematics',
-        grade: 'AP Courses',
-        description: 'Comprehensive prep guide covering AP exam series convergence tests, Taylor polynomials, and parametric equations.',
-        content: 'Detailed derivatives rules:\n(1) Product Rule: (uv)\' = u\'v + uv\'.\n(2) Quotient Rule: (u/v)\' = (u\'v - uv\') / v^2.\n\nTaylor Series Expansion for e^x = 1 + x + x^2/2! + x^3/3! + ... Make sure to practice ratio tests for interval of convergence!',
-        authorName: 'Alex Smith',
-        authorEmail: 'alex.smith@tdsb.ca',
-        authorAvatar: '',
-        date: 'Oct 24, 2026',
-        likes: 12,
-        bookmarks: 8,
-        likedByMe: false,
-        bookmarkedByMe: false,
-        comments: [
-          { id: 'c1', authorName: 'Jordan Lee', authorAvatar: '', text: 'This saved my midterm review! Thanks!', date: 'Oct 24, 2026', likes: 3, likedByMe: false }
-        ]
-      },
-      {
-        id: '2',
-        title: 'Waterloo Fermat Math Competition Past Solutions',
-        subject: 'Mathematics',
-        grade: 'Academic Competitions',
-        description: 'Step-by-step solutions for past Waterloo contest papers with key shortcut tricks.',
-        content: 'Key geometry theorem: In any right triangle, a^2 + b^2 = c^2.\nFor modular arithmetic problems, always check remainder patterns mod 10 for unit digits!',
-        authorName: 'Jordan Lee',
-        authorEmail: 'jordan.lee@tdsb.ca',
-        authorAvatar: '',
-        date: 'Oct 23, 2026',
-        likes: 19,
-        bookmarks: 14,
-        likedByMe: false,
-        bookmarkedByMe: false,
-        comments: []
-      }
-    ];
-  });
-
-  const [discussions, setDiscussions] = useState<DiscussionItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('ns_discussions');
-      if (saved) {
-        try { return JSON.parse(saved); } catch (_) {}
-      }
-    }
-    return [
-      {
-        id: 'd1',
-        title: 'How to prepare effectively for Grade 12 Physics contest?',
-        content: 'Looking for study recommendations and resources for kinematics and mechanics problems.',
-        authorEmail: 'student@tdsb.ca',
-        authorName: 'Alex Student',
-        date: 'Oct 24, 2026',
-        repliesCount: 1,
-        replies: [
-          { id: 'r1', authorName: 'Alex Smith', authorAvatar: '', text: 'Focus on past AAPT Physics Bowl and SIN contest problems!', date: 'Oct 24, 2026', likes: 2 }
-        ]
-      }
-    ];
-  });
+  // 社区笔记和讨论仅从 Supabase 加载，不使用浏览器缓存或硬编码示例作为数据源。
+  const [resources, setResources] = useState<ResourceItem[]>([]);
+  const [discussions, setDiscussions] = useState<DiscussionItem[]>([]);
 
   const [lounges] = useState<LoungeRoom[]>([
     { id: 'l1', name: 'AP Calculus & Advanced Math Focus', subject: 'Mathematics', activeUsers: 8, description: 'Silent study & problem solving for AP Calculus and Fermat/Euclid contest prep.' },
