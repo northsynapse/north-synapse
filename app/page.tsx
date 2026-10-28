@@ -473,8 +473,9 @@ export default function Home() {
         };
       });
       // 数据库查询已按 created_at 倒序；把数据库内容放在前面，确保最新发布的笔记/讨论优先显示。
-      setResources(previous => [...mappedResources, ...previous.filter((x) => !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(x.id))]);
-      setDiscussions(previous => [...mappedDiscussions, ...previous.filter((x) => !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(x.id))]);
+      // 只展示从 Supabase 成功读取的正式内容；本地演示数据没有数据库 ID，无法持久化评论、点赞或收藏。
+      setResources(mappedResources);
+      setDiscussions(mappedDiscussions);
     };
 
     void loadCommunityData();
@@ -1305,7 +1306,6 @@ export default function Home() {
                 background: 'none',
                 border: 'none',
                 color: activeTab === tab ? theme.accent : theme.textMuted,
-                display: isAdmin ? 'none' : undefined,
                 fontWeight: activeTab === tab ? '700' : '500',
                 cursor: 'pointer',
                 fontSize: '0.95rem',
@@ -1331,7 +1331,7 @@ export default function Home() {
 
           {user ? (
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <span onClick={() => setActiveTab('dashboard')} style={{ fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', color: theme.accent }}>
+              <span onClick={() => setActiveTab(isAdmin ? 'admin' : 'dashboard')} style={{ fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', color: theme.accent }}>
                 {nickname || 'User'}
               </span>
               <button onClick={handleSignOut} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>
@@ -1544,6 +1544,15 @@ export default function Home() {
           !isAdmin ? <div style={{ padding: '2rem', border: `1px solid ${theme.border}`, borderRadius: '14px', background: theme.cardBg }}><h1>Administrator access required</h1><p style={{ color: theme.textMuted }}>Your account does not have permission to open this dashboard.</p><button type="button" onClick={() => setActiveTab('resources')} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1rem', cursor: 'pointer' }}>Return to Resource Hub</button></div> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}><div><p style={{ color: theme.accent, fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.12em', margin: '0 0 0.4rem' }}>NORTH SYNAPSE / ADMIN</p><h1 style={{ fontSize: '2rem', fontWeight: 850, margin: 0 }}>Platform Overview</h1><p style={{ color: theme.textMuted, margin: '0.5rem 0 0' }}>Platform metrics, feedback management, and site ratings.</p></div><button type="button" onClick={() => void refreshAdminDashboard()} disabled={adminLoading} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, borderRadius: '9px', padding: '0.7rem 1rem', cursor: 'pointer' }}>{adminLoading ? 'Refreshing…' : 'Refresh data'}</button></div>
+              <section style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', border: `1px solid ${theme.border}`, borderRadius: '14px', background: theme.cardBg, padding: '1rem 1.2rem' }}>
+                {avatarUrl ? <img src={avatarUrl} alt="Administrator avatar" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: '50%' }} /> : <div style={{ width: 64, height: 64, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, color: theme.accent, fontSize: '1.5rem', fontWeight: 800 }}>{(nickname || username || '?').slice(0, 1).toUpperCase()}</div>}
+                <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                  <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{nickname || 'Administrator'}</h2>
+                  <p style={{ color: theme.textMuted, margin: '0.25rem 0', fontSize: '0.85rem' }}>@{username || 'username'} · {grade || 'Grade not specified'} · {gender || 'Gender not specified'}</p>
+                  {bio.trim() && <p style={{ color: theme.textMuted, margin: '0.35rem 0 0', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{bio}</p>}
+                </div>
+                <button type="button" onClick={() => setShowEditProfileModal(true)} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1rem', cursor: 'pointer', fontWeight: 700 }}>Edit Profile</button>
+              </section>
               {adminLoading && !adminMetrics ? <p style={{ color: theme.textMuted }}>Loading dashboard data…</p> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.9rem' }}>{[
                 { label: 'Registered accounts', value: adminMetrics?.registered_users ?? '—', note: 'All registered accounts' },
                 { label: 'Online now', value: adminMetrics?.online_users ?? '—', note: 'Active in the last 2 minutes' },
