@@ -365,7 +365,36 @@ export default function Home() {
     let timer: number | undefined;
 
     const startTracking = async () => {
-      // 先读取数据库累计值，再开始计时，避免用初始的 0 覆盖已有记录。
+      // 兼容迁移前已注册、但尚未生成 profiles 行的账号。
+      const { data: existingProfile, error: profileReadError } = await supabase
+        .from('profiles')
+        .select('total_study_seconds')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (!active) return;
+
+      if (profileReadError) {
+        console.error('Unable to load saved study time:', profileReadError.message);
+      }
+
+      let savedSeconds = existingProfile?.total_study_seconds;
+      if (!existingProfile && !profileReadError) {
+        const { error: createProfileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            email: user?.email || '',
+            username: user?.username || '',
+            nickname: user?.nickname || user?.username || ''
+          });
+
+        if (createProfileError) {
+          console.error('Unable to initialize user profile:', createProfileError.message);
+        }
+      }
+
+      // 重新读取，以使用数据库中实际保存的累计值。
       const { data, error } = await supabase
         .from('profiles')
         .select('total_study_seconds')
@@ -378,7 +407,8 @@ export default function Home() {
         console.error('Unable to load saved study time:', error.message);
       }
 
-      totalSeconds = Math.max(0, Number(data?.total_study_seconds ?? user?.totalStudySeconds) || 0);
+      savedSeconds = data?.total_study_seconds ?? savedSeconds;
+      totalSeconds = Math.max(0, Number(savedSeconds ?? user?.totalStudySeconds) || 0);
       setUsageSeconds(totalSeconds);
       setUser((previous: any) => previous?.id === userId
         ? { ...previous, totalStudySeconds: totalSeconds }
