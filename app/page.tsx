@@ -1325,7 +1325,7 @@ export default function Home() {
     <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
       {/* 顶部 Header */}
-      <header style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header className="ns-site-header" style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.4rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer' }}>
           <svg width="34" height="38" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M 75,20 C 75,10 25,10 25,35 C 25,60 75,60 75,85 C 75,100 25,100 25,90" stroke="#A78BFA" strokeWidth="6" strokeLinecap="round" fill="none" />
@@ -1337,7 +1337,7 @@ export default function Home() {
           {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>ADMIN</span>}
         </div>
 
-        <nav style={{ display: 'flex', gap: '1.6rem' }}>
+        <nav className="ns-main-nav" style={{ display: 'flex', gap: '1.6rem' }}>
           {((isAdmin ? ['resources', 'lounges', 'announcements', 'discussions'] : ['resources', 'lounges', 'announcements', 'discussions', 'feedback']) as NavTab[]).map((tab) => (
             <button
               key={tab}
@@ -1364,8 +1364,8 @@ export default function Home() {
           {isAdmin && <button onClick={() => setActiveTab('admin')} style={{ background: 'none', border: 'none', color: activeTab === 'admin' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'admin' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'admin' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Admin</button>}
         </nav>
 
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button onClick={() => setIsDarkMode(!isDarkMode)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}>
+        <div className="ns-header-actions" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button className="ns-theme-toggle" onClick={() => setIsDarkMode(!isDarkMode)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}>
             {isDarkMode ? 'Light Mode' : 'Dark Mode'}
           </button>
 
