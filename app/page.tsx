@@ -916,7 +916,8 @@ export default function Home() {
 
     setPublicProfile({
       id: data.id,
-      email: data.email || '',
+      // 公开资料视图不会暴露邮箱；仅登录用户自己的 profiles 查询可能包含邮箱。
+      email: email ? ((data as any).email || '') : '',
       username: data.username || name,
       nickname: data.nickname || data.username || name,
       grade: data.grade || '',
@@ -924,7 +925,8 @@ export default function Home() {
       bio: data.bio || '',
       avatarUrl: data.avatar_path || '',
       createdAt: data.created_at ? new Date(data.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
-      totalStudySeconds: Math.max(0, Number(data.total_study_seconds) || 0),
+      // 公开资料视图不包含平台使用时长，默认显示为 0。
+      totalStudySeconds: email ? Math.max(0, Number((data as any).total_study_seconds) || 0) : 0,
       resources: resources.filter((item) => item.authorId === data.id),
       discussions: discussions.filter((item) => item.authorId === data.id)
     });
