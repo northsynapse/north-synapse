@@ -49,6 +49,8 @@ interface DiscussionItem {
   date: string;
   repliesCount: number;
   replies: CommentItem[];
+  bookmarkedByMe?: boolean;
+  bookmarks?: number;
 }
 
 interface LoungeRoom {
@@ -683,7 +685,9 @@ export default function Home() {
       authorName: nickname || username || user.email.split('@')[0],
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       repliesCount: 0,
-      replies: []
+      replies: [],
+      bookmarkedByMe: false,
+      bookmarks: 0
     };
 
     setDiscussions([newDisc, ...discussions]);
@@ -748,6 +752,61 @@ export default function Home() {
       }
       return res;
     }));
+  }
+
+  function handleBookmarkDiscussion(id: string, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    if (!user) {
+      alert('Please sign in first to save discussions to your profile.');
+      setShowAuthModal(true);
+      return;
+    }
+    setDiscussions(prev => prev.map(d => {
+      if (d.id !== id) return d;
+      const isBookmarked = !!d.bookmarkedByMe;
+      return { ...d, bookmarkedByMe: !isBookmarked, bookmarks: Math.max(0, (d.bookmarks || 0) + (isBookmarked ? -1 : 1)) };
+    }));
+    setSelectedDiscussion(prev => {
+      if (!prev || prev.id !== id) return prev;
+      const isBookmarked = !!prev.bookmarkedByMe;
+      return { ...prev, bookmarkedByMe: !isBookmarked, bookmarks: Math.max(0, (prev.bookmarks || 0) + (isBookmarked ? -1 : 1)) };
+    });
+  }
+
+  function handleLikeResourceComment(resourceId: string, commentId: string) {
+    if (!user) {
+      alert('Please sign in to like comments.');
+      setShowAuthModal(true);
+      return;
+    }
+    const updateResource = (resource: ResourceItem): ResourceItem => ({
+      ...resource,
+      comments: resource.comments.map(comment => {
+        if (comment.id !== commentId) return comment;
+        const liked = !!comment.likedByMe;
+        return { ...comment, likedByMe: !liked, likes: Math.max(0, (comment.likes || 0) + (liked ? -1 : 1)) };
+      })
+    });
+    setResources(prev => prev.map(resource => resource.id === resourceId ? updateResource(resource) : resource));
+    setPreviewResource(prev => prev && prev.id === resourceId ? updateResource(prev) : prev);
+  }
+
+  function handleLikeDiscussionReply(discussionId: string, replyId: string) {
+    if (!user) {
+      alert('Please sign in to like replies.');
+      setShowAuthModal(true);
+      return;
+    }
+    const updateDiscussion = (discussion: DiscussionItem): DiscussionItem => ({
+      ...discussion,
+      replies: discussion.replies.map(reply => {
+        if (reply.id !== replyId) return reply;
+        const liked = !!reply.likedByMe;
+        return { ...reply, likedByMe: !liked, likes: Math.max(0, (reply.likes || 0) + (liked ? -1 : 1)) };
+      })
+    });
+    setDiscussions(prev => prev.map(discussion => discussion.id === discussionId ? updateDiscussion(discussion) : discussion));
+    setSelectedDiscussion(prev => prev && prev.id === discussionId ? updateDiscussion(prev) : prev);
   }
 
   function handleAddComment(e: React.FormEvent) {
@@ -1044,9 +1103,14 @@ export default function Home() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {discussions.map((disc) => (
                 <div key={disc.id} onClick={() => setSelectedDiscussion(disc)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.8rem', marginBottom: '0.5rem' }}>
                     <strong style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{disc.title}</strong>
-                    <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{disc.repliesCount} Replies</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', flexShrink: 0 }}>
+                      <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{disc.repliesCount} Replies</span>
+                      <button type="button" onClick={(e) => handleBookmarkDiscussion(disc.id, e)} aria-label={disc.bookmarkedByMe ? 'Remove saved discussion' : 'Save discussion'} style={{ border: `1px solid ${theme.border}`, borderRadius: '7px', padding: '0.35rem 0.55rem', background: disc.bookmarkedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: disc.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        {disc.bookmarkedByMe ? '★ Saved' : '☆ Save'}
+                      </button>
+                    </div>
                   </div>
                   <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem' }}>{disc.content}</p>
                   <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(disc.authorName, disc.authorEmail); }} style={{ color: theme.accent, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>{disc.authorName}</button> on {disc.date}</span>
@@ -1142,12 +1206,27 @@ export default function Home() {
               <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Saved Bookmarks ({bookmarkedResources.length})</h2>
               {bookmarkedResources.length > 0 ? (
                 bookmarkedResources.map(bm => (
-                  <div key={bm.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem' }}>
+                  <button type="button" key={bm.id} onClick={() => setPreviewResource(bm)} style={{ width: '100%', textAlign: 'left', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem', color: theme.textMain, cursor: 'pointer' }}>
                     <strong>{bm.title}</strong>
-                  </div>
+                    <p style={{ margin: '0.35rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>{bm.subject} · {bm.grade} · Open note</p>
+                  </button>
                 ))
               ) : (
                 <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t bookmarked any notes yet.</p>
+              )}
+            </div>
+
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Saved Discussions ({discussions.filter(d => d.bookmarkedByMe).length})</h2>
+              {discussions.filter(d => d.bookmarkedByMe).length > 0 ? (
+                discussions.filter(d => d.bookmarkedByMe).map(disc => (
+                  <button type="button" key={disc.id} onClick={() => setSelectedDiscussion(disc)} style={{ width: '100%', textAlign: 'left', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem', color: theme.textMain, cursor: 'pointer' }}>
+                    <strong>{disc.title}</strong>
+                    <p style={{ margin: '0.35rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>{disc.repliesCount} replies · Open discussion</p>
+                  </button>
+                ))
+              ) : (
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t saved any discussions yet.</p>
               )}
             </div>
           </div>
@@ -1211,6 +1290,9 @@ export default function Home() {
                   <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
                     <button type="button" onClick={() => openPublicProfile(c.authorName, c.authorEmail)} style={{ color: theme.accent, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }}>{c.authorName}</button>
                     <p style={{ fontSize: '0.85rem', marginTop: '0.3rem' }}>{c.text}</p>
+                    <button type="button" onClick={() => handleLikeResourceComment(previewResource.id, c.id)} aria-label={c.likedByMe ? 'Unlike comment' : 'Like comment'} style={{ marginTop: '0.25rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: c.likedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: c.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>
+                      {c.likedByMe ? '♥ Liked' : '♡ Like'} · {c.likes || 0}
+                    </button>
                   </div>
                 ))}
               </div>
@@ -1246,6 +1328,9 @@ export default function Home() {
                       <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{r.date}</span>
                     </div>
                     <p style={{ fontSize: '0.85rem' }}>{r.text}</p>
+                    <button type="button" onClick={() => handleLikeDiscussionReply(selectedDiscussion.id, r.id)} aria-label={r.likedByMe ? 'Unlike reply' : 'Like reply'} style={{ marginTop: '0.25rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: r.likedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: r.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>
+                      {r.likedByMe ? '♥ Liked' : '♡ Like'} · {r.likes || 0}
+                    </button>
                   </div>
                 ))}
               </div>
