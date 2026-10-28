@@ -346,7 +346,12 @@ export default function Home() {
     supabase.rpc('is_current_user_admin').then(({ data, error }) => {
       if (!active) return;
       if (error) { console.error('Unable to verify administrator role:', error.message); setIsAdmin(false); }
-      else setIsAdmin(data === true);
+      else {
+        const admin = data === true;
+        setIsAdmin(admin);
+        // 管理员登录后直接进入管理主页，不再落到学生资源主页。
+        if (admin) setActiveTab('admin');
+      }
     });
     return () => { active = false; };
   }, [user?.id]);
@@ -1300,6 +1305,7 @@ export default function Home() {
                 background: 'none',
                 border: 'none',
                 color: activeTab === tab ? theme.accent : theme.textMuted,
+                display: isAdmin ? 'none' : undefined,
                 fontWeight: activeTab === tab ? '700' : '500',
                 cursor: 'pointer',
                 fontSize: '0.95rem',
@@ -1310,7 +1316,7 @@ export default function Home() {
               {tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounge' : tab}
             </button>
           ))}
-          {user && (
+          {user && !isAdmin && (
             <button onClick={() => setActiveTab('dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>
               Dashboard
             </button>
