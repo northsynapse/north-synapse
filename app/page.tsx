@@ -280,6 +280,9 @@ export default function Home() {
      2. 副作用与数据同步
      ========================================================================== */
   useEffect(() => {
+    // 旧版 ns_accounts 曾将密码明文保存在浏览器中；停止使用并清除这份旧缓存。
+    if (typeof window !== 'undefined') localStorage.removeItem('ns_accounts');
+
     // 统一使用 Supabase Auth 恢复登录状态，不再从本地账号缓存恢复身份。
     let active = true;
     const applyAuthUser = (authUser: any) => {
