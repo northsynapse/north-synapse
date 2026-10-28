@@ -634,7 +634,7 @@ export default function Home() {
         description: room.description || '', isPrivate: Boolean(room.is_private),
         roomCode: room.created_by === user?.id ? room.room_code : undefined,
         createdAt: room.created_at, lastActivityAt: room.last_activity_at || room.created_at,
-        createdBy: room.created_by,
+        createdBy: room.created_by || '',
         activeUsers: (presenceRows || []).filter((person: any) => person.room_id === String(room.id)).length
       })));
     };
@@ -754,27 +754,19 @@ export default function Home() {
     const code = roomCodeInput.trim().toUpperCase();
     if (!code || roomActionLoading) return;
     setRoomActionLoading(true);
-    const { data: room, error } = await supabase.from('study_rooms')
-      .select('id,name,subject,description,is_private,room_code,created_at,last_activity_at,created_by')
-      .eq('room_code', code).eq('is_private', true).maybeSingle();
-    if (error || !room) {
-      setRoomActionLoading(false);
-      alert('No private study room was found for that room code.');
-      return;
-    }
-    const { error: memberError } = await supabase.from('study_room_members')
-      .upsert({ room_id: room.id, user_id: user.id }, { onConflict: 'room_id,user_id', ignoreDuplicates: true });
+    const { data: joinedRows, error } = await supabase.rpc('join_private_study_room', { p_room_code: code });
+    const room = Array.isArray(joinedRows) ? joinedRows[0] : joinedRows;
     setRoomActionLoading(false);
-    if (memberError) {
-      console.error('Unable to join private study room:', memberError.message);
-      alert('Could not join this private room. Please try again.');
+    if (error || !room) {
+      console.error('Unable to join private study room:', error?.message);
+      alert('No private study room was found for that room code.');
       return;
     }
     const joined: LoungeRoom = {
       id: String(room.id), name: room.name, subject: room.subject || 'General Study',
       description: room.description || '', isPrivate: true, roomCode: undefined,
       createdAt: room.created_at, lastActivityAt: room.last_activity_at || room.created_at,
-      createdBy: room.created_by, activeUsers: 0
+      createdBy: room.created_by || '', activeUsers: 0
     };
     setRoomCodeInput('');
     setLounges(previous => [joined, ...previous.filter(item => item.id !== joined.id)]);
