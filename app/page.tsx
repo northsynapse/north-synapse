@@ -413,6 +413,9 @@ export default function Home() {
       if (!active) return;
       if (resourcesResult.error || discussionsResult.error || profilesResult.error) {
         console.error('Unable to load community data:', resourcesResult.error?.message || discussionsResult.error?.message || profilesResult.error?.message);
+        // 数据库读取失败时不继续展示无法互动的本地演示内容，避免点赞、收藏和评论看似失效。
+        setResources([]);
+        setDiscussions([]);
         return;
       }
 
