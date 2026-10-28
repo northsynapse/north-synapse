@@ -33,6 +33,7 @@ interface ResourceItem {
   authorEmail?: string;
   authorAvatar: string;
   date: string;
+  createdAt?: string;
   likes: number;
   bookmarks: number;
   likedByMe?: boolean;
@@ -440,7 +441,7 @@ export default function Home() {
       const likes = likesResult.data || [];
       const bookmarks = bookmarksResult.data || [];
       const discussionBookmarks = discussionBookmarksResult.data || [];
-      const formatDate = (value: string) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const formatDate = (value: string) => new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
       const mappedResources: ResourceItem[] = (resourcesResult.data || []).map((r: any) => {
         const author = profiles.get(r.author_id);
@@ -452,7 +453,7 @@ export default function Home() {
         return {
           id: r.id, title: r.title, subject: r.subject || '', grade: r.grade || '', description: r.description || '', content: r.content || '',
           authorName: r.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account', authorEmail: author?.email || '', authorAvatar: author?.avatar_path || '',
-          date: formatDate(r.created_at), likes: likes.filter((x: any) => x.resource_id === r.id).length,
+          date: formatDate(r.created_at), createdAt: r.created_at, likes: likes.filter((x: any) => x.resource_id === r.id).length,
           bookmarks: bookmarks.filter((x: any) => x.resource_id === r.id).length,
           likedByMe: likes.some((x: any) => x.resource_id === r.id && x.user_id === userId),
           bookmarkedByMe: bookmarks.some((x: any) => x.resource_id === r.id && x.user_id === userId),
@@ -605,13 +606,13 @@ export default function Home() {
           ? { ...previous, totalStudySeconds: totalSeconds }
           : previous);
 
-        const { error: saveError } = await supabase
-          .from('profiles')
-          .update({ total_study_seconds: totalSeconds })
-          .eq('id', userId);
-
+        const { data: savedTotal, error: saveError } = await supabase.rpc('add_study_time', { p_seconds: 30 });
         if (saveError) {
           console.error('Unable to save study time:', saveError.message);
+        } else if (savedTotal !== null && savedTotal !== undefined) {
+          totalSeconds = Math.max(totalSeconds, Number(savedTotal) || 0);
+          setUsageSeconds(totalSeconds);
+          setUser((previous: any) => previous?.id === userId ? { ...previous, totalStudySeconds: totalSeconds } : previous);
         }
       }, 30000);
     };
@@ -1195,7 +1196,6 @@ export default function Home() {
 
   async function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
-    if (isAdmin) return;
     if (!user) {
       alert('Please sign in to comment.');
       setShowAuthModal(true);
@@ -1256,7 +1256,7 @@ export default function Home() {
     if (resourceSort === 'likes') return b.likes - a.likes;
     if (resourceSort === 'comments') return b.comments.length - a.comments.length;
     if (resourceSort === 'bookmarks') return b.bookmarks - a.bookmarks;
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
+    return new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime();
   });
 
   const citationText = useMemo(() => {
@@ -1451,12 +1451,8 @@ export default function Home() {
                     <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by {res.authorEmail ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(res.authorName, res.authorEmail); }} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{res.authorName}</button> : <span>{res.authorName}</span>}</span>
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                       {user?.email?.toLowerCase() === res.authorEmail?.toLowerCase() && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteResource(res.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
-                      {!isAdmin && <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>
-                        Like ({res.likes})
-                      </button>}
-                      {!isAdmin && <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>
-                        Save ({res.bookmarks})
-                      </button>}
+                      {isAdmin ? <span style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Likes ({res.likes})</span> : <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>Like ({res.likes})</button>}
+                      {isAdmin ? <span style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Saves ({res.bookmarks})</span> : <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>Save ({res.bookmarks})</button>}
                       <span style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Comments ({res.comments.length})</span>
                     </div>
                   </div>
@@ -1738,10 +1734,10 @@ export default function Home() {
 
               <div className="ns-resource-comments" style={{ width: '360px', backgroundColor: theme.bg, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Comments ({previewResource.comments.length})</h3>
-                {!isAdmin && <form onSubmit={handleAddComment} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                <form onSubmit={handleAddComment style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                   <textarea rows={3} placeholder="Write a comment..." value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box' }} />
                   <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end' }}>Post Comment</button>
-                </form>}
+                </form>
 
                 {previewResource.comments.map((c) => (
                   <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
