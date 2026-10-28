@@ -359,17 +359,7 @@ export default function Home() {
         setUser((previous: any) => {
           if (!previous?.email) return previous;
           const updated = { ...previous, totalStudySeconds: next };
-          localStorage.setItem('ns_user', JSON.stringify(updated));
-          try {
-            const accounts = JSON.parse(localStorage.getItem('ns_accounts') || '[]');
-            if (Array.isArray(accounts)) {
-              localStorage.setItem('ns_accounts', JSON.stringify(accounts.map((account: any) =>
-                account.email?.toLowerCase() === String(previous.email).toLowerCase()
-                  ? { ...account, profile: updated }
-                  : account
-              )));
-            }
-          } catch (_) {}
+          // 使用时间暂时保存在当前会话状态中；后续由数据库持久化。
           return updated;
         });
         return next;
@@ -463,7 +453,7 @@ export default function Home() {
     }
   }
 
-  function handleSaveProfile(e: React.FormEvent) {
+  async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
     // 保存前检查用户名和昵称，防止空白、超长或包含控制字符的内容
     const cleanUsername = normalizeName(username);
@@ -489,25 +479,25 @@ export default function Home() {
       avatarUrl: avatarUrl
     };
 
-    setUser(updatedUser);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('ns_user', JSON.stringify(updatedUser));
-
-      // 同步更新账号档案，确保退出后重新登录仍能恢复修改过的资料。
-      try {
-        const accounts = JSON.parse(localStorage.getItem('ns_accounts') || '[]');
-        const accountIndex = Array.isArray(accounts)
-          ? accounts.findIndex((account: any) => account.email?.toLowerCase() === updatedUser.email?.toLowerCase())
-          : -1;
-        if (accountIndex !== -1) {
-          accounts[accountIndex].profile = updatedUser;
-          localStorage.setItem('ns_accounts', JSON.stringify(accounts));
-        }
-      } catch (_) {
-        // 主档案已保存；如果账号缓存损坏，避免阻止界面继续使用。
+    // 将基础个人资料写入 Supabase Auth 用户元数据，避免只保存在当前浏览器。
+    // 头像若为 base64 暂不写入元数据，后续应改用 Supabase Storage。
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        username: updatedUser.username,
+        nickname: updatedUser.nickname,
+        grade: updatedUser.grade,
+        gender: updatedUser.gender,
+        bio: updatedUser.bio,
+        ...(updatedUser.avatarUrl?.startsWith('http') ? { avatarUrl: updatedUser.avatarUrl } : {})
       }
+    });
+
+    if (error) {
+      alert('Could not save your profile to the server. Please try again.');
+      return;
     }
 
+    setUser(updatedUser);
     alert('Profile updated successfully!');
     setShowEditProfileModal(false);
   }
