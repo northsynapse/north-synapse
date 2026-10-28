@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { supabase } from '@/lib/supabase/client';
 
 type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard';
 
@@ -279,21 +280,53 @@ export default function Home() {
      2. 副作用与数据同步
      ========================================================================== */
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('ns_user');
-      if (savedUser) {
-        try {
-          const parsed = JSON.parse(savedUser);
-          setUser(parsed);
-          setUsername(parsed.username || '');
-          setNickname(parsed.nickname || parsed.username || '');
-          setGrade(parsed.grade || '');
-          setAvatarUrl(parsed.avatarUrl || '');
-          setBio(parsed.bio || '');
-          setUsageSeconds(Number(parsed.totalStudySeconds) || 0);
-        } catch (_) {}
+    // 统一使用 Supabase Auth 恢复登录状态，不再从本地账号缓存恢复身份。
+    let active = true;
+    const applyAuthUser = (authUser: any) => {
+      if (!active) return;
+      if (!authUser) {
+        setUser(null);
+        return;
       }
-    }
+
+      const metadata = authUser.user_metadata || {};
+      const email = authUser.email || '';
+      const defaultName = email.split('@')[0] || 'Student';
+      const profile = {
+        id: authUser.id,
+        email,
+        username: metadata.username || defaultName,
+        nickname: metadata.nickname || metadata.username || defaultName,
+        grade: metadata.grade || '',
+        gender: metadata.gender || 'Prefer not to say',
+        bio: metadata.bio || '',
+        avatarUrl: metadata.avatarUrl || '',
+        totalStudySeconds: Number(metadata.totalStudySeconds) || 0
+      };
+
+      setUser(profile);
+      setUsername(profile.username);
+      setNickname(profile.nickname);
+      setGrade(profile.grade);
+      setGender(profile.gender);
+      setAvatarUrl(profile.avatarUrl);
+      setBio(profile.bio);
+      setUsageSeconds(profile.totalStudySeconds);
+    };
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) console.error('Unable to restore Supabase session:', error.message);
+      applyAuthUser(data.session?.user ?? null);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      applyAuthUser(session?.user ?? null);
+    });
+
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -360,127 +393,74 @@ export default function Home() {
   /* ==========================================================================
      3. 业务处理函数
      ========================================================================== */
-  // 本地演示版账号存储。正式上线前应改用服务端认证，不能将密码明文保存在浏览器中。
-  function handleAuthSubmit(e: React.FormEvent) {
+  // 登录与注册统一走 Supabase Auth，浏览器不再保存密码。
+  async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
 
     const cleanEmail = authEmail.trim().toLowerCase();
     const cleanPassword = authPassword;
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(cleanEmail)) {
       alert('Please enter a valid email address.');
       setLoading(false);
       return;
     }
-    if (cleanPassword.length < 6) {
-      alert('Password must be at least 6 characters long.');
+    if (cleanPassword.length < 8) {
+      alert('Password must be at least 8 characters long.');
       setLoading(false);
       return;
     }
-
     if (isSignUp && (!isStudentConfirmed || !hasAgreedTerms)) {
       alert('Please confirm that you are a student and accept the Terms of Service.');
       setLoading(false);
       return;
     }
 
-    if (typeof window === 'undefined') {
-      setLoading(false);
-      return;
-    }
-
-    type LocalAccount = {
-      email: string;
-      password: string;
-      profile: any;
-    };
-
-    let accounts: LocalAccount[] = [];
     try {
-      accounts = JSON.parse(localStorage.getItem('ns_accounts') || '[]');
-      if (!Array.isArray(accounts)) accounts = [];
-    } catch (_) {
-      accounts = [];
+      if (isSignUp) {
+        const { data, error } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: cleanPassword,
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: {
+              is_student: true,
+              accepted_user_notice: true,
+              accepted_at: new Date().toISOString()
+            }
+          }
+        });
+
+        if (error) {
+          alert(error.message);
+          return;
+        }
+        if (!data.session) {
+          alert('Registration received. Please check your email to confirm your account, then sign in.');
+          setIsSignUp(false);
+          return;
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPassword
+        });
+        if (error) {
+          alert(error.message);
+          return;
+        }
+      }
+
+      setShowAuthModal(false);
+      setAuthPassword('');
+      setActiveTab('dashboard');
+    } catch (error) {
+      console.error('Authentication failed:', error);
+      alert('Unable to complete authentication right now. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    const accountIndex = accounts.findIndex(
-      (account) => account.email?.toLowerCase() === cleanEmail
-    );
-
-    if (isSignUp) {
-      if (accountIndex !== -1) {
-        alert('An account with this email already exists. Please sign in.');
-        setLoading(false);
-        return;
-      }
-
-      // 如果旧版本仍保留着同邮箱的资料，则注册时沿用这些资料。
-      let legacyProfile: any = null;
-      try {
-        const savedUser = JSON.parse(localStorage.getItem('ns_user') || 'null');
-        if (savedUser?.email?.toLowerCase() === cleanEmail) legacyProfile = savedUser;
-      } catch (_) {}
-
-      const defaultName = cleanEmail.split('@')[0];
-      const profile = {
-        ...(legacyProfile || {}),
-        email: cleanEmail,
-        username: legacyProfile?.username || defaultName,
-        nickname: legacyProfile?.nickname || legacyProfile?.username || defaultName,
-        grade: legacyProfile?.grade || '',
-        gender: legacyProfile?.gender || 'Prefer not to say',
-        bio: legacyProfile?.bio || '',
-        avatarUrl: legacyProfile?.avatarUrl || '',
-        createdAt: legacyProfile?.createdAt || new Date().toLocaleDateString('en-US', {
-          month: 'short', day: 'numeric', year: 'numeric'
-        }),
-        totalStudySeconds: Number(legacyProfile?.totalStudySeconds) || 0
-      };
-
-      accounts.push({ email: cleanEmail, password: cleanPassword, profile });
-      localStorage.setItem('ns_accounts', JSON.stringify(accounts));
-      localStorage.setItem('ns_user', JSON.stringify(profile));
-      setUser(profile);
-      setUsername(profile.username);
-      setNickname(profile.nickname);
-      setGrade(profile.grade);
-      setGender(profile.gender);
-      setBio(profile.bio);
-      setAvatarUrl(profile.avatarUrl);
-      setUsageSeconds(Number(profile.totalStudySeconds) || 0);
-      alert('Registration successful! Logged in as ' + cleanEmail);
-    } else {
-      if (accountIndex === -1) {
-        alert('No account with this email was found on this browser. Please sign up first.');
-        setLoading(false);
-        return;
-      }
-
-      const account = accounts[accountIndex];
-      if (account.password !== cleanPassword) {
-        alert('Incorrect email or password. Please try again.');
-        setLoading(false);
-        return;
-      }
-
-      const profile = account.profile || { email: cleanEmail, username: cleanEmail.split('@')[0] };
-      localStorage.setItem('ns_user', JSON.stringify(profile));
-      setUser(profile);
-      setUsername(profile.username || '');
-      setNickname(profile.nickname || profile.username || '');
-      setGrade(profile.grade || '');
-      setGender(profile.gender || 'Prefer not to say');
-      setBio(profile.bio || '');
-      setAvatarUrl(profile.avatarUrl || '');
-      setUsageSeconds(Number(profile.totalStudySeconds) || 0);
-      alert('Welcome back, ' + (profile.nickname || profile.username || cleanEmail) + '!');
-    }
-
-    setShowAuthModal(false);
-    setAuthPassword('');
-    setActiveTab('dashboard');
-    setLoading(false);
   }
 
   function handleSaveProfile(e: React.FormEvent) {
@@ -532,11 +512,13 @@ export default function Home() {
     setShowEditProfileModal(false);
   }
 
-  function handleSignOut() {
-    setUser(null);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('ns_user');
+  async function handleSignOut() {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      alert('Unable to sign out right now. Please try again.');
+      return;
     }
+    setUser(null);
     setActiveTab('resources');
     alert('Logged out successfully.');
   }
