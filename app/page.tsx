@@ -1035,25 +1035,28 @@ export default function Home() {
   }
 
   // 仅允许评论作者删除自己的评论，并同步更新笔记列表与当前预览。
-  function handleDeleteResourceComment(resourceId: string, commentId: string) {
+  async function handleDeleteResourceComment(resourceId: string, commentId: string) {
     const resource = resources.find(item => item.id === resourceId);
     const comment = resource?.comments.find(item => item.id === commentId);
-    if (!user || !comment || comment.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
+    if (!user?.id || !comment || comment.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
     if (!window.confirm('Delete this comment? This cannot be undone.')) return;
-    const updateResource = (item: ResourceItem): ResourceItem => ({
-      ...item,
-      comments: item.comments.filter(entry => entry.id !== commentId)
-    });
+    if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(commentId)) return;
+    const { error } = await supabase.from('resource_comments').delete().eq('id', commentId).eq('author_id', user.id);
+    if (error) { console.error('Comment delete failed:', error.message); alert('Could not delete comment. Please try again.'); return; }
+    const updateResource = (item: ResourceItem): ResourceItem => ({ ...item, comments: item.comments.filter(entry => entry.id !== commentId) });
     setResources(prev => prev.map(item => item.id === resourceId ? updateResource(item) : item));
     setPreviewResource(prev => prev && prev.id === resourceId ? updateResource(prev) : prev);
   }
 
   // 仅允许回复作者删除自己的回复，并重新计算回复数量。
-  function handleDeleteDiscussionReply(discussionId: string, replyId: string) {
+  async function handleDeleteDiscussionReply(discussionId: string, replyId: string) {
     const discussion = discussions.find(item => item.id === discussionId);
     const reply = discussion?.replies.find(item => item.id === replyId);
-    if (!user || !reply || reply.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
+    if (!user?.id || !reply || reply.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
     if (!window.confirm('Delete this reply? This cannot be undone.')) return;
+    if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(replyId)) return;
+    const { error } = await supabase.from('discussion_replies').delete().eq('id', replyId).eq('author_id', user.id);
+    if (error) { console.error('Reply delete failed:', error.message); alert('Could not delete reply. Please try again.'); return; }
     const updateDiscussion = (item: DiscussionItem): DiscussionItem => {
       const replies = item.replies.filter(entry => entry.id !== replyId);
       return { ...item, replies, repliesCount: replies.length };
