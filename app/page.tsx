@@ -351,6 +351,48 @@ export default function Home() {
     return () => { active = false; };
   }, [user?.id]);
 
+  // 登录后从 profiles 表恢复个人资料；不再把 Auth metadata 当作个人资料主数据源。
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId) return;
+    let active = true;
+    const loadProfile = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('email,username,nickname,grade,gender,bio,avatar_path,total_study_seconds')
+        .eq('id', userId)
+        .maybeSingle();
+      if (!active) return;
+      if (error) {
+        console.error('Unable to load profile from database:', error.message);
+        return;
+      }
+      if (!data) return;
+      const savedUsername = data.username || user?.email?.split('@')[0] || 'Student';
+      const savedNickname = data.nickname || savedUsername;
+      setUsername(savedUsername);
+      setNickname(savedNickname);
+      setGrade(data.grade || '');
+      setGender(data.gender || 'Prefer not to say');
+      setBio(data.bio || '');
+      setAvatarUrl(data.avatar_path || '');
+      setUsageSeconds(Math.max(0, Number(data.total_study_seconds) || 0));
+      setUser((previous: any) => previous?.id === userId ? {
+        ...previous,
+        email: data.email || previous.email,
+        username: savedUsername,
+        nickname: savedNickname,
+        grade: data.grade || '',
+        gender: data.gender || 'Prefer not to say',
+        bio: data.bio || '',
+        avatarUrl: data.avatar_path || '',
+        totalStudySeconds: Math.max(0, Number(data.total_study_seconds) || 0)
+      } : previous);
+    };
+    void loadProfile();
+    return () => { active = false; };
+  }, [user?.id]);
+
   // 登录后从数据库加载笔记、讨论、评论、回复与收藏状态。
   useEffect(() => {
     const userId = user?.id;
@@ -652,17 +694,34 @@ export default function Home() {
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
-    // 保存前检查用户名和昵称，防止空白、超长或包含控制字符的内容
+    if (!user?.id) {
+      alert('Please sign in to save your profile.');
+      return;
+    }
+
+    // 保存前检查用户名和昵称，防止空白、超长或包含控制字符的内容。
     const cleanUsername = normalizeName(username);
     const cleanNickname = normalizeName(nickname);
     const usernameError = validateUsername(cleanUsername);
-    if (usernameError) {
-      alert(usernameError);
-      return;
-    }
+    if (usernameError) { alert(usernameError); return; }
     const nicknameError = validateNickname(cleanNickname);
-    if (nicknameError) {
-      alert(nicknameError);
+    if (nicknameError) { alert(nicknameError); return; }
+
+    // 个人资料以 profiles 数据表为唯一来源，避免只存在浏览器或 Auth metadata 中。
+    const profileRow = {
+      id: user.id,
+      email: user.email || '',
+      username: cleanUsername,
+      nickname: cleanNickname,
+      grade: grade,
+      gender: gender,
+      bio: bio.trim(),
+      avatar_path: avatarUrl || null
+    };
+    const { error } = await supabase.from('profiles').upsert(profileRow, { onConflict: 'id' });
+    if (error) {
+      console.error('Profile save failed:', error.message);
+      alert('Could not save your profile to the database. Please try again.');
       return;
     }
 
@@ -670,30 +729,11 @@ export default function Home() {
       ...user,
       username: cleanUsername,
       nickname: cleanNickname,
-      grade: grade,
-      gender: gender,
+      grade,
+      gender,
       bio: bio.trim(),
       avatarUrl: avatarUrl
     };
-
-    // 将基础个人资料写入 Supabase Auth 用户元数据，避免只保存在当前浏览器。
-    // 头像若为 base64 暂不写入元数据，后续应改用 Supabase Storage。
-    const { error } = await supabase.auth.updateUser({
-      data: {
-        username: updatedUser.username,
-        nickname: updatedUser.nickname,
-        grade: updatedUser.grade,
-        gender: updatedUser.gender,
-        bio: updatedUser.bio,
-        ...(updatedUser.avatarUrl?.startsWith('http') ? { avatarUrl: updatedUser.avatarUrl } : {})
-      }
-    });
-
-    if (error) {
-      alert('Could not save your profile to the server. Please try again.');
-      return;
-    }
-
     setUser(updatedUser);
     alert('Profile updated successfully!');
     setShowEditProfileModal(false);
