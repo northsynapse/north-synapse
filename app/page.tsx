@@ -444,7 +444,7 @@ export default function Home() {
         });
         return {
           id: r.id, title: r.title, subject: r.subject || '', grade: r.grade || '', description: r.description || '', content: r.content || '',
-          authorName: author?.nickname || author?.username || 'Student', authorEmail: author?.email || '', authorAvatar: author?.avatar_path || '',
+          authorName: r.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account', authorEmail: author?.email || '', authorAvatar: author?.avatar_path || '',
           date: formatDate(r.created_at), likes: likes.filter((x: any) => x.resource_id === r.id).length,
           bookmarks: bookmarks.filter((x: any) => x.resource_id === r.id).length,
           likedByMe: likes.some((x: any) => x.resource_id === r.id && x.user_id === userId),
@@ -461,7 +461,7 @@ export default function Home() {
           return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: replyLikes.filter((like: any) => like.reply_id === x.id).length, likedByMe: replyLikes.some((like: any) => like.reply_id === x.id && like.user_id === userId) };
         });
         return {
-          id: d.id, title: d.title, content: d.content, authorEmail: author?.email || '', authorName: author?.nickname || author?.username || 'Student',
+          id: d.id, title: d.title, content: d.content, authorEmail: author?.email || '', authorName: d.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account',
           date: formatDate(d.created_at), repliesCount: replies.length, replies,
           bookmarkedByMe: discussionBookmarks.some((x: any) => x.discussion_id === d.id && x.user_id === userId),
           bookmarks: discussionBookmarks.filter((x: any) => x.discussion_id === d.id).length
@@ -800,16 +800,46 @@ export default function Home() {
     alert('Logged out successfully.');
   }
 
-  function handleDeleteAccount() {
-    if (!window.confirm('Are you sure you want to delete this account? All local session data will be reset.')) return;
-
-    setUser(null);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('ns_user');
+  async function handleDeleteAccount() {
+    if (!user?.id) {
+      alert('Please sign in before deleting your account.');
+      return;
     }
-    setShowEditProfileModal(false);
-    setActiveTab('resources');
-    alert('Account deleted and session cleared.');
+
+    const confirmed = window.confirm(
+      'Permanently delete your account? Your profile, comments, replies, likes, bookmarks, feedback, and ratings will be deleted. Your published notes and discussions will remain visible as “Deleted account”. This cannot be undone.'
+    );
+    if (!confirmed) return;
+
+    setLoading(true);
+    try {
+      // 先删除当前账号，再清除浏览器会话；数据库函数会保留并匿名化公开帖子。
+      const { error } = await supabase.rpc('delete_current_account');
+      if (error) {
+        console.error('Account deletion failed:', error.message);
+        alert('Account deletion failed. Please try again or contact the site administrator.');
+        return;
+      }
+
+      await supabase.auth.signOut();
+      setUser(null);
+      setPublicProfile(null);
+      setShowEditProfileModal(false);
+      setActiveTab('resources');
+      setAvatarUrl('');
+      setUsername('');
+      setNickname('');
+      setGrade('');
+      setGender('Prefer not to say');
+      setBio('');
+      setUsageSeconds(0);
+      alert('Your account and personal data have been permanently deleted. Your published notes and discussions remain anonymously visible.');
+    } catch (error) {
+      console.error('Account deletion failed:', error);
+      alert('Account deletion failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   // 仅保留富文本编辑器允许的格式，避免将任意脚本写入页面。
@@ -1368,7 +1398,7 @@ export default function Home() {
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
                   <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '1rem' }}>{res.description}</p>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${theme.border}`, paddingTop: '0.8rem' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(res.authorName, res.authorEmail); }} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{res.authorName}</button></span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by {res.authorEmail ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(res.authorName, res.authorEmail); }} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{res.authorName}</button> : <span>{res.authorName}</span>}</span>
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                       {user?.email?.toLowerCase() === res.authorEmail?.toLowerCase() && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteResource(res.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
                       {!isAdmin && <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>
@@ -1439,7 +1469,7 @@ export default function Home() {
                     </div>
                   </div>
                   <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem' }}>{disc.content}</p>
-                  <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(disc.authorName, disc.authorEmail); }} style={{ color: theme.textMuted, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{disc.authorName}</button> on {disc.date}</span>
+                  <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by {disc.authorEmail ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(disc.authorName, disc.authorEmail); }} style={{ color: theme.textMuted, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{disc.authorName}</button> : <span>{disc.authorName}</span>} on {disc.date}</span>
                 </div>
               ))}
             </div>
@@ -1655,7 +1685,7 @@ export default function Home() {
 
                 {previewResource.comments.map((c) => (
                   <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
-                    <button type="button" onClick={() => openPublicProfile(c.authorName, c.authorEmail)} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{c.authorName}</button>
+                    {c.authorEmail ? <button type="button" onClick={() => openPublicProfile(c.authorName, c.authorEmail)} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{c.authorName}</button> : <span>{c.authorName}</span>}
                     <p style={{ fontSize: '0.85rem', marginTop: '0.3rem' }}>{c.text}</p>
                     {user?.email?.toLowerCase() === c.authorEmail?.toLowerCase() && <button type="button" onClick={() => handleDeleteResourceComment(previewResource.id, c.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
                     {!isAdmin && <button type="button" onClick={() => handleLikeResourceComment(previewResource.id, c.id)} aria-label={c.likedByMe ? 'Unlike comment' : 'Like comment'} style={{ marginTop: '0.25rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: c.likedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: c.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>
@@ -1692,7 +1722,7 @@ export default function Home() {
                 {selectedDiscussion.replies.map(r => (
                   <div key={r.id} style={{ backgroundColor: theme.bg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      <button type="button" onClick={() => openPublicProfile(r.authorName, r.authorEmail)} style={{ fontSize: '0.85rem', color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{r.authorName}</button>
+                      {r.authorEmail ? <button type="button" onClick={() => openPublicProfile(r.authorName, r.authorEmail)} style={{ fontSize: '0.85rem', color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{r.authorName}</button> : <span style={{ fontSize: '0.85rem' }}>{r.authorName}</span>}
                       <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{r.date}</span>
                     </div>
                     <p style={{ fontSize: '0.85rem' }}>{r.text}</p>
