@@ -1266,6 +1266,25 @@ export default function Home() {
   });
   const [resourceSort, setResourceSort] = useState<'newest' | 'likes' | 'comments' | 'bookmarks'>('newest');
   const sortedFilteredResources = [...filteredResources].sort((a, b) => {
+    // 有搜索关键词时，优先显示标题和描述与关键词更匹配的帖子。
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      const relevanceScore = (item: ResourceItem) => {
+        const title = item.title.toLowerCase();
+        const description = item.description.toLowerCase();
+        const tags = (item.tags || []).map(tag => tag.toLowerCase());
+        let score = 0;
+        if (title === query) score += 100;
+        else if (title.startsWith(query)) score += 60;
+        else if (title.includes(query)) score += 40;
+        if (description.includes(query)) score += 15;
+        if (tags.some(tag => tag === query)) score += 35;
+        else if (tags.some(tag => tag.includes(query))) score += 20;
+        return score;
+      };
+      const scoreDifference = relevanceScore(b) - relevanceScore(a);
+      if (scoreDifference !== 0) return scoreDifference;
+    }
     if (resourceSort === 'likes') return b.likes - a.likes;
     if (resourceSort === 'comments') return b.comments.length - a.comments.length;
     if (resourceSort === 'bookmarks') return b.bookmarks - a.bookmarks;
@@ -1454,9 +1473,6 @@ export default function Home() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {sortedFilteredResources.map((res) => (
                 <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.6rem' }}>
-                    {(res.tags || []).map(tag => <span key={tag} style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>{tag}</span>)}
-                  </div>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
                   <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '0.6rem' }}>{res.description}</p>
               {!!res.tags?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '1rem' }}>{res.tags.map(tag => <span key={tag} style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', borderRadius: 5, background: theme.bg, color: theme.accent, border: `1px solid ${theme.border}` }}>{tag}</span>)}</div>}
