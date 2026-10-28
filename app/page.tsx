@@ -1107,28 +1107,32 @@ export default function Home() {
     setSelectedDiscussion(prev => prev ? update(prev) : prev);
   }
 
-  // 仅允许评论作者删除自己的评论，并同步更新笔记列表与当前预览。
+  // 评论作者可以删除自己的评论；管理员可以删除任意评论，便于后续处理举报。
   async function handleDeleteResourceComment(resourceId: string, commentId: string) {
     const resource = resources.find(item => item.id === resourceId);
     const comment = resource?.comments.find(item => item.id === commentId);
-    if (!user?.id || !comment || comment.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
+    if (!user?.id || !comment || (!isAdmin && comment.authorEmail?.toLowerCase() !== user.email?.toLowerCase())) return;
     if (!window.confirm('Delete this comment? This cannot be undone.')) return;
     if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(commentId)) return;
-    const { error } = await supabase.from('resource_comments').delete().eq('id', commentId).eq('author_id', user.id);
+    let deleteQuery = supabase.from('resource_comments').delete().eq('id', commentId);
+    if (!isAdmin) deleteQuery = deleteQuery.eq('author_id', user.id);
+    const { error } = await deleteQuery;
     if (error) { console.error('Comment delete failed:', error.message); alert('Could not delete comment. Please try again.'); return; }
     const updateResource = (item: ResourceItem): ResourceItem => ({ ...item, comments: item.comments.filter(entry => entry.id !== commentId) });
     setResources(prev => prev.map(item => item.id === resourceId ? updateResource(item) : item));
     setPreviewResource(prev => prev && prev.id === resourceId ? updateResource(prev) : prev);
   }
 
-  // 仅允许回复作者删除自己的回复，并重新计算回复数量。
+  // 回复作者可以删除自己的回复；管理员可以删除任意回复。
   async function handleDeleteDiscussionReply(discussionId: string, replyId: string) {
     const discussion = discussions.find(item => item.id === discussionId);
     const reply = discussion?.replies.find(item => item.id === replyId);
-    if (!user?.id || !reply || reply.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
+    if (!user?.id || !reply || (!isAdmin && reply.authorEmail?.toLowerCase() !== user.email?.toLowerCase())) return;
     if (!window.confirm('Delete this reply? This cannot be undone.')) return;
     if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(replyId)) return;
-    const { error } = await supabase.from('discussion_replies').delete().eq('id', replyId).eq('author_id', user.id);
+    let deleteQuery = supabase.from('discussion_replies').delete().eq('id', replyId);
+    if (!isAdmin) deleteQuery = deleteQuery.eq('author_id', user.id);
+    const { error } = await deleteQuery;
     if (error) { console.error('Reply delete failed:', error.message); alert('Could not delete reply. Please try again.'); return; }
     const updateDiscussion = (item: DiscussionItem): DiscussionItem => {
       const replies = item.replies.filter(entry => entry.id !== replyId);
@@ -1138,13 +1142,15 @@ export default function Home() {
     setSelectedDiscussion(prev => prev && prev.id === discussionId ? updateDiscussion(prev) : prev);
   }
 
-  // 仅允许发布者删除自己的笔记或讨论主题。
+  // 发布者可以删除自己的笔记；管理员可以删除任何笔记。
   function handleDeleteResource(resourceId: string) {
     const resource = resources.find(item => item.id === resourceId);
-    if (!user || !resource || resource.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
+    if (!user?.id || !resource || (!isAdmin && resource.authorEmail?.toLowerCase() !== user.email?.toLowerCase())) return;
     if (!window.confirm('Delete this note? Its comments and attachments will also be removed.')) return;
     if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(resourceId)) { alert('This sample note is not stored in the database.'); return; }
-    void supabase.from('resources').delete().eq('id', resourceId).eq('author_id', user.id).then(({ error }) => {
+    let deleteQuery = supabase.from('resources').delete().eq('id', resourceId);
+    if (!isAdmin) deleteQuery = deleteQuery.eq('author_id', user.id);
+    void deleteQuery.then(({ error }) => {
       if (error) { console.error('Resource delete failed:', error.message); alert('Could not delete the note. Please try again.'); return; }
       setResources(prev => prev.filter(item => item.id !== resourceId));
     });
@@ -1153,10 +1159,12 @@ export default function Home() {
 
   function handleDeleteDiscussion(discussionId: string) {
     const discussion = discussions.find(item => item.id === discussionId);
-    if (!user || !discussion || discussion.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
+    if (!user?.id || !discussion || (!isAdmin && discussion.authorEmail?.toLowerCase() !== user.email?.toLowerCase())) return;
     if (!window.confirm('Delete this discussion and all its replies? This cannot be undone.')) return;
     if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(discussionId)) { alert('This sample discussion is not stored in the database.'); return; }
-    void supabase.from('discussions').delete().eq('id', discussionId).eq('author_id', user.id).then(({ error }) => {
+    let deleteQuery = supabase.from('discussions').delete().eq('id', discussionId);
+    if (!isAdmin) deleteQuery = deleteQuery.eq('author_id', user.id);
+    void deleteQuery.then(({ error }) => {
       if (error) { console.error('Discussion delete failed:', error.message); alert('Could not delete the discussion. Please try again.'); return; }
       setDiscussions(prev => prev.filter(item => item.id !== discussionId));
     });
@@ -1485,7 +1493,7 @@ export default function Home() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                      {user?.email?.toLowerCase() === res.authorEmail?.toLowerCase() && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteResource(res.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
+                      {(isAdmin || user?.email?.toLowerCase() === res.authorEmail?.toLowerCase()) && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteResource(res.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
                       {isAdmin ? <span style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Likes ({res.likes})</span> : <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>Like ({res.likes})</button>}
                       {isAdmin ? <span style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Saves ({res.bookmarks})</span> : <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>Save ({res.bookmarks})</button>}
                       <span style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Comments ({res.comments.length})</span>
@@ -1547,7 +1555,7 @@ export default function Home() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.8rem', marginBottom: '0.5rem' }}>
                     <strong style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{disc.title}</strong>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', flexShrink: 0 }}>
-                      {user?.email?.toLowerCase() === disc.authorEmail?.toLowerCase() && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteDiscussion(disc.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
+                      {(isAdmin || user?.email?.toLowerCase() === disc.authorEmail?.toLowerCase()) && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteDiscussion(disc.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
                       <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{disc.repliesCount} Replies</span>
                       {!isAdmin && <button type="button" onClick={(e) => handleBookmarkDiscussion(disc.id, e)} aria-label={disc.bookmarkedByMe ? 'Remove saved discussion' : 'Save discussion'} style={{ border: `1px solid ${theme.border}`, borderRadius: '7px', padding: '0.35rem 0.55rem', background: disc.bookmarkedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: disc.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                         {disc.bookmarkedByMe ? '★ Saved' : '☆ Save'}
@@ -1782,7 +1790,7 @@ export default function Home() {
                   <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
                     {c.authorEmail ? <button type="button" onClick={() => openPublicProfile(c.authorName, c.authorEmail)} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{c.authorName}</button> : <span>{c.authorName}</span>}
                     <p style={{ fontSize: '0.85rem', marginTop: '0.3rem' }}>{c.text}</p>
-                    {user?.email?.toLowerCase() === c.authorEmail?.toLowerCase() && <button type="button" onClick={() => handleDeleteResourceComment(previewResource.id, c.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
+                    {(isAdmin || user?.email?.toLowerCase() === c.authorEmail?.toLowerCase()) && <button type="button" onClick={() => handleDeleteResourceComment(previewResource.id, c.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
                     {!isAdmin && <button type="button" onClick={() => handleLikeResourceComment(previewResource.id, c.id)} aria-label={c.likedByMe ? 'Unlike comment' : 'Like comment'} style={{ marginTop: '0.25rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: c.likedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: c.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>
                       {c.likedByMe ? '♥ Liked' : '♡ Like'} · {c.likes || 0}
                     </button>}
@@ -1821,8 +1829,7 @@ export default function Home() {
                       <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{r.date}</span>
                     </div>
                     <p style={{ fontSize: '0.85rem' }}>{r.text}</p>
-                    {user?.email?.toLowerCase() === r.authorEmail?.toLowerCase() && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, r.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
-                    {user?.email?.toLowerCase() === r.authorEmail?.toLowerCase() && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, r.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
+                    {(isAdmin || user?.email?.toLowerCase() === r.authorEmail?.toLowerCase()) && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, r.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
                     {!isAdmin && <button type="button" onClick={() => handleLikeDiscussionReply(selectedDiscussion.id, r.id)} aria-label={r.likedByMe ? 'Unlike reply' : 'Like reply'} style={{ marginTop: '0.25rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: r.likedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: r.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>
                       {r.likedByMe ? '♥ Liked' : '♡ Like'} · {r.likes || 0}
                     </button>}
