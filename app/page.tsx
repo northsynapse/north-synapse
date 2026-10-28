@@ -32,6 +32,7 @@ interface ResourceItem {
   authorName: string;
   authorEmail?: string;
   authorAvatar: string;
+  tags?: string[];
   date: string;
   createdAt?: string;
   likes: number;
@@ -131,6 +132,8 @@ export default function Home() {
   const [newResGrade, setNewResGrade] = useState('Grade 12');
   const [newResDescription, setNewResDescription] = useState('');
   const [newResContent, setNewResContent] = useState('');
+  const [selectedResourceTags, setSelectedResourceTags] = useState<string[]>([]);
+  const resourceTagOptions = ['Exam Prep', 'Lecture Notes', 'Practice Problems', 'Study Guide', 'Assignment Help', 'Lab Report', 'Summary', 'Other'];
 
   const [newDiscTitle, setNewDiscTitle] = useState('');
   const [newDiscContent, setNewDiscContent] = useState('');
@@ -453,7 +456,7 @@ export default function Home() {
           return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: commentLikes.filter((like: any) => like.comment_id === x.id).length, likedByMe: commentLikes.some((like: any) => like.comment_id === x.id && like.user_id === userId) };
         });
         return {
-          id: r.id, title: r.title, subject: r.subject || '', grade: r.grade || '', description: r.description || '', content: r.content || '',
+          id: r.id, title: r.title, subject: r.subject || '', grade: r.grade || '', description: r.description || '', content: r.content || '', tags: Array.isArray(r.tags) ? r.tags : [],
           authorName: r.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account', authorEmail: author?.email || '', authorAvatar: author?.avatar_path || '',
           date: formatDate(r.created_at), createdAt: r.created_at, likes: likes.filter((x: any) => x.resource_id === r.id).length,
           bookmarks: bookmarks.filter((x: any) => x.resource_id === r.id).length,
@@ -965,7 +968,7 @@ export default function Home() {
 
     const { data: saved, error } = await supabase.from('resources').insert({
       author_id: user.id, title: newResTitle.trim(), subject: newResSubject, grade: newResGrade,
-      description: newResDescription.trim() || plainContent.slice(0, 90) + '...', content: editorHtml || plainContent
+      description: newResDescription.trim() || plainContent.slice(0, 90) + '...', content: editorHtml || plainContent, tags: selectedResourceTags
     }).select('*').single();
     if (error || !saved) { console.error('Publish failed:', error?.message); alert('The note could not be saved. Please try again.'); return; }
 
@@ -980,7 +983,7 @@ export default function Home() {
 
     const newRes: ResourceItem = {
       id: saved.id, title: saved.title, subject: saved.subject, grade: saved.grade,
-      description: saved.description, content: saved.content, attachments: [...resourceAttachments],
+      description: saved.description, content: saved.content, tags: selectedResourceTags, attachments: [...resourceAttachments],
       authorName: nickname || username || user.email.split('@')[0], authorEmail: user.email, authorAvatar: avatarUrl,
       date: new Date(saved.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       likes: 0, bookmarks: 0, likedByMe: false, bookmarkedByMe: false, comments: []
@@ -990,6 +993,7 @@ export default function Home() {
     setNewResTitle('');
     setNewResDescription('');
     setNewResContent('');
+    setSelectedResourceTags([]);
     setRichContentHtml('');
     setResourceAttachments([]);
     setDriveResourceUrl('');
@@ -1446,14 +1450,17 @@ export default function Home() {
                     <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px' }}>{res.subject}</span>
                     <span style={{ backgroundColor: theme.bg, color: theme.textMuted, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>{res.grade}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', margin: '0.4rem 0 0.8rem' }}>
-                    {res.authorAvatar ? <img src={res.authorAvatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 32, height: 32, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{(res.authorName || 'S').slice(0, 1).toUpperCase()}</div>}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}><span style={{ fontSize: '0.85rem', fontWeight: 650 }}>{res.authorName}</span><span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{res.date}</span></div>
-                  </div>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
-                  <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '1rem' }}>{res.description}</p>
+                  <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '0.6rem' }}>{res.description}</p>
+              {!!res.tags?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '1rem' }}>{res.tags.map(tag => <span key={tag} style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', borderRadius: 5, background: theme.bg, color: theme.accent, border: `1px solid ${theme.border}` }}>{tag}</span>)}</div>}
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${theme.border}`, paddingTop: '0.8rem' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by {res.authorEmail ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(res.authorName, res.authorEmail); }} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{res.authorName}</button> : <span>{res.authorName}</span>}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
+                      {res.authorAvatar ? <img src={res.authorAvatar} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 30, height: 30, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{(res.authorName || 'S').slice(0, 1).toUpperCase()}</div>}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                        {res.authorEmail ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(res.authorName, res.authorEmail); }} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left', font: 'inherit', fontWeight: 600 }}>{res.authorName}</button> : <span style={{ fontWeight: 600 }}>{res.authorName}</span>}
+                        <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>{res.date}</span>
+                      </div>
+                    </div>
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                       {user?.email?.toLowerCase() === res.authorEmail?.toLowerCase() && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteResource(res.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
                       {isAdmin ? <span style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Likes ({res.likes})</span> : <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>Like ({res.likes})</button>}
@@ -1941,8 +1948,16 @@ export default function Home() {
                 <p style={{ fontSize: '0.75rem', color: theme.textMuted, margin: '0.4rem 0 0' }}>Select text to apply colour, bold, italic or underline. Rich formatting is saved with the note.</p>
               </div>
               <div style={{ border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <strong>Tags (optional)</strong>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                  {resourceTagOptions.map(tag => <button key={tag} type="button" onClick={() => setSelectedResourceTags(previous => previous.includes(tag) ? previous.filter(item => item !== tag) : [...previous, tag])} style={{ padding: '0.4rem 0.65rem', borderRadius: 18, border: `1px solid ${selectedResourceTags.includes(tag) ? theme.accent : theme.border}`, background: selectedResourceTags.includes(tag) ? theme.accent : theme.bg, color: selectedResourceTags.includes(tag) ? '#FFF' : theme.textMain, cursor: 'pointer', fontSize: '0.82rem' }}>{tag}</button>)}
+                </div>
+              </div>
+              <div style={{ border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                 <strong>Attachments (optional)</strong>
-                <input ref={resourceFilesRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleResourceFileSelection} style={{ width: '100%', color: theme.textMain }} />
+                <input ref={resourceFilesRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleResourceFileSelection} style={{ display: 'none' }} />
+                <button type="button" onClick={() => resourceFilesRef.current?.click()} style={{ alignSelf: 'flex-start', padding: '0.55rem 0.9rem', borderRadius: 7, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, cursor: 'pointer' }}>Choose files</button>
+                {resourceAttachments.length > 0 && <ul style={{ margin: 0, paddingLeft: '1.2rem', color: theme.textMuted, fontSize: '0.82rem' }}>{resourceAttachments.map((file, index) => <li key={`${file.name}-${index}`}>{file.name}</li>)}</ul>}
                 <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: 0 }}>Images, PDF, Word and PowerPoint files up to 2 MB each can be attached directly. For larger files, use a share link.</p>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}><input type="url" value={driveResourceUrl} onChange={(e) => setDriveResourceUrl(e.target.value)} placeholder="Google Drive / Docs / Slides share URL" style={{ flex: '1 1 220px', minWidth: 0, padding: '0.65rem', borderRadius: 6, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} /><button type="button" onClick={addDriveLink} style={{ padding: '0.65rem 0.9rem', borderRadius: 6, border: 0, background: theme.accent, color: '#fff', cursor: 'pointer' }}>Add link</button></div>
                 {resourceAttachments.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}><span style={{ flex: 1, overflowWrap: 'anywhere', fontSize: '0.85rem' }}>📎 {file.name}</span><button type="button" onClick={() => setResourceAttachments((previous) => previous.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer' }}>Remove</button></div>)}
