@@ -275,7 +275,8 @@ for all to authenticated using (user_id = (select auth.uid())) with check (user_
 drop policy if exists "Authenticated users can read reply likes" on public.reply_likes;
 create policy "Authenticated users can read reply likes" on public.reply_likes
 for select to authenticated using (true);
-drop policy if exists "Users manage own reply likes" on public.reply_likes
+drop policy if exists "Users manage own reply likes" on public.reply_likes;
+create policy "Users manage own reply likes" on public.reply_likes
 for all to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 
 -- 附件桶设为私有；已登录用户可读取，只有文件路径第一段等于自己 UID 的用户可写/删。
