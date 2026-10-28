@@ -1217,12 +1217,12 @@ export default function Home() {
     if (profileEnsureError) console.error('Profile ensure before comment failed:', profileEnsureError.message);
 
     const { data: savedComment, error } = await supabase.from('resource_comments').insert({
-      resource_id: previewResource.id, author_id: user.id, content: newCommentText.trim()
+      resource_id: previewResource.id, author_id: user.id, body: newCommentText.trim()
     }).select('*').single();
     if (error || !savedComment) { console.error('Comment save failed:', error?.message, error?.details, error?.hint); alert(`Could not save comment: ${error?.message || 'Unknown database error'}`); return; }
     const commentObj: CommentItem = {
       id: savedComment.id, authorEmail: user.email, authorName: nickname || username || user.email.split('@')[0],
-      authorAvatar: avatarUrl, text: savedComment.content,
+      authorAvatar: avatarUrl, text: savedComment.body,
       date: new Date(savedComment.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       likes: 0, likedByMe: false
     };
@@ -1258,8 +1258,9 @@ export default function Home() {
   const gradesList = ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'AP Courses', 'Academic Competitions'];
 
   const filteredResources = resources.filter(res => {
-    const matchesSubject = selectedSubjects.length === 0 || selectedSubjects.includes(res.subject);
-    const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(res.grade);
+    const resourceTags = res.tags || [];
+    const matchesSubject = selectedSubjects.length === 0 || selectedSubjects.some(tag => resourceTags.includes(tag));
+    const matchesGrade = selectedGrades.length === 0 || selectedGrades.some(tag => resourceTags.includes(tag));
     const matchesSearch = searchQuery === '' || res.title.toLowerCase().includes(searchQuery.toLowerCase()) || res.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSubject && matchesGrade && matchesSearch;
   });
@@ -1454,8 +1455,7 @@ export default function Home() {
               {sortedFilteredResources.map((res) => (
                 <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.6rem' }}>
-                    <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px' }}>{res.subject}</span>
-                    <span style={{ backgroundColor: theme.bg, color: theme.textMuted, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>{res.grade}</span>
+                    {(res.tags || []).map(tag => <span key={tag} style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>{tag}</span>)}
                   </div>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
                   <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '0.6rem' }}>{res.description}</p>
@@ -1564,7 +1564,7 @@ export default function Home() {
         )}
 
         {/* FEEDBACK 视图 */}
-        {activeTab === 'feedback' && (
+        {!isAdmin && activeTab === 'feedback' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div><h1 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '0.5rem' }}>Feedback &amp; Site Rating</h1><p style={{ color: theme.textMuted, margin: 0 }}>Share ideas, report issues, or rate your experience with North Synapse.</p></div>
             <form onSubmit={handleSubmitFeedback} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: 'clamp(1rem, 4vw, 2rem)', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
