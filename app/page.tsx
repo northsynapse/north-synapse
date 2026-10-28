@@ -1404,6 +1404,7 @@ export default function Home() {
                     </div>
                     <p style={{ fontSize: '0.85rem' }}>{r.text}</p>
                     {user?.email?.toLowerCase() === r.authorEmail?.toLowerCase() && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, r.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
+                    {user?.email?.toLowerCase() === r.authorEmail?.toLowerCase() && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, r.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
                     <button type="button" onClick={() => handleLikeDiscussionReply(selectedDiscussion.id, r.id)} aria-label={r.likedByMe ? 'Unlike reply' : 'Like reply'} style={{ marginTop: '0.25rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: r.likedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: r.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>
                       {r.likedByMe ? '♥ Liked' : '♡ Like'} · {r.likes || 0}
                     </button>
