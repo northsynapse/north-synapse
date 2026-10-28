@@ -268,7 +268,8 @@ for all to authenticated using (user_id = (select auth.uid())) with check (user_
 drop policy if exists "Authenticated users can read discussion bookmarks" on public.discussion_bookmarks;
 create policy "Authenticated users can read discussion bookmarks" on public.discussion_bookmarks
 for select to authenticated using (true);
-drop policy if exists "Users manage own discussion bookmarks" on public.discussion_bookmarks
+drop policy if exists "Users manage own discussion bookmarks" on public.discussion_bookmarks;
+create policy "Users manage own discussion bookmarks" on public.discussion_bookmarks
 for all to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 
 drop policy if exists "Authenticated users can read reply likes" on public.reply_likes;
