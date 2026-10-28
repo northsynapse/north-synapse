@@ -557,7 +557,7 @@ export default function Home() {
     const parsed = new DOMParser().parseFromString(input, 'text/html');
     const allowed = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'P', 'BR', 'UL', 'OL', 'LI', 'SPAN', 'DIV']);
     const walk = (node: Node) => {
-      [...node.childNodes].forEach((child) => {
+      Array.from(node.childNodes).forEach((child) => {
         if (child.nodeType === Node.ELEMENT_NODE) {
           const element = child as HTMLElement;
           if (!allowed.has(element.tagName)) {
