@@ -1204,6 +1204,9 @@ export default function Home() {
     if (!newCommentText.trim() || !previewResource) return;
 
     if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(previewResource.id)) { alert('Comments are available on database-published notes.'); return; }
+    const { error: profileEnsureError } = await supabase.from('profiles').upsert({ id: user.id, email: user.email || '', username: username || user.email?.split('@')[0] || 'Student', nickname: nickname || username || user.email?.split('@')[0] || 'Student' }, { onConflict: 'id' });
+    if (profileEnsureError) console.error('Profile ensure before comment failed:', profileEnsureError.message);
+
     const { data: savedComment, error } = await supabase.from('resource_comments').insert({
       resource_id: previewResource.id, author_id: user.id, content: newCommentText.trim()
     }).select('*').single();
