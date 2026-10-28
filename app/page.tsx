@@ -875,8 +875,8 @@ export default function Home() {
   function handleResourceFileSelection(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
     files.forEach((file) => {
-      if (file.size > 50 * 1024 * 1024) {
-        alert(`${file.name} is larger than 50 MB. Please choose a smaller file.`);
+      if (file.size > 20 * 1024 * 1024) {
+        alert(`${file.name} is larger than 20 MB. Please add it using a Google Drive share link instead.`);
         return;
       }
       // 文件先保留在表单状态，提交笔记时再上传到 Supabase Storage。
@@ -925,7 +925,10 @@ export default function Home() {
         if (uploadError) {
           console.error('Attachment upload failed:', uploadError.message);
           await supabase.from('resources').delete().eq('id', saved.id).eq('author_id', user.id);
-          alert(`Could not upload "${attachment.name}". Your note was not published. Please try again.`);
+          const isSizeLimitError = /size|payload|limit|too large/i.test(uploadError.message);
+          alert(isSizeLimitError
+            ? `Could not upload "${attachment.name}" because it exceeds the current storage upload limit. Please use a Google Drive share link, or ask the site administrator to check the Supabase Storage file-size limit.`
+            : `Could not upload "${attachment.name}": ${uploadError.message}`);
           return;
         }
         attachmentRows.push({
