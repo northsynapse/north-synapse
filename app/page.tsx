@@ -351,6 +351,80 @@ export default function Home() {
     return () => { active = false; };
   }, [user?.id]);
 
+  // 登录后从数据库加载笔记、讨论、评论、回复与收藏状态。
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId) return;
+    let active = true;
+
+    const loadCommunityData = async () => {
+      const [resourcesResult, discussionsResult, profilesResult] = await Promise.all([
+        supabase.from('resources').select('*').order('created_at', { ascending: false }),
+        supabase.from('discussions').select('*').order('created_at', { ascending: false }),
+        supabase.from('profiles').select('id,email,username,nickname,avatar_path')
+      ]);
+      if (!active) return;
+      if (resourcesResult.error || discussionsResult.error || profilesResult.error) {
+        console.error('Unable to load community data:', resourcesResult.error?.message || discussionsResult.error?.message || profilesResult.error?.message);
+        return;
+      }
+
+      const profileMap = new Map((profilesResult.data || []).map((p: any) => [p.id, p]));
+      const resourceIds = (resourcesResult.data || []).map((r: any) => r.id);
+      const discussionIds = (discussionsResult.data || []).map((d: any) => d.id);
+      const [attachmentsResult, commentsResult, repliesResult, likesResult, bookmarksResult, discussionBookmarksResult] = await Promise.all([
+        resourceIds.length ? supabase.from('resource_attachments').select('*').in('resource_id', resourceIds) : Promise.resolve({ data: [], error: null } as any),
+        resourceIds.length ? supabase.from('resource_comments').select('*').in('resource_id', resourceIds).order('created_at') : Promise.resolve({ data: [], error: null } as any),
+        discussionIds.length ? supabase.from('discussion_replies').select('*').in('discussion_id', discussionIds).order('created_at') : Promise.resolve({ data: [], error: null } as any),
+        resourceIds.length ? supabase.from('resource_likes').select('resource_id,user_id').in('resource_id', resourceIds) : Promise.resolve({ data: [], error: null } as any),
+        resourceIds.length ? supabase.from('resource_bookmarks').select('resource_id,user_id').in('resource_id', resourceIds) : Promise.resolve({ data: [], error: null } as any),
+        discussionIds.length ? supabase.from('discussion_bookmarks').select('discussion_id,user_id').in('discussion_id', discussionIds) : Promise.resolve({ data: [], error: null } as any)
+      ]);
+      if (!active) return;
+      const profiles = profileMap as Map<string, any>;
+      const likes = likesResult.data || [];
+      const bookmarks = bookmarksResult.data || [];
+      const discussionBookmarks = discussionBookmarksResult.data || [];
+      const formatDate = (value: string) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+      const mappedResources: ResourceItem[] = (resourcesResult.data || []).map((r: any) => {
+        const author = profiles.get(r.author_id);
+        const comments = (commentsResult.data || []).filter((x: any) => x.resource_id === r.id).map((x: any) => {
+          const p = profiles.get(x.author_id);
+          return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: 0, likedByMe: false };
+        });
+        return {
+          id: r.id, title: r.title, subject: r.subject || '', grade: r.grade || '', description: r.description || '', content: r.content || '',
+          authorName: author?.nickname || author?.username || 'Student', authorEmail: author?.email || '', authorAvatar: author?.avatar_path || '',
+          date: formatDate(r.created_at), likes: likes.filter((x: any) => x.resource_id === r.id).length,
+          bookmarks: bookmarks.filter((x: any) => x.resource_id === r.id).length,
+          likedByMe: likes.some((x: any) => x.resource_id === r.id && x.user_id === userId),
+          bookmarkedByMe: bookmarks.some((x: any) => x.resource_id === r.id && x.user_id === userId),
+          comments,
+          attachments: (attachmentsResult.data || []).filter((x: any) => x.resource_id === r.id).map((x: any) => ({ name: x.name, type: x.content_type || 'application/octet-stream', url: x.external_url || '' }))
+        };
+      });
+      const mappedDiscussions: DiscussionItem[] = (discussionsResult.data || []).map((d: any) => {
+        const author = profiles.get(d.author_id);
+        const replies = (repliesResult.data || []).filter((x: any) => x.discussion_id === d.id).map((x: any) => {
+          const p = profiles.get(x.author_id);
+          return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: 0, likedByMe: false };
+        });
+        return {
+          id: d.id, title: d.title, content: d.content, authorEmail: author?.email || '', authorName: author?.nickname || author?.username || 'Student',
+          date: formatDate(d.created_at), repliesCount: replies.length, replies,
+          bookmarkedByMe: discussionBookmarks.some((x: any) => x.discussion_id === d.id && x.user_id === userId),
+          bookmarks: discussionBookmarks.filter((x: any) => x.discussion_id === d.id).length
+        };
+      });
+      setResources(previous => [...previous.filter((x) => !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(x.id)), ...mappedResources]);
+      setDiscussions(previous => [...previous.filter((x) => !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(x.id)), ...mappedDiscussions]);
+    };
+
+    void loadCommunityData();
+    return () => { active = false; };
+  }, [user?.id]);
+
   // 在线心跳：前台每 30 秒更新一次，超过两分钟未更新视为离线。
   useEffect(() => {
     const userId = user?.id;
