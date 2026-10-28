@@ -150,6 +150,10 @@ export default function Home() {
   const [roomChatInput, setRoomChatInput] = useState('');
   const [roomStudySeconds, setRoomStudySeconds] = useState(0);
   const [roomSending, setRoomSending] = useState(false);
+  const [roomRosterHidden, setRoomRosterHidden] = useState(false);
+  const [roomGoal, setRoomGoal] = useState('');
+  const [roomGoalDraft, setRoomGoalDraft] = useState('');
+  const [roomGoalSaving, setRoomGoalSaving] = useState(false);
 
   // 反馈与引用格式
   const [feedbackCategory, setFeedbackCategory] = useState('General Suggestion');
@@ -608,8 +612,8 @@ export default function Home() {
         .select('user_id, display_name, avatar_url, joined_at, last_seen_at, study_seconds')
         .eq('room_id', roomId)
         .gte('last_seen_at', new Date(Date.now() - 90000).toISOString())
-        .order('joined_at', { ascending: true });
-      if (!presenceError && active) setRoomPresence(presence || []);
+        .order('study_seconds', { ascending: false });
+      if (!presenceError && active) setRoomPresence([...(presence || [])].sort((a, b) => (Number(b.study_seconds) || 0) - (Number(a.study_seconds) || 0)));
       const { data: messages, error: messagesError } = await supabase
         .from('study_room_messages')
         .select('id, user_id, display_name, avatar_url, body, created_at')
@@ -630,6 +634,11 @@ export default function Home() {
       await refreshRoomData();
     };
     void heartbeat(0);
+    void (async () => {
+      const { data, error } = await supabase.from('study_room_goals').select('goal').eq('room_id', roomId).eq('user_id', userId).maybeSingle();
+      if (error) console.error('Unable to load study room goal:', error.message);
+      if (active && !error) { setRoomGoal(data?.goal || ''); setRoomGoalDraft(data?.goal || ''); }
+    })();
     const pollTimer = window.setInterval(() => { void refreshRoomData(); }, 5000);
     const heartbeatTimer = window.setInterval(() => { void heartbeat(30); }, 30000);
     return () => {
@@ -639,6 +648,23 @@ export default function Home() {
       void supabase.from('study_room_presence').delete().eq('room_id', roomId).eq('user_id', userId);
     };
   }, [joinedRoom?.id, user?.id, nickname, username, user?.email, avatarUrl]);
+
+  async function saveRoomGoal(e: React.FormEvent) {
+    e.preventDefault();
+    if (!joinedRoom || !user?.id || roomGoalSaving) return;
+    setRoomGoalSaving(true);
+    const goal = roomGoalDraft.trim().slice(0, 500);
+    const { error } = await supabase.from('study_room_goals').upsert({
+      room_id: joinedRoom.id, user_id: user.id, goal, updated_at: new Date().toISOString()
+    }, { onConflict: 'room_id,user_id' });
+    setRoomGoalSaving(false);
+    if (error) {
+      console.error('Unable to save study room goal:', error.message);
+      alert('Could not save your study goal. Please make sure the latest study-room migration has been run.');
+      return;
+    }
+    setRoomGoal(goal);
+  }
 
   async function sendRoomMessage(e: React.FormEvent) {
     e.preventDefault();
@@ -1629,7 +1655,24 @@ export default function Home() {
               <p style={{ color: theme.textMuted, margin: 0 }}>A calm space to focus together. No audio, just study time and text chat.</p>
             </div>
             {joinedRoom ? (
-              <div className="ns-study-room-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 0.85fr) minmax(280px, 1.35fr) minmax(240px, 1fr)', gap: '1rem', alignItems: 'stretch' }}>
+              <div className="ns-study-room-grid" style={{ display: 'grid', gridTemplateColumns: roomRosterHidden ? 'minmax(0, 1.15fr) minmax(280px, 1fr)' : 'minmax(180px, 0.85fr) minmax(280px, 1.35fr) minmax(240px, 1fr)', gap: '1rem', alignItems: 'stretch' }}>
+                {!roomRosterHidden && <section style={{ background: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1rem', minHeight: '460px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}><h3 style={{ marginTop: 0, marginBottom: '0.35rem' }}>In this room</h3><button type="button" onClick={() => setRoomRosterHidden(true)} aria-label="Hide room members" title="Hide room members" style={{ border: '1px solid ' + theme.border, background: 'transparent', color: theme.textMain, borderRadius: '7px', padding: '0.3rem 0.5rem', cursor: 'pointer' }}>Hide</button></div>
+                  <p style={{ color: theme.textMuted, fontSize: '0.8rem', marginTop: 0 }}>{roomPresence.length} online · longest study time first</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                    {[...roomPresence].sort((a, b) => (Number(b.study_seconds) || 0) - (Number(a.study_seconds) || 0)).map((person) => (
+                      <div key={person.user_id} style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+                        {person.avatar_url ? <img src={person.avatar_url} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, color: theme.accent, fontWeight: 800, flexShrink: 0 }}>{(person.display_name || 'S').slice(0, 1).toUpperCase()}</div>}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.display_name}{person.user_id === user?.id ? ' (You)' : ''}</div>
+                          <div style={{ fontSize: '0.75rem', color: theme.textMuted }}>Here for {formatTimer(Math.max(0, Number(person.study_seconds) || 0))}</div>
+                          <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>Joined {person.joined_at ? new Date(person.joined_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {roomPresence.length === 0 && <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Loading the room...</p>}
+                  </div>
+                </section>}
                 <section style={{ background: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1rem', minHeight: '460px' }}>
                   <h3 style={{ marginTop: 0, marginBottom: '0.35rem' }}>In this room</h3>
                   <p style={{ color: theme.textMuted, fontSize: '0.8rem', marginTop: 0 }}>{roomPresence.length} online · earliest join first</p>
@@ -1653,6 +1696,12 @@ export default function Home() {
                   <h2 style={{ margin: '0.6rem 0' }}>{joinedRoom.name}</h2>
                   <div style={{ fontSize: 'clamp(2.8rem, 5vw, 4rem)', lineHeight: 1.1, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: theme.accent, margin: '1rem 0' }}>{formatTimer(pomodoroTime)}</div>
                   <div style={{ color: theme.textMuted, fontSize: '0.9rem' }}>{isTimerRunning ? 'Focus in progress' : 'Ready when you are'}</div>
+                  <form onSubmit={saveRoomGoal} style={{ width: '100%', maxWidth: '440px', textAlign: 'left', marginTop: '1rem', padding: '1rem', borderRadius: '12px', background: theme.bg, border: '1px solid ' + theme.border }}>
+                    <label htmlFor="study-room-goal" style={{ display: 'block', fontWeight: 750, fontSize: '0.9rem', marginBottom: '0.5rem' }}>My study goal</label>
+                    <textarea id="study-room-goal" value={roomGoalDraft} onChange={e => setRoomGoalDraft(e.target.value)} maxLength={500} rows={3} placeholder="What do you want to finish in this session?" style={{ boxSizing: 'border-box', width: '100%', resize: 'vertical', padding: '0.7rem', borderRadius: '8px', border: '1px solid ' + theme.border, background: theme.cardBg, color: theme.textMain }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginTop: '0.55rem' }}><span style={{ color: theme.textMuted, fontSize: '0.72rem' }}>{roomGoal ? 'Saved to your account' : 'Only visible to you'}</span><button type="submit" disabled={roomGoalSaving || roomGoalDraft.trim() === roomGoal} style={{ background: theme.accent, color: '#fff', border: 'none', borderRadius: '8px', padding: '0.5rem 0.8rem', cursor: 'pointer', opacity: roomGoalSaving || roomGoalDraft.trim() === roomGoal ? 0.55 : 1 }}>{roomGoalSaving ? 'Saving…' : 'Save goal'}</button></div>
+                  </form>
+                  {roomRosterHidden && <button type="button" onClick={() => setRoomRosterHidden(false)} style={{ marginTop: '0.8rem', border: '1px solid ' + theme.border, background: 'transparent', color: theme.textMain, borderRadius: '8px', padding: '0.55rem 0.8rem', cursor: 'pointer' }}>Show room members ({roomPresence.length})</button>}
                   <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.6rem', margin: '1.25rem 0' }}>
                     <button onClick={() => setIsTimerRunning(!isTimerRunning)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.65rem 1.1rem', borderRadius: '9px', fontWeight: 'bold', cursor: 'pointer' }}>{isTimerRunning ? 'Pause' : 'Start focus'}</button>
                     <button onClick={() => { setIsTimerRunning(false); setPomodoroTime(1500); }} style={{ background: 'transparent', color: theme.textMain, border: '1px solid ' + theme.border, padding: '0.65rem 1rem', borderRadius: '9px', cursor: 'pointer' }}>Reset</button>
