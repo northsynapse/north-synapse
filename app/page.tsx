@@ -988,8 +988,8 @@ export default function Home() {
       id: saved.id, title: saved.title, subject: saved.subject, grade: saved.grade,
       description: saved.description, content: saved.content, tags: selectedResourceTags, attachments: [...resourceAttachments],
       authorName: nickname || username || user.email.split('@')[0], authorEmail: user.email, authorAvatar: avatarUrl,
-      date: new Date(saved.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      likes: 0, bookmarks: 0, likedByMe: false, bookmarkedByMe: false, comments: []
+      date: new Date(saved.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+      createdAt: saved.created_at, likes: 0, bookmarks: 0, likedByMe: false, bookmarkedByMe: false, comments: []
     };
     setResources(prev => [newRes, ...prev.filter(item => item.id !== newRes.id)]);
     setShowCreateResourceModal(false);
@@ -1021,8 +1021,8 @@ export default function Home() {
     const newDisc: DiscussionItem = {
       id: saved.id, title: saved.title, content: saved.content, authorEmail: user.email,
       authorName: nickname || username || user.email.split('@')[0],
-      date: new Date(saved.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      repliesCount: 0, replies: [], bookmarkedByMe: false, bookmarks: 0
+      date: new Date(saved.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+      createdAt: saved.created_at, repliesCount: 0, replies: [], bookmarkedByMe: false, bookmarks: 0
     };
     setDiscussions(prev => [newDisc, ...prev.filter(item => item.id !== newDisc.id)]);
     setShowCreateDiscussionModal(false);
@@ -1268,7 +1268,11 @@ export default function Home() {
     if (resourceSort === 'likes') return b.likes - a.likes;
     if (resourceSort === 'comments') return b.comments.length - a.comments.length;
     if (resourceSort === 'bookmarks') return b.bookmarks - a.bookmarks;
-    return new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime();
+    const timestamp = (item: ResourceItem) => {
+      const value = item.createdAt ? new Date(item.createdAt).getTime() : new Date(item.date).getTime();
+      return Number.isFinite(value) ? value : 0;
+    };
+    return timestamp(b) - timestamp(a);
   });
 
   const citationText = useMemo(() => {
@@ -1319,7 +1323,7 @@ export default function Home() {
         </div>
 
         <nav style={{ display: 'flex', gap: '1.6rem' }}>
-          {(['resources', 'lounges', 'announcements', 'discussions', 'feedback'] as NavTab[]).map((tab) => (
+          {((isAdmin ? ['resources', 'lounges', 'announcements', 'discussions'] : ['resources', 'lounges', 'announcements', 'discussions', 'feedback']) as NavTab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
