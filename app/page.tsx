@@ -1342,6 +1342,53 @@ export default function Home() {
     return matchesSubject && matchesGrade && matchesSearch;
   });
   const [resourceSort, setResourceSort] = useState<'newest' | 'likes' | 'comments' | 'bookmarks'>('newest');
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+
+  // 登录用户的界面偏好保存在数据库中，可在不同设备恢复。
+  useEffect(() => {
+    let active = true;
+    const userId = user?.id;
+    setPreferencesLoaded(false);
+    if (!userId) return () => { active = false; };
+
+    const loadPreferences = async () => {
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .select('preferences')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!active) return;
+      if (error) {
+        console.error('Unable to load saved preferences:', error.message);
+        setPreferencesLoaded(true);
+        return;
+      }
+      const saved = data?.preferences || {};
+      if (typeof saved.isDarkMode === 'boolean') setIsDarkMode(saved.isDarkMode);
+      if (['newest', 'likes', 'comments', 'bookmarks'].includes(saved.resourceSort)) {
+        setResourceSort(saved.resourceSort);
+      }
+      if (Array.isArray(saved.selectedSubjects)) setSelectedSubjects(saved.selectedSubjects.filter((v: unknown) => typeof v === 'string'));
+      if (Array.isArray(saved.selectedGrades)) setSelectedGrades(saved.selectedGrades.filter((v: unknown) => typeof v === 'string'));
+      setPreferencesLoaded(true);
+    };
+    void loadPreferences();
+    return () => { active = false; };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !preferencesLoaded) return;
+    const preferences = { isDarkMode, resourceSort, selectedSubjects, selectedGrades };
+    const savePreferences = async () => {
+      const { error } = await supabase.from('user_preferences').upsert({
+        user_id: user.id,
+        preferences,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+      if (error) console.error('Unable to save preferences:', error.message);
+    };
+    void savePreferences();
+  }, [user?.id, preferencesLoaded, isDarkMode, resourceSort, selectedSubjects, selectedGrades]);
   const sortedFilteredResources = [...filteredResources].sort((a, b) => {
     // 有搜索关键词时，优先显示标题和描述与关键词更匹配的帖子。
     if (searchQuery.trim()) {
