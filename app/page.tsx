@@ -1019,7 +1019,11 @@ export default function Home() {
     const resource = resources.find(item => item.id === resourceId);
     if (!user || !resource || resource.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
     if (!window.confirm('Delete this note? Its comments and attachments will also be removed.')) return;
-    setResources(prev => prev.filter(item => item.id !== resourceId));
+    if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(resourceId)) { alert('This sample note is not stored in the database.'); return; }
+    void supabase.from('resources').delete().eq('id', resourceId).eq('author_id', user.id).then(({ error }) => {
+      if (error) { console.error('Resource delete failed:', error.message); alert('Could not delete the note. Please try again.'); return; }
+      setResources(prev => prev.filter(item => item.id !== resourceId));
+    });
     setPreviewResource(prev => prev?.id === resourceId ? null : prev);
   }
 
@@ -1027,7 +1031,11 @@ export default function Home() {
     const discussion = discussions.find(item => item.id === discussionId);
     if (!user || !discussion || discussion.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
     if (!window.confirm('Delete this discussion and all its replies? This cannot be undone.')) return;
-    setDiscussions(prev => prev.filter(item => item.id !== discussionId));
+    if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(discussionId)) { alert('This sample discussion is not stored in the database.'); return; }
+    void supabase.from('discussions').delete().eq('id', discussionId).eq('author_id', user.id).then(({ error }) => {
+      if (error) { console.error('Discussion delete failed:', error.message); alert('Could not delete the discussion. Please try again.'); return; }
+      setDiscussions(prev => prev.filter(item => item.id !== discussionId));
+    });
     setSelectedDiscussion(prev => prev?.id === discussionId ? null : prev);
   }
 
