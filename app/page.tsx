@@ -352,24 +352,66 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [announcements]);
 
-  // 每 30 秒累计一次网站使用时间；切到后台时暂停计时。
+  // 登录后统计网站前台活跃时间，并将累计值定期保存到 Supabase profiles。
   useEffect(() => {
-    if (!user?.email || typeof window === 'undefined') return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      setUsageSeconds((current) => {
-        const next = current + 30;
-        setUser((previous: any) => {
-          if (!previous?.email) return previous;
-          const updated = { ...previous, totalStudySeconds: next };
-          // 使用时间暂时保存在当前会话状态中；后续由数据库持久化。
-          return updated;
-        });
-        return next;
-      });
-    }, 30000);
-    return () => window.clearInterval(timer);
-  }, [user?.email]);
+    const userId = user?.id;
+    if (!userId || typeof window === 'undefined') {
+      setUsageSeconds(0);
+      return;
+    }
+
+    let active = true;
+    let totalSeconds = 0;
+    let timer: number | undefined;
+
+    const startTracking = async () => {
+      // 先读取数据库累计值，再开始计时，避免用初始的 0 覆盖已有记录。
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('total_study_seconds')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (!active) return;
+
+      if (error) {
+        console.error('Unable to load saved study time:', error.message);
+      }
+
+      totalSeconds = Math.max(0, Number(data?.total_study_seconds ?? user?.totalStudySeconds) || 0);
+      setUsageSeconds(totalSeconds);
+      setUser((previous: any) => previous?.id === userId
+        ? { ...previous, totalStudySeconds: totalSeconds }
+        : previous);
+
+      // 仅当网站标签页处于前台时累计；每 30 秒将新增时间写入数据库。
+      timer = window.setInterval(async () => {
+        if (!active || document.visibilityState !== 'visible') return;
+
+        totalSeconds += 30;
+        setUsageSeconds(totalSeconds);
+        setUser((previous: any) => previous?.id === userId
+          ? { ...previous, totalStudySeconds: totalSeconds }
+          : previous);
+
+        const { error: saveError } = await supabase
+          .from('profiles')
+          .update({ total_study_seconds: totalSeconds })
+          .eq('id', userId);
+
+        if (saveError) {
+          console.error('Unable to save study time:', saveError.message);
+        }
+      }, 30000);
+    };
+
+    void startTracking();
+
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearInterval(timer);
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     let timer: any = null;
