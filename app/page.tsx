@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/lib/supabase/client';
 
-type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard';
+type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard' | 'admin';
 
 interface CommentItem {
   id: string;
@@ -79,6 +79,14 @@ export default function Home() {
 
   // 用户与弹窗状态
   const [user, setUser] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminMetrics, setAdminMetrics] = useState<any>(null);
+  const [adminFeedback, setAdminFeedback] = useState<any[]>([]);
+  const [adminRatings, setAdminRatings] = useState<any[]>([]);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [siteRating, setSiteRating] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showCreateResourceModal, setShowCreateResourceModal] = useState(false);
@@ -224,8 +232,7 @@ export default function Home() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // 仅指定邮箱拥有管理员标识
-  const isAdmin = user?.email?.trim().toLowerCase() === 'northsynapse@gmail.com';
+  // 管理员身份由 Supabase 受保护的角色表确认。
 
   // 用户名和昵称的长度限制
   const USERNAME_MIN = 3;
@@ -331,6 +338,56 @@ export default function Home() {
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    setIsAdmin(false);
+    if (!user?.id) return () => { active = false; };
+    supabase.rpc('is_current_user_admin').then(({ data, error }) => {
+      if (!active) return;
+      if (error) { console.error('Unable to verify administrator role:', error.message); setIsAdmin(false); }
+      else setIsAdmin(data === true);
+    });
+    return () => { active = false; };
+  }, [user?.id]);
+
+  // 在线心跳：前台每 30 秒更新一次，超过两分钟未更新视为离线。
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId || typeof window === 'undefined') return;
+    const heartbeat = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const { error } = await supabase.from('user_presence').upsert(
+        { user_id: userId, last_seen_at: new Date().toISOString() }, { onConflict: 'user_id' }
+      );
+      if (error) console.error('Unable to update online presence:', error.message);
+    };
+    void heartbeat();
+    const timer = window.setInterval(heartbeat, 30000);
+    const onVisibility = () => { if (document.visibilityState === 'visible') void heartbeat(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisibility); };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!isAdmin || activeTab !== 'admin') return;
+    let active = true;
+    setAdminLoading(true);
+    const load = async () => {
+      const [metrics, feedback, ratings] = await Promise.all([
+        supabase.rpc('admin_dashboard_metrics'),
+        supabase.from('site_feedback').select('id,user_id,category,details,status,created_at').order('created_at', { ascending: false }).limit(100),
+        supabase.from('site_ratings').select('user_id,rating,comment,updated_at').order('updated_at', { ascending: false }).limit(100)
+      ]);
+      if (!active) return;
+      if (metrics.error) console.error('Admin metrics error:', metrics.error.message); else setAdminMetrics(metrics.data || null);
+      if (feedback.error) console.error('Admin feedback error:', feedback.error.message); else setAdminFeedback(feedback.data || []);
+      if (ratings.error) console.error('Admin ratings error:', ratings.error.message); else setAdminRatings(ratings.data || []);
+      setAdminLoading(false);
+    };
+    void load();
+    return () => { active = false; };
+  }, [isAdmin, activeTab]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -577,6 +634,48 @@ export default function Home() {
     setShowEditProfileModal(false);
   }
 
+  async function handleSubmitFeedback(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user?.id) { alert('Please sign in to submit feedback.'); setShowAuthModal(true); return; }
+    if (!feedbackComment.trim()) return;
+    setFeedbackSubmitting(true);
+    const { error } = await supabase.from('site_feedback').insert({ user_id: user.id, category: feedbackCategory, details: feedbackComment.trim() });
+    if (error) {
+      console.error('Feedback submission failed:', error.message);
+      alert('Feedback could not be submitted. Please try again.');
+      setFeedbackSubmitting(false);
+      return;
+    }
+    if (siteRating > 0) {
+      const { error: ratingError } = await supabase.from('site_ratings').upsert({ user_id: user.id, rating: siteRating, comment: ratingComment.trim() }, { onConflict: 'user_id' });
+      if (ratingError) console.error('Rating submission failed:', ratingError.message);
+    }
+    setFeedbackComment(''); setRatingComment(''); setSiteRating(0); setFeedbackSubmitting(false);
+    alert('Thank you! Your feedback has been submitted.');
+  }
+
+  async function handleUpdateFeedbackStatus(id: string, status: 'Pending' | 'Reviewed' | 'Resolved') {
+    const { error } = await supabase.from('site_feedback').update({ status }).eq('id', id);
+    if (error) { console.error('Unable to update feedback:', error.message); alert('Could not update feedback status.'); return; }
+    setAdminFeedback(items => items.map(item => item.id === id ? { ...item, status } : item));
+    const { data } = await supabase.rpc('admin_dashboard_metrics');
+    if (data) setAdminMetrics(data);
+  }
+
+  async function refreshAdminDashboard() {
+    if (!isAdmin) return;
+    setAdminLoading(true);
+    const [metrics, feedback, ratings] = await Promise.all([
+      supabase.rpc('admin_dashboard_metrics'),
+      supabase.from('site_feedback').select('id,user_id,category,details,status,created_at').order('created_at', { ascending: false }).limit(100),
+      supabase.from('site_ratings').select('user_id,rating,comment,updated_at').order('updated_at', { ascending: false }).limit(100)
+    ]);
+    if (metrics.data) setAdminMetrics(metrics.data);
+    if (feedback.data) setAdminFeedback(feedback.data);
+    if (ratings.data) setAdminRatings(ratings.data);
+    setAdminLoading(false);
+  }
+
   async function handleSignOut() {
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -675,6 +774,7 @@ export default function Home() {
 
   function handleCreateResourceSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isAdmin) return;
     if (!user) {
       alert('Please sign in first.');
       setShowAuthModal(true);
@@ -717,6 +817,7 @@ export default function Home() {
 
   function handleCreateDiscussionSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isAdmin) return;
     if (!user) {
       alert('Please sign in first.');
       setShowAuthModal(true);
@@ -746,6 +847,7 @@ export default function Home() {
 
   function handleAddDiscussionReply(e: React.FormEvent) {
     e.preventDefault();
+    if (isAdmin) return;
     if (!user) {
       alert('Please sign in to reply.');
       setShowAuthModal(true);
@@ -776,6 +878,7 @@ export default function Home() {
 
   function handleLikeResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
+    if (isAdmin) return;
     setResources(prev => prev.map(res => {
       if (res.id === id) {
         const isLiked = res.likedByMe;
@@ -787,6 +890,7 @@ export default function Home() {
 
   function handleBookmarkResource(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
+    if (isAdmin) return;
     if (!user) {
       alert('Please sign in first to save notes to your profile.');
       setShowAuthModal(true);
@@ -803,6 +907,7 @@ export default function Home() {
 
   function handleBookmarkDiscussion(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
+    if (isAdmin) return;
     if (!user) {
       alert('Please sign in first to save discussions to your profile.');
       setShowAuthModal(true);
@@ -866,6 +971,7 @@ export default function Home() {
   }
 
   function handleLikeResourceComment(resourceId: string, commentId: string) {
+    if (isAdmin) return;
     if (!user) {
       alert('Please sign in to like comments.');
       setShowAuthModal(true);
@@ -884,6 +990,7 @@ export default function Home() {
   }
 
   function handleLikeDiscussionReply(discussionId: string, replyId: string) {
+    if (isAdmin) return;
     if (!user) {
       alert('Please sign in to like replies.');
       setShowAuthModal(true);
@@ -903,6 +1010,7 @@ export default function Home() {
 
   function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
+    if (isAdmin) return;
     if (!user) {
       alert('Please sign in to comment.');
       setShowAuthModal(true);
@@ -1029,6 +1137,7 @@ export default function Home() {
               Dashboard
             </button>
           )}
+          {isAdmin && <button onClick={() => setActiveTab('admin')} style={{ background: 'none', border: 'none', color: activeTab === 'admin' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'admin' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'admin' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Admin</button>}
         </nav>
 
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -1089,9 +1198,9 @@ export default function Home() {
                 <h1 style={{ fontSize: '2.2rem', fontWeight: '900' }}>North Synapse Resource Hub</h1>
               </div>
 
-              <button onClick={() => { if (!user) { alert('Please sign in first.'); setShowAuthModal(true); return; } setShowCreateResourceModal(true); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem 1.6rem', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
+              {!isAdmin && <button onClick={() => { if (!user) { alert('Please sign in first.'); setShowAuthModal(true); return; } setShowCreateResourceModal(true); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem 1.6rem', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
                 + Share Notes / Resource
-              </button>
+              </button>}
             </div>
 
             <input 
@@ -1189,9 +1298,9 @@ export default function Home() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Academic Peer Discussions</h1>
-              <button onClick={() => { if (!user) { alert('Please sign in first.'); setShowAuthModal(true); return; } setShowCreateDiscussionModal(true); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
+              {!isAdmin && <button onClick={() => { if (!user) { alert('Please sign in first.'); setShowAuthModal(true); return; } setShowCreateDiscussionModal(true); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
                 + Start New Topic
-              </button>
+              </button>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {discussions.map((disc) => (
@@ -1234,23 +1343,37 @@ export default function Home() {
         {/* FEEDBACK 视图 */}
         {activeTab === 'feedback' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Feedback &amp; Issue Reporting</h1>
-            <form onSubmit={(e) => { e.preventDefault(); alert('Thank you! Your feedback has been recorded locally.'); setFeedbackComment(''); }} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Category</label>
-                <select value={feedbackCategory} onChange={(e) => setFeedbackCategory(e.target.value)} style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}>
-                  <option value="General Suggestion">General Suggestion</option>
-                  <option value="Report Issue / Bug">Report Issue / Bug</option>
-                  <option value="Content Request">Content Request</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Details</label>
-                <textarea required rows={4} placeholder="Describe your suggestion..." value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>Submit Feedback</button>
+            <div><h1 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '0.5rem' }}>Feedback &amp; Site Rating</h1><p style={{ color: theme.textMuted, margin: 0 }}>Share ideas, report issues, or rate your experience with North Synapse.</p></div>
+            <form onSubmit={handleSubmitFeedback} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: 'clamp(1rem, 4vw, 2rem)', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              <div><label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Category</label><select value={feedbackCategory} onChange={(e) => setFeedbackCategory(e.target.value)} style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }}><option value="General Suggestion">General Suggestion</option><option value="Report Issue / Bug">Report Issue / Bug</option><option value="Content Request">Content Request</option></select></div>
+              <div><label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Your rating (optional)</label><div role="radiogroup" aria-label="Site rating" style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>{[1,2,3,4,5].map(value => <button key={value} type="button" aria-label={`Rate ${value} out of 5`} aria-pressed={siteRating === value} onClick={() => setSiteRating(value)} style={{ border: `1px solid ${theme.border}`, borderRadius: '8px', padding: '0.45rem 0.7rem', background: siteRating >= value ? 'rgba(250, 204, 21, 0.16)' : theme.bg, color: siteRating >= value ? '#EAB308' : theme.textMuted, cursor: 'pointer', fontSize: '1.25rem' }}>★</button>)}<span style={{ alignSelf: 'center', color: theme.textMuted, fontSize: '0.85rem' }}>{siteRating ? `${siteRating}/5` : 'Choose 1–5 stars'}</span></div></div>
+              <div><label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Rating comment (optional)</label><input value={ratingComment} onChange={(e) => setRatingComment(e.target.value)} maxLength={2000} placeholder="What shaped your rating?" style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} /></div>
+              <div><label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Details</label><textarea required maxLength={5000} rows={4} placeholder="Describe your suggestion or issue..." value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} /></div>
+              <button disabled={feedbackSubmitting} type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: feedbackSubmitting ? 'wait' : 'pointer', opacity: feedbackSubmitting ? 0.7 : 1, alignSelf: 'flex-start' }}>{feedbackSubmitting ? 'Submitting…' : 'Submit Feedback'}</button>
+              {!user && <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: 0 }}>Please sign in to submit feedback or a rating.</p>}
             </form>
           </div>
+        )}
+
+        {/* 管理员控制台 */}
+        {activeTab === 'admin' && (
+          !isAdmin ? <div style={{ padding: '2rem', border: `1px solid ${theme.border}`, borderRadius: '14px', background: theme.cardBg }}><h1>Administrator access required</h1><p style={{ color: theme.textMuted }}>Your account does not have permission to open this dashboard.</p><button type="button" onClick={() => setActiveTab('resources')} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1rem', cursor: 'pointer' }}>Return to Resource Hub</button></div> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}><div><p style={{ color: theme.accent, fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.12em', margin: '0 0 0.4rem' }}>NORTH SYNAPSE / ADMIN</p><h1 style={{ fontSize: '2rem', fontWeight: 850, margin: 0 }}>Platform Overview</h1><p style={{ color: theme.textMuted, margin: '0.5rem 0 0' }}>Platform metrics, feedback management, and site ratings.</p></div><button type="button" onClick={() => void refreshAdminDashboard()} disabled={adminLoading} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, borderRadius: '9px', padding: '0.7rem 1rem', cursor: 'pointer' }}>{adminLoading ? 'Refreshing…' : 'Refresh data'}</button></div>
+              {adminLoading && !adminMetrics ? <p style={{ color: theme.textMuted }}>Loading dashboard data…</p> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.9rem' }}>{[
+                { label: 'Registered accounts', value: adminMetrics?.registered_users ?? '—', note: 'All registered accounts' },
+                { label: 'Online now', value: adminMetrics?.online_users ?? '—', note: 'Active in the last 2 minutes' },
+                { label: 'Average site rating', value: adminMetrics?.rating_count ? `${Number(adminMetrics.average_rating).toFixed(2)} / 5` : '—', note: `${adminMetrics?.rating_count ?? 0} submitted ratings` },
+                { label: 'Pending feedback', value: adminMetrics?.pending_feedback ?? '—', note: `${adminMetrics?.total_feedback ?? 0} total submissions` }
+              ].map(m => <div key={m.label} style={{ padding: '1.2rem', borderRadius: '13px', border: `1px solid ${theme.border}`, background: theme.cardBg }}><div style={{ color: theme.textMuted, fontSize: '0.82rem', marginBottom: '0.75rem' }}>{m.label}</div><div style={{ fontSize: '2rem', lineHeight: 1.1, fontWeight: 850, overflowWrap: 'anywhere' }}>{m.value}</div><div style={{ color: theme.textMuted, fontSize: '0.75rem', marginTop: '0.65rem' }}>{m.note}</div></div>)}</div>}
+              <section style={{ border: `1px solid ${theme.border}`, borderRadius: '14px', background: theme.cardBg, padding: 'clamp(1rem, 3vw, 1.5rem)' }}><div style={{ marginBottom: '1rem' }}><h2 style={{ margin: 0, fontSize: '1.2rem' }}>Feedback inbox</h2><p style={{ margin: '0.3rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>Newest 100 submissions</p></div>
+                {adminFeedback.length === 0 ? <p style={{ color: theme.textMuted }}>No feedback submissions yet.</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>{adminFeedback.map(item => <article key={item.id} style={{ border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}><div><strong>{item.category}</strong><div style={{ color: theme.textMuted, fontSize: '0.75rem', marginTop: '0.25rem' }}>{new Date(item.created_at).toLocaleString()} · Account {String(item.user_id).slice(0,8)}</div></div><select aria-label="Feedback status" value={item.status} onChange={e => void handleUpdateFeedbackStatus(item.id,e.target.value as 'Pending'|'Reviewed'|'Resolved')} style={{ padding: '0.4rem', borderRadius: '7px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }}><option>Pending</option><option>Reviewed</option><option>Resolved</option></select></div><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '0.85rem 0 0', lineHeight: 1.55 }}>{item.details}</p></article>)}</div>}
+              </section>
+              <section style={{ border: `1px solid ${theme.border}`, borderRadius: '14px', background: theme.cardBg, padding: 'clamp(1rem, 3vw, 1.5rem)' }}><h2 style={{ margin: '0 0 0.3rem', fontSize: '1.2rem' }}>Recent site ratings</h2><p style={{ margin: '0 0 1rem', color: theme.textMuted, fontSize: '0.85rem' }}>One current rating per account.</p>
+                {adminRatings.length === 0 ? <p style={{ color: theme.textMuted }}>No ratings submitted yet.</p> : adminRatings.map(item => <div key={item.user_id} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: `1px solid ${theme.border}`, padding: '0.75rem 0', flexWrap: 'wrap' }}><div><strong style={{ color: '#EAB308' }}>{'★'.repeat(Number(item.rating))}{'☆'.repeat(5-Number(item.rating))} <span style={{ color: theme.textMain }}>{item.rating}/5</span></strong>{item.comment && <p style={{ margin: '0.35rem 0 0', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{item.comment}</p>}</div><span style={{ color: theme.textMuted, fontSize: '0.75rem' }}>{new Date(item.updated_at).toLocaleDateString()}</span></div>)}
+              </section>
+            </div>
+          )
         )}
 
         {/* DASHBOARD 视图 */}
