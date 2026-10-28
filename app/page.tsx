@@ -910,7 +910,7 @@ export default function Home() {
     alert('Discussion topic posted!');
   }
 
-  function handleAddDiscussionReply(e: React.FormEvent) {
+  async function handleAddDiscussionReply(e: React.FormEvent) {
     e.preventDefault();
     if (isAdmin) return;
     if (!user) {
@@ -920,14 +920,15 @@ export default function Home() {
     }
     if (!newReplyText.trim() || !selectedDiscussion) return;
 
+    if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(selectedDiscussion.id)) { alert('Replies are available on database-published discussions.'); return; }
+    const { data: savedReply, error } = await supabase.from('discussion_replies').insert({
+      discussion_id: selectedDiscussion.id, author_id: user.id, content: newReplyText.trim()
+    }).select('*').single();
+    if (error || !savedReply) { console.error('Reply save failed:', error?.message); alert('Could not save reply. Please try again.'); return; }
     const replyObj: CommentItem = {
-      id: 'r_' + Date.now(),
-      authorEmail: user.email,
-      authorName: nickname || username || user.email.split('@')[0],
-      authorAvatar: avatarUrl,
-      text: newReplyText.trim(),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      likes: 0
+      id: savedReply.id, authorEmail: user.email, authorName: nickname || username || user.email.split('@')[0],
+      authorAvatar: avatarUrl, text: savedReply.content,
+      date: new Date(savedReply.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), likes: 0
     };
 
     const updatedDisc = {
@@ -1068,7 +1069,7 @@ export default function Home() {
     setSelectedDiscussion(prev => prev && prev.id === discussionId ? updateDiscussion(prev) : prev);
   }
 
-  function handleAddComment(e: React.FormEvent) {
+  async function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
     if (isAdmin) return;
     if (!user) {
@@ -1078,15 +1079,16 @@ export default function Home() {
     }
     if (!newCommentText.trim() || !previewResource) return;
 
+    if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(previewResource.id)) { alert('Comments are available on database-published notes.'); return; }
+    const { data: savedComment, error } = await supabase.from('resource_comments').insert({
+      resource_id: previewResource.id, author_id: user.id, content: newCommentText.trim()
+    }).select('*').single();
+    if (error || !savedComment) { console.error('Comment save failed:', error?.message); alert('Could not save comment. Please try again.'); return; }
     const commentObj: CommentItem = {
-      id: Date.now().toString(),
-      authorEmail: user.email,
-      authorName: nickname || username || user.email.split('@')[0],
-      authorAvatar: avatarUrl,
-      text: newCommentText.trim(),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      likes: 0,
-      likedByMe: false
+      id: savedComment.id, authorEmail: user.email, authorName: nickname || username || user.email.split('@')[0],
+      authorAvatar: avatarUrl, text: savedComment.content,
+      date: new Date(savedComment.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      likes: 0, likedByMe: false
     };
 
     const updatedResource = { ...previewResource, comments: [...previewResource.comments, commentObj] };
