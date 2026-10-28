@@ -773,6 +773,51 @@ export default function Home() {
     });
   }
 
+  // 仅允许评论作者删除自己的评论，并同步更新笔记列表与当前预览。
+  function handleDeleteResourceComment(resourceId: string, commentId: string) {
+    const resource = resources.find(item => item.id === resourceId);
+    const comment = resource?.comments.find(item => item.id === commentId);
+    if (!user || !comment || comment.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
+    if (!window.confirm('Delete this comment? This cannot be undone.')) return;
+    const updateResource = (item: ResourceItem): ResourceItem => ({
+      ...item,
+      comments: item.comments.filter(entry => entry.id !== commentId)
+    });
+    setResources(prev => prev.map(item => item.id === resourceId ? updateResource(item) : item));
+    setPreviewResource(prev => prev && prev.id === resourceId ? updateResource(prev) : prev);
+  }
+
+  // 仅允许回复作者删除自己的回复，并重新计算回复数量。
+  function handleDeleteDiscussionReply(discussionId: string, replyId: string) {
+    const discussion = discussions.find(item => item.id === discussionId);
+    const reply = discussion?.replies.find(item => item.id === replyId);
+    if (!user || !reply || reply.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
+    if (!window.confirm('Delete this reply? This cannot be undone.')) return;
+    const updateDiscussion = (item: DiscussionItem): DiscussionItem => {
+      const replies = item.replies.filter(entry => entry.id !== replyId);
+      return { ...item, replies, repliesCount: replies.length };
+    };
+    setDiscussions(prev => prev.map(item => item.id === discussionId ? updateDiscussion(item) : item));
+    setSelectedDiscussion(prev => prev && prev.id === discussionId ? updateDiscussion(prev) : prev);
+  }
+
+  // 仅允许发布者删除自己的笔记或讨论主题。
+  function handleDeleteResource(resourceId: string) {
+    const resource = resources.find(item => item.id === resourceId);
+    if (!user || !resource || resource.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
+    if (!window.confirm('Delete this note? Its comments and attachments will also be removed.')) return;
+    setResources(prev => prev.filter(item => item.id !== resourceId));
+    setPreviewResource(prev => prev?.id === resourceId ? null : prev);
+  }
+
+  function handleDeleteDiscussion(discussionId: string) {
+    const discussion = discussions.find(item => item.id === discussionId);
+    if (!user || !discussion || discussion.authorEmail?.toLowerCase() !== user.email?.toLowerCase()) return;
+    if (!window.confirm('Delete this discussion and all its replies? This cannot be undone.')) return;
+    setDiscussions(prev => prev.filter(item => item.id !== discussionId));
+    setSelectedDiscussion(prev => prev?.id === discussionId ? null : prev);
+  }
+
   function handleLikeResourceComment(resourceId: string, commentId: string) {
     if (!user) {
       alert('Please sign in to like comments.');
@@ -1044,8 +1089,9 @@ export default function Home() {
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
                   <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '1rem' }}>{res.description}</p>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${theme.border}`, paddingTop: '0.8rem' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(res.authorName, res.authorEmail); }} style={{ color: theme.accent, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>{res.authorName}</button></span>
-                    <div style={{ display: 'flex', gap: '1rem' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(res.authorName, res.authorEmail); }} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{res.authorName}</button></span>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                      {user?.email?.toLowerCase() === res.authorEmail?.toLowerCase() && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteResource(res.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
                       <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>
                         Like ({res.likes})
                       </button>
@@ -1106,6 +1152,7 @@ export default function Home() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.8rem', marginBottom: '0.5rem' }}>
                     <strong style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{disc.title}</strong>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', flexShrink: 0 }}>
+                      {user?.email?.toLowerCase() === disc.authorEmail?.toLowerCase() && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteDiscussion(disc.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
                       <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{disc.repliesCount} Replies</span>
                       <button type="button" onClick={(e) => handleBookmarkDiscussion(disc.id, e)} aria-label={disc.bookmarkedByMe ? 'Remove saved discussion' : 'Save discussion'} style={{ border: `1px solid ${theme.border}`, borderRadius: '7px', padding: '0.35rem 0.55rem', background: disc.bookmarkedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: disc.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                         {disc.bookmarkedByMe ? '★ Saved' : '☆ Save'}
@@ -1113,7 +1160,7 @@ export default function Home() {
                     </div>
                   </div>
                   <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem' }}>{disc.content}</p>
-                  <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(disc.authorName, disc.authorEmail); }} style={{ color: theme.accent, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>{disc.authorName}</button> on {disc.date}</span>
+                  <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(disc.authorName, disc.authorEmail); }} style={{ color: theme.textMuted, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{disc.authorName}</button> on {disc.date}</span>
                 </div>
               ))}
             </div>
@@ -1193,12 +1240,27 @@ export default function Home() {
               <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Published Resources ({myResources.length})</h2>
               {myResources.length > 0 ? (
                 myResources.map(res => (
-                  <div key={res.id} style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem' }}>
+                  <button type="button" key={res.id} onClick={() => setPreviewResource(res)} style={{ width: '100%', textAlign: 'left', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem', color: theme.textMain, cursor: 'pointer' }}>
                     <strong>{res.title}</strong>
-                  </div>
+                    <p style={{ margin: '0.35rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>{res.subject} · {res.grade} · Open note</p>
+                  </button>
                 ))
               ) : (
                 <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t shared any resources yet.</p>
+              )}
+            </div>
+
+            <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Published Discussions ({myDiscussions.length})</h2>
+              {myDiscussions.length > 0 ? (
+                myDiscussions.map(disc => (
+                  <button type="button" key={disc.id} onClick={() => setSelectedDiscussion(disc)} style={{ width: '100%', textAlign: 'left', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem', color: theme.textMain, cursor: 'pointer' }}>
+                    <strong>{disc.title}</strong>
+                    <p style={{ margin: '0.35rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>{disc.repliesCount} replies · Open discussion</p>
+                  </button>
+                ))
+              ) : (
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>You haven&apos;t started any discussions yet.</p>
               )}
             </div>
 
@@ -1274,7 +1336,19 @@ export default function Home() {
             <div className="ns-resource-preview-body" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
               <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', borderRight: `1px solid ${theme.border}` }}>
                 <div style={{ fontSize: '0.95rem', lineHeight: '1.7', overflowWrap: 'anywhere', marginBottom: '1.25rem' }} dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewResource.content || '') }} />
-                {!!previewResource.attachments?.length && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '1.5rem' }}><h3 style={{ margin: 0 }}>Attachments & links</h3>{previewResource.attachments.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}><a href={file.url} target="_blank" rel="noreferrer" download={file.url.startsWith('data:') ? file.name : undefined} style={{ color: theme.accent, overflowWrap: 'anywhere' }}>📎 {file.name}</a>{file.type.startsWith('image/') && file.url.startsWith('data:') && <img src={file.url} alt={file.name} style={{ maxWidth: '100%', maxHeight: 420, objectFit: 'contain', borderRadius: 8 }} />}{file.type === 'application/pdf' && file.url.startsWith('data:') && <a href={file.url} target="_blank" rel="noreferrer" style={{ color: theme.accent }}>Open PDF preview</a>}</div>)}</div>}
+                {!!previewResource.attachments?.length && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', marginBottom: '1.5rem' }}><h3 style={{ margin: 0 }}>Attachments & links</h3>{previewResource.attachments.map((file, index) => {
+                  const isPdf = file.type === 'application/pdf' || /\.pdf(?:$|\?)/i.test(file.url);
+                  const driveMatch = file.url.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
+                  const docsMatch = file.url.match(/docs\.google\.com\/(document|spreadsheets|presentation)\/d\/([^/]+)/i);
+                  const embedUrl = driveMatch ? `https://drive.google.com/file/d/${driveMatch[1]}/preview` : docsMatch ? `https://docs.google.com/${docsMatch[1]}/d/${docsMatch[2]}/preview` : file.url;
+                  const canEmbed = (file.url.startsWith('data:') && isPdf) || /^https?:\/\//i.test(file.url);
+                  return <div key={`${file.name}-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                    <a href={file.url} target="_blank" rel="noreferrer" download={file.url.startsWith('data:') ? file.name : undefined} style={{ color: theme.accent, overflowWrap: 'anywhere' }}>📎 {file.name} · Open in new tab</a>
+                    {file.type.startsWith('image/') && file.url.startsWith('data:') && <img src={file.url} alt={file.name} style={{ maxWidth: '100%', maxHeight: 420, objectFit: 'contain', borderRadius: 8 }} />}
+                    {canEmbed && ((isPdf && file.url.startsWith('data:')) || /^https?:\/\//i.test(file.url)) && <iframe title={`Preview: ${file.name}`} src={embedUrl} loading="lazy" style={{ width: '100%', height: '520px', border: `1px solid ${theme.border}`, borderRadius: '8px', background: '#fff' }} sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />}
+                    {!canEmbed && <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>This file can be opened in a new tab.</p>}
+                  </div>;
+                })}</div>}
 
 
               </div>
@@ -1288,8 +1362,9 @@ export default function Home() {
 
                 {previewResource.comments.map((c) => (
                   <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
-                    <button type="button" onClick={() => openPublicProfile(c.authorName, c.authorEmail)} style={{ color: theme.accent, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }}>{c.authorName}</button>
+                    <button type="button" onClick={() => openPublicProfile(c.authorName, c.authorEmail)} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{c.authorName}</button>
                     <p style={{ fontSize: '0.85rem', marginTop: '0.3rem' }}>{c.text}</p>
+                    {user?.email?.toLowerCase() === c.authorEmail?.toLowerCase() && <button type="button" onClick={() => handleDeleteResourceComment(previewResource.id, c.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
                     <button type="button" onClick={() => handleLikeResourceComment(previewResource.id, c.id)} aria-label={c.likedByMe ? 'Unlike comment' : 'Like comment'} style={{ marginTop: '0.25rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: c.likedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: c.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>
                       {c.likedByMe ? '♥ Liked' : '♡ Like'} · {c.likes || 0}
                     </button>
@@ -1324,10 +1399,11 @@ export default function Home() {
                 {selectedDiscussion.replies.map(r => (
                   <div key={r.id} style={{ backgroundColor: theme.bg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      <button type="button" onClick={() => openPublicProfile(r.authorName, r.authorEmail)} style={{ fontSize: '0.85rem', color: theme.accent, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }}>{r.authorName}</button>
+                      <button type="button" onClick={() => openPublicProfile(r.authorName, r.authorEmail)} style={{ fontSize: '0.85rem', color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{r.authorName}</button>
                       <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{r.date}</span>
                     </div>
                     <p style={{ fontSize: '0.85rem' }}>{r.text}</p>
+                    {user?.email?.toLowerCase() === r.authorEmail?.toLowerCase() && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, r.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
                     <button type="button" onClick={() => handleLikeDiscussionReply(selectedDiscussion.id, r.id)} aria-label={r.likedByMe ? 'Unlike reply' : 'Like reply'} style={{ marginTop: '0.25rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: r.likedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: r.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>
                       {r.likedByMe ? '♥ Liked' : '♡ Like'} · {r.likes || 0}
                     </button>
