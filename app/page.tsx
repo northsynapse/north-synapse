@@ -145,6 +145,11 @@ export default function Home() {
   const [joinedRoom, setJoinedRoom] = useState<LoungeRoom | null>(null);
   const [pomodoroTime, setPomodoroTime] = useState(1500); // 25 分钟
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [roomPresence, setRoomPresence] = useState<any[]>([]);
+  const [roomMessages, setRoomMessages] = useState<any[]>([]);
+  const [roomChatInput, setRoomChatInput] = useState('');
+  const [roomStudySeconds, setRoomStudySeconds] = useState(0);
+  const [roomSending, setRoomSending] = useState(false);
 
   // 反馈与引用格式
   const [feedbackCategory, setFeedbackCategory] = useState('General Suggestion');
@@ -585,6 +590,80 @@ export default function Home() {
     }
     return () => clearInterval(timer);
   }, [isTimerRunning, pomodoroTime]);
+
+  // 自习室在线名单与聊天记录从 Supabase 读取；在线状态定期心跳更新，聊天消息长期保存。
+  useEffect(() => {
+    const roomId = joinedRoom?.id;
+    const userId = user?.id;
+    if (!roomId || !userId) {
+      setRoomPresence([]);
+      setRoomMessages([]);
+      return;
+    }
+    let active = true;
+    const displayName = nickname || username || user.email?.split('@')[0] || 'Student';
+    const refreshRoomData = async () => {
+      const { data: presence, error: presenceError } = await supabase
+        .from('study_room_presence')
+        .select('user_id, display_name, avatar_url, joined_at, last_seen_at, study_seconds')
+        .eq('room_id', roomId)
+        .gte('last_seen_at', new Date(Date.now() - 90000).toISOString())
+        .order('joined_at', { ascending: true });
+      if (!presenceError && active) setRoomPresence(presence || []);
+      const { data: messages, error: messagesError } = await supabase
+        .from('study_room_messages')
+        .select('id, user_id, display_name, avatar_url, body, created_at')
+        .eq('room_id', roomId)
+        .order('created_at', { ascending: true })
+        .limit(100);
+      if (!messagesError && active) setRoomMessages(messages || []);
+    };
+    const heartbeat = async (seconds = 0) => {
+      const { data, error } = await supabase.rpc('heartbeat_study_room', {
+        p_room_id: roomId,
+        p_display_name: displayName,
+        p_avatar_url: avatarUrl || '',
+        p_seconds: seconds
+      });
+      if (error) console.error('Unable to update study room presence:', error.message);
+      else if (typeof data === 'number' && active) setRoomStudySeconds(data);
+      await refreshRoomData();
+    };
+    void heartbeat(0);
+    const pollTimer = window.setInterval(() => { void refreshRoomData(); }, 5000);
+    const heartbeatTimer = window.setInterval(() => { void heartbeat(30); }, 30000);
+    return () => {
+      active = false;
+      window.clearInterval(pollTimer);
+      window.clearInterval(heartbeatTimer);
+      void supabase.from('study_room_presence').delete().eq('room_id', roomId).eq('user_id', userId);
+    };
+  }, [joinedRoom?.id, user?.id, nickname, username, user?.email, avatarUrl]);
+
+  async function sendRoomMessage(e: React.FormEvent) {
+    e.preventDefault();
+    const body = roomChatInput.trim();
+    if (!body || !joinedRoom || !user?.id || roomSending) return;
+    setRoomSending(true);
+    const { error } = await supabase.from('study_room_messages').insert({
+      room_id: joinedRoom.id,
+      user_id: user.id,
+      display_name: nickname || username || user.email?.split('@')[0] || 'Student',
+      avatar_url: avatarUrl || '',
+      body
+    });
+    setRoomSending(false);
+    if (error) {
+      console.error('Unable to send study room message:', error.message);
+      alert('Could not send message. Please try again.');
+      return;
+    }
+    setRoomChatInput('');
+    const { data } = await supabase.from('study_room_messages')
+      .select('id, user_id, display_name, avatar_url, body, created_at')
+      .eq('room_id', joinedRoom.id).order('created_at', { ascending: true }).limit(100);
+    setRoomMessages(data || []);
+  }
 
   /* ==========================================================================
      3. 业务处理函数
