@@ -125,7 +125,10 @@ export default function RegisterPage() {
             </label>
             <input
               id="email"
-              type="email"
+              type="text"
+              inputMode="email"
+              autoCapitalize="none"
+              spellCheck={false}
               autoComplete="email"
               required
               value={email}
