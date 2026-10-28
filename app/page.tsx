@@ -20,6 +20,7 @@ interface ResourceAttachment {
   name: string;
   type: string;
   url: string;
+  file?: File;
 }
 
 interface ResourceItem {
@@ -465,7 +466,11 @@ export default function Home() {
           likedByMe: likes.some((x: any) => x.resource_id === r.id && x.user_id === userId),
           bookmarkedByMe: bookmarks.some((x: any) => x.resource_id === r.id && x.user_id === userId),
           comments,
-          attachments: (attachmentsResult.data || []).filter((x: any) => x.resource_id === r.id).map((x: any) => ({ name: x.name, type: x.content_type || 'application/octet-stream', url: x.external_url || '' }))
+          attachments: (attachmentsResult.data || []).filter((x: any) => x.resource_id === r.id).map((x: any) => ({
+            name: x.name,
+            type: x.content_type || 'application/octet-stream',
+            url: x.external_url || (x.storage_path ? supabase.storage.from('resource-attachments').getPublicUrl(x.storage_path).data.publicUrl : '')
+          }))
         };
       });
       const mappedDiscussions: DiscussionItem[] = (discussionsResult.data || []).map((d: any) => {
@@ -936,13 +941,13 @@ export default function Home() {
   function handleResourceFileSelection(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
     files.forEach((file) => {
-      if (file.size > 2 * 1024 * 1024) {
-        alert(`${file.name} is larger than 2 MB. For large files, upload it to Google Drive and paste a share link instead.`);
+      if (file.size > 20 * 1024 * 1024) {
+        alert(`${file.name} is larger than 20 MB. Please choose a smaller file.`);
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => setResourceAttachments((previous) => [...previous, { name: file.name, type: file.type || 'application/octet-stream', url: String(reader.result || '') }]);
-      reader.readAsDataURL(file);
+      // 文件先保留在表单状态，提交笔记时再上传到 Supabase Storage。
+      const localUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : '';
+      setResourceAttachments((previous) => [...previous, { name: file.name, type: file.type || 'application/octet-stream', url: localUrl, file }]);
     });
     e.target.value = '';
   }
@@ -975,13 +980,39 @@ export default function Home() {
     }).select('*').single();
     if (error || !saved) { console.error('Publish failed:', error?.message, error?.details, error?.hint); alert(`The note could not be saved. ${error?.message || 'Please try again.'}`); return; }
 
-    const attachmentRows = resourceAttachments.map(file => ({
-      resource_id: saved.id, author_id: user.id, name: file.name,
-      content_type: file.type || 'application/octet-stream', external_url: file.url, storage_path: null
-    }));
+    const attachmentRows: Array<Record<string, any>> = [];
+    for (const attachment of resourceAttachments) {
+      if (attachment.file) {
+        const safeName = attachment.file.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+        const storagePath = `${user.id}/${saved.id}/${crypto.randomUUID()}-${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from('resource-attachments')
+          .upload(storagePath, attachment.file, { contentType: attachment.type || 'application/octet-stream', upsert: false });
+        if (uploadError) {
+          console.error('Attachment upload failed:', uploadError.message);
+          await supabase.from('resources').delete().eq('id', saved.id).eq('author_id', user.id);
+          alert(`Could not upload "${attachment.name}". Your note was not published. Please try again.`);
+          return;
+        }
+        attachmentRows.push({
+          resource_id: saved.id, author_id: user.id, name: attachment.name,
+          content_type: attachment.type || 'application/octet-stream', storage_path: storagePath, external_url: null
+        });
+      } else {
+        attachmentRows.push({
+          resource_id: saved.id, author_id: user.id, name: attachment.name,
+          content_type: attachment.type || 'application/octet-stream', external_url: attachment.url, storage_path: null
+        });
+      }
+    }
     if (attachmentRows.length) {
       const { error: attachmentError } = await supabase.from('resource_attachments').insert(attachmentRows);
-      if (attachmentError) console.error('Attachment save failed:', attachmentError.message);
+      if (attachmentError) {
+        console.error('Attachment metadata save failed:', attachmentError.message);
+        await supabase.from('resources').delete().eq('id', saved.id).eq('author_id', user.id);
+        alert('Could not save attachment information. Your note was not published. Please try again.');
+        return;
+      }
     }
 
     const newRes: ResourceItem = {
@@ -1244,13 +1275,29 @@ export default function Home() {
     setNewCommentText('');
   }
 
-  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setAvatarUrl(reader.result as string);
-      reader.readAsDataURL(file);
+    e.target.value = '';
+    if (!file || !user?.id) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please choose an image file.');
+      return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Avatar images must be 5 MB or smaller.');
+      return;
+    }
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+    const storagePath = `${user.id}/${crypto.randomUUID()}-${safeName}`;
+    const { error } = await supabase.storage
+      .from('profile-avatars')
+      .upload(storagePath, file, { contentType: file.type, upsert: false });
+    if (error) {
+      console.error('Avatar upload failed:', error.message);
+      alert('Could not upload your avatar. Please try again.');
+      return;
+    }
+    setAvatarUrl(supabase.storage.from('profile-avatars').getPublicUrl(storagePath).data.publicUrl);
   }
 
   /* ==========================================================================
@@ -1773,7 +1820,7 @@ export default function Home() {
                   const canEmbed = (file.url.startsWith('data:') && isPdf) || /^https?:\/\//i.test(file.url);
                   return <div key={`${file.name}-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
                     <a href={file.url} target="_blank" rel="noreferrer" download={file.url.startsWith('data:') ? file.name : undefined} style={{ color: theme.accent, overflowWrap: 'anywhere' }}>📎 {file.name} · Open in new tab</a>
-                    {file.type.startsWith('image/') && file.url.startsWith('data:') && <img src={file.url} alt={file.name} style={{ maxWidth: '100%', maxHeight: 420, objectFit: 'contain', borderRadius: 8 }} />}
+                    {file.type.startsWith('image/') && file.url && <img src={file.url} alt={file.name} style={{ maxWidth: '100%', maxHeight: 420, objectFit: 'contain', borderRadius: 8 }} />}
                     {canEmbed && ((isPdf && file.url.startsWith('data:')) || /^https?:\/\//i.test(file.url)) && <iframe title={`Preview: ${file.name}`} src={embedUrl} loading="lazy" style={{ width: '100%', height: '520px', border: `1px solid ${theme.border}`, borderRadius: '8px', background: '#fff' }} sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />}
                     {!canEmbed && <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>This file can be opened in a new tab.</p>}
                   </div>;
