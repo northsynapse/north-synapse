@@ -6,12 +6,19 @@ type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedb
 
 interface CommentItem {
   id: string;
+  authorEmail?: string;
   authorName: string;
   authorAvatar: string;
   text: string;
   date: string;
   likes: number;
   likedByMe?: boolean;
+}
+
+interface ResourceAttachment {
+  name: string;
+  type: string;
+  url: string;
 }
 
 interface ResourceItem {
@@ -30,6 +37,7 @@ interface ResourceItem {
   likedByMe?: boolean;
   bookmarkedByMe?: boolean;
   comments: CommentItem[];
+  attachments?: ResourceAttachment[];
 }
 
 interface DiscussionItem {
@@ -80,6 +88,12 @@ export default function Home() {
   const [isStudentConfirmed, setIsStudentConfirmed] = useState(false);
   const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [publicProfile, setPublicProfile] = useState<any>(null);
+  const [resourceAttachments, setResourceAttachments] = useState<ResourceAttachment[]>([]);
+  const [driveResourceUrl, setDriveResourceUrl] = useState('');
+  const [richContentHtml, setRichContentHtml] = useState('');
+  const richEditorRef = useRef<HTMLDivElement | null>(null);
+  const resourceFilesRef = useRef<HTMLInputElement | null>(null);
   const [loading, setLoading] = useState(false);
 
   // 个人资料
@@ -537,6 +551,79 @@ export default function Home() {
     alert('Account deleted and session cleared.');
   }
 
+  // 仅保留富文本编辑器允许的格式，避免将任意脚本写入页面。
+  function sanitizeRichHtml(input: string) {
+    if (typeof window === 'undefined') return input.replace(/<[^>]*>/g, '');
+    const parsed = new DOMParser().parseFromString(input, 'text/html');
+    const allowed = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'P', 'BR', 'UL', 'OL', 'LI', 'SPAN', 'DIV']);
+    const walk = (node: Node) => {
+      [...node.childNodes].forEach((child) => {
+        if (child.nodeType === Node.ELEMENT_NODE) {
+          const element = child as HTMLElement;
+          if (!allowed.has(element.tagName)) {
+            element.replaceWith(...Array.from(element.childNodes));
+            return;
+          }
+          [...element.attributes].forEach((attribute) => {
+            if (element.tagName === 'SPAN' && attribute.name === 'style') {
+              const color = element.style.color;
+              element.removeAttribute('style');
+              if (/^(#[0-9a-f]{3,8}|rgb\([\d\s,%]+\)|[a-z]+)$/i.test(color)) element.style.color = color;
+            } else {
+              element.removeAttribute(attribute.name);
+            }
+          });
+          walk(element);
+        } else if (child.nodeType !== Node.TEXT_NODE) {
+          child.parentNode?.removeChild(child);
+        }
+      });
+    };
+    walk(parsed.body);
+    return parsed.body.innerHTML;
+  }
+
+  function openPublicProfile(name: string, email?: string) {
+    let found: any = null;
+    try {
+      const accounts = JSON.parse(localStorage.getItem('ns_accounts') || '[]');
+      if (Array.isArray(accounts)) {
+        const account = accounts.find((item: any) =>
+          (email && item.email?.toLowerCase() === email.toLowerCase()) ||
+          item.profile?.username?.toLowerCase() === name.toLowerCase() ||
+          item.profile?.nickname?.toLowerCase() === name.toLowerCase()
+        );
+        found = account?.profile || null;
+      }
+    } catch (_) {}
+    if (!found && user && (user.email?.toLowerCase() === email?.toLowerCase() || user.username?.toLowerCase() === name.toLowerCase() || user.nickname?.toLowerCase() === name.toLowerCase())) found = user;
+    setPublicProfile(found || { username: name, nickname: name, grade: '', gender: '', bio: '', avatarUrl: '', createdAt: '', totalStudySeconds: 0, resources: [], discussions: [] });
+  }
+
+  function handleResourceFileSelection(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    files.forEach((file) => {
+      if (file.size > 2 * 1024 * 1024) {
+        alert(`${file.name} is larger than 2 MB. For large files, upload it to Google Drive and paste a share link instead.`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => setResourceAttachments((previous) => [...previous, { name: file.name, type: file.type || 'application/octet-stream', url: String(reader.result || '') }]);
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  }
+
+  function addDriveLink() {
+    const url = driveResourceUrl.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      alert('Please enter a valid https:// or http:// share link.');
+      return;
+    }
+    setResourceAttachments((previous) => [...previous, { name: url.includes('drive.google.com') ? 'Google Drive resource' : 'External resource link', type: 'text/uri-list', url }]);
+    setDriveResourceUrl('');
+  }
+
   function handleCreateResourceSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) {
@@ -544,15 +631,18 @@ export default function Home() {
       setShowAuthModal(true);
       return;
     }
-    if (!newResTitle.trim() || !newResContent.trim()) return;
+    const editorHtml = richEditorRef.current ? sanitizeRichHtml(richEditorRef.current.innerHTML) : sanitizeRichHtml(richContentHtml || newResContent);
+    const plainContent = richEditorRef.current ? (richEditorRef.current.innerText || '').trim() : newResContent.trim();
+    if (!newResTitle.trim() || (!plainContent && !editorHtml && resourceAttachments.length === 0)) return;
 
     const newRes: ResourceItem = {
       id: Date.now().toString(),
       title: newResTitle.trim(),
       subject: newResSubject,
       grade: newResGrade,
-      description: newResDescription.trim() || newResContent.slice(0, 90) + '...',
-      content: newResContent.trim(),
+      description: newResDescription.trim() || plainContent.slice(0, 90) + '...',
+      content: editorHtml || plainContent,
+      attachments: [...resourceAttachments],
       authorName: nickname || username || user.email.split('@')[0],
       authorEmail: user.email,
       authorAvatar: avatarUrl,
@@ -569,6 +659,10 @@ export default function Home() {
     setNewResTitle('');
     setNewResDescription('');
     setNewResContent('');
+    setRichContentHtml('');
+    setResourceAttachments([]);
+    setDriveResourceUrl('');
+    if (richEditorRef.current) richEditorRef.current.innerHTML = '';
     alert('Academic resource note published!');
   }
 
@@ -610,6 +704,7 @@ export default function Home() {
 
     const replyObj: CommentItem = {
       id: 'r_' + Date.now(),
+      authorEmail: user.email,
       authorName: nickname || username || user.email.split('@')[0],
       authorAvatar: avatarUrl,
       text: newReplyText.trim(),
@@ -666,6 +761,7 @@ export default function Home() {
 
     const commentObj: CommentItem = {
       id: Date.now().toString(),
+      authorEmail: user.email,
       authorName: nickname || username || user.email.split('@')[0],
       authorAvatar: avatarUrl,
       text: newCommentText.trim(),
@@ -889,7 +985,7 @@ export default function Home() {
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
                   <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '1rem' }}>{res.description}</p>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${theme.border}`, paddingTop: '0.8rem' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by {res.authorName}</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Shared by <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(res.authorName, res.authorEmail); }} style={{ color: theme.accent, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>{res.authorName}</button></span>
                     <div style={{ display: 'flex', gap: '1rem' }}>
                       <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>
                         Like ({res.likes})
@@ -953,7 +1049,7 @@ export default function Home() {
                     <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{disc.repliesCount} Replies</span>
                   </div>
                   <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem' }}>{disc.content}</p>
-                  <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by {disc.authorName} on {disc.date}</span>
+                  <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(disc.authorName, disc.authorEmail); }} style={{ color: theme.accent, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>{disc.authorName}</button> on {disc.date}</span>
                 </div>
               ))}
             </div>
@@ -1089,35 +1185,22 @@ export default function Home() {
 
       {/* 预览与学术引用弹窗 */}
       {previewResource && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '960px', height: '80vh', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999, padding: '0.6rem', boxSizing: 'border-box' }}>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '100%', maxWidth: '960px', height: '90dvh', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '1.2rem 2rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2>{previewResource.title}</h2>
               <button onClick={() => setPreviewResource(null)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.4rem' }}>X</button>
             </div>
 
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            <div className="ns-resource-preview-body" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
               <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', borderRight: `1px solid ${theme.border}` }}>
-                <div style={{ fontSize: '0.95rem', lineHeight: '1.7', whiteSpace: 'pre-wrap', marginBottom: '2rem' }}>
-                  {previewResource.content}
-                </div>
+                <div style={{ fontSize: '0.95rem', lineHeight: '1.7', overflowWrap: 'anywhere', marginBottom: '1.25rem' }} dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewResource.content || '') }} />
+                {!!previewResource.attachments?.length && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '1.5rem' }}><h3 style={{ margin: 0 }}>Attachments & links</h3>{previewResource.attachments.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}><a href={file.url} target="_blank" rel="noreferrer" download={file.url.startsWith('data:') ? file.name : undefined} style={{ color: theme.accent, overflowWrap: 'anywhere' }}>📎 {file.name}</a>{file.type.startsWith('image/') && file.url.startsWith('data:') && <img src={file.url} alt={file.name} style={{ maxWidth: '100%', maxHeight: 420, objectFit: 'contain', borderRadius: 8 }} />}{file.type === 'application/pdf' && file.url.startsWith('data:') && <a href={file.url} target="_blank" rel="noreferrer" style={{ color: theme.accent }}>Open PDF preview</a>}</div>)}</div>}
 
-                <div style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1.2rem' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: theme.accent }}>ACADEMIC CITATION GENERATOR</span>
-                  <div style={{ display: 'flex', gap: '0.5rem', margin: '0.6rem 0' }}>
-                    {(['APA', 'IEEE', 'MLA', 'BibTeX'] as const).map((fmt) => (
-                      <button key={fmt} onClick={() => setCitationFormat(fmt)} style={{ padding: '0.22rem 0.6rem', borderRadius: '4px', border: `1px solid ${citationFormat === fmt ? theme.accent : theme.border}`, backgroundColor: citationFormat === fmt ? theme.accent : 'transparent', color: citationFormat === fmt ? '#FFF' : theme.textMuted, fontSize: '0.75rem', cursor: 'pointer' }}>
-                        {fmt}
-                      </button>
-                    ))}
-                  </div>
-                  <p style={{ fontSize: '0.8rem', fontFamily: 'monospace', backgroundColor: theme.cardBg, padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>
-                    {citationText}
-                  </p>
-                </div>
+
               </div>
 
-              <div style={{ width: '360px', backgroundColor: theme.bg, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
+              <div className="ns-resource-comments" style={{ width: '360px', backgroundColor: theme.bg, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Comments ({previewResource.comments.length})</h3>
                 <form onSubmit={handleAddComment} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                   <textarea rows={3} placeholder="Write a comment..." value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box' }} />
@@ -1126,7 +1209,7 @@ export default function Home() {
 
                 {previewResource.comments.map((c) => (
                   <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
-                    <strong>{c.authorName}</strong>
+                    <button type="button" onClick={() => openPublicProfile(c.authorName, c.authorEmail)} style={{ color: theme.accent, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }}>{c.authorName}</button>
                     <p style={{ fontSize: '0.85rem', marginTop: '0.3rem' }}>{c.text}</p>
                   </div>
                 ))}
@@ -1159,7 +1242,7 @@ export default function Home() {
                 {selectedDiscussion.replies.map(r => (
                   <div key={r.id} style={{ backgroundColor: theme.bg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      <strong style={{ fontSize: '0.85rem' }}>{r.authorName}</strong>
+                      <button type="button" onClick={() => openPublicProfile(r.authorName, r.authorEmail)} style={{ fontSize: '0.85rem', color: theme.accent, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }}>{r.authorName}</button>
                       <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{r.date}</span>
                     </div>
                     <p style={{ fontSize: '0.85rem' }}>{r.text}</p>
@@ -1196,8 +1279,8 @@ export default function Home() {
                   <label style={{ fontSize: '0.8rem', color: theme.textMuted }}>
                     <input type="checkbox" required checked={isStudentConfirmed} onChange={(e) => setIsStudentConfirmed(e.target.checked)} /> Confirm Student/Alumni
                   </label>
-                  <label style={{ fontSize: '0.8rem', color: theme.textMuted }}>
-                    <input type="checkbox" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} /> Agree Terms of Service
+                  <label style={{ fontSize: '0.8rem', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                    <input type="checkbox" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} /> I agree to the Terms of Service. <button type="button" onClick={() => setShowTermsModal(true)} style={{ color: theme.accent, border: 0, background: 'transparent', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>What does this mean?</button>
                   </label>
                 </div>
               )}
@@ -1288,7 +1371,7 @@ export default function Home() {
       {/* 发布资源弹窗 */}
       {showCreateResourceModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '540px', border: `1px solid ${theme.border}` }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: 'clamp(1rem, 4vw, 2rem)', borderRadius: '12px', width: '100%', maxWidth: '540px', maxHeight: '92dvh', overflowY: 'auto', boxSizing: 'border-box', border: `1px solid ${theme.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
               <h2>Share Resource Note</h2>
               <button onClick={() => setShowCreateResourceModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
@@ -1296,7 +1379,24 @@ export default function Home() {
 
             <form onSubmit={handleCreateResourceSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <input type="text" required placeholder="Title" value={newResTitle} onChange={(e) => setNewResTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              <textarea required rows={5} placeholder="Content / Formulas / Notes" value={newResContent} onChange={(e) => setNewResContent(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 700 }}>Note content</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', padding: '0.55rem', border: `1px solid ${theme.border}`, borderBottom: 0, borderRadius: '8px 8px 0 0', background: theme.bg }}>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { richEditorRef.current?.focus(); document.execCommand('bold'); }} style={{ padding: '0.4rem 0.65rem', fontWeight: 800, borderRadius: 5, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>B</button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { richEditorRef.current?.focus(); document.execCommand('italic'); }} style={{ padding: '0.4rem 0.65rem', fontStyle: 'italic', borderRadius: 5, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>I</button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { richEditorRef.current?.focus(); document.execCommand('underline'); }} style={{ padding: '0.4rem 0.65rem', textDecoration: 'underline', borderRadius: 5, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>U</button>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', color: theme.textMain }}>Text colour <input aria-label="Text colour" type="color" defaultValue="#8B5CF6" onChange={(e) => { richEditorRef.current?.focus(); document.execCommand('foreColor', false, e.target.value); }} style={{ width: 32, height: 30, padding: 0, border: 0, background: 'transparent' }} /></label>
+                </div>
+                <div ref={richEditorRef} contentEditable suppressContentEditableWarning onInput={(e) => { const html = sanitizeRichHtml(e.currentTarget.innerHTML); setRichContentHtml(html); setNewResContent(e.currentTarget.innerText); }} data-placeholder="Write your notes here…" style={{ minHeight: 150, maxHeight: 360, overflowY: 'auto', padding: '0.8rem', border: `1px solid ${theme.border}`, borderRadius: '0 0 8px 8px', outline: 'none', color: theme.textMain, background: theme.bg, overflowWrap: 'anywhere' }} />
+                <p style={{ fontSize: '0.75rem', color: theme.textMuted, margin: '0.4rem 0 0' }}>Select text to apply colour, bold, italic or underline. Rich formatting is saved with the note.</p>
+              </div>
+              <div style={{ border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <strong>Attachments (optional)</strong>
+                <input ref={resourceFilesRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleResourceFileSelection} style={{ width: '100%', color: theme.textMain }} />
+                <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: 0 }}>Images, PDF, Word and PowerPoint files up to 2 MB each can be attached directly. For larger files, use a share link.</p>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}><input type="url" value={driveResourceUrl} onChange={(e) => setDriveResourceUrl(e.target.value)} placeholder="Google Drive / Docs / Slides share URL" style={{ flex: '1 1 220px', minWidth: 0, padding: '0.65rem', borderRadius: 6, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} /><button type="button" onClick={addDriveLink} style={{ padding: '0.65rem 0.9rem', borderRadius: 6, border: 0, background: theme.accent, color: '#fff', cursor: 'pointer' }}>Add link</button></div>
+                {resourceAttachments.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}><span style={{ flex: 1, overflowWrap: 'anywhere', fontSize: '0.85rem' }}>📎 {file.name}</span><button type="button" onClick={() => setResourceAttachments((previous) => previous.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer' }}>Remove</button></div>)}
+              </div>
               <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Publish Note</button>
             </form>
           </div>
@@ -1321,6 +1421,27 @@ export default function Home() {
         </div>
       )}
 
+
+      {/* 公开个人主页：只显示用户公开资料，不显示邮箱 */}
+      {publicProfile && (
+        <div onClick={() => setPublicProfile(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000002, padding: '1rem' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, maxHeight: '85dvh', overflowY: 'auto', background: theme.cardBg, color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: 16, padding: 'clamp(1rem, 4vw, 1.6rem)', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h2 style={{ margin: 0 }}>Student Profile</h2><button type="button" onClick={() => setPublicProfile(null)} aria-label="Close profile" style={{ border: 0, background: 'transparent', color: theme.textMain, fontSize: '1.25rem', cursor: 'pointer' }}>✕</button></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '1.2rem 0' }}>
+              {publicProfile.avatarUrl ? <img src={publicProfile.avatarUrl} alt="Profile avatar" style={{ width: 76, height: 76, objectFit: 'cover', borderRadius: '50%' }} /> : <div style={{ width: 76, height: 76, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, fontSize: '1.7rem' }}>👤</div>}
+              <div><h3 style={{ margin: 0 }}>{publicProfile.nickname || publicProfile.username || 'Student'}</h3><p style={{ color: theme.textMuted, margin: '0.25rem 0' }}>@{publicProfile.username || 'student'}</p></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.7rem' }}>
+              <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Grade</small><div>{publicProfile.grade || 'Not specified'}</div></div>
+              <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Gender</small><div>{publicProfile.gender && publicProfile.gender !== 'Prefer not to say' ? publicProfile.gender : 'Not specified'}</div></div>
+              <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Joined</small><div>{publicProfile.createdAt || 'Not available'}</div></div>
+              <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Platform time</small><div>{Math.floor((Number(publicProfile.totalStudySeconds) || 0) / 3600)}h {Math.floor(((Number(publicProfile.totalStudySeconds) || 0) % 3600) / 60)}m</div></div>
+            </div>
+            <div style={{ marginTop: '1rem' }}><strong>About</strong><p style={{ color: theme.textMuted, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{publicProfile.bio || 'This student has not added a bio yet.'}</p></div>
+            <p style={{ color: theme.textMuted, fontSize: '0.75rem' }}>Email addresses are private and are not shown on public profiles.</p>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @media (max-width: 640px) {
@@ -1522,6 +1643,12 @@ export default function Home() {
           }
         }
         @media (max-width: 600px) { .ns-profile-stats { grid-template-columns: minmax(0, 1fr) !important; } .ns-profile-card > button { width: 100% !important; } }
+
+          @media (max-width: 700px) {
+            .ns-resource-preview-body { flex-direction: column !important; overflow-y: auto !important; }
+            .ns-resource-preview-body > div:first-child { overflow: visible !important; border-right: 0 !important; border-bottom: 1px solid var(--ns-border, #333) !important; padding: 1rem !important; }
+            .ns-resource-comments { width: auto !important; max-width: 100% !important; padding: 1rem !important; overflow: visible !important; }
+          }
       `}</style>
 
     </div>
