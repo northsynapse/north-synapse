@@ -389,17 +389,8 @@ export default function Home() {
     return () => { active = false; };
   }, [isAdmin, activeTab]);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('ns_resources', JSON.stringify(resources));
-    }
-  }, [resources]);
+  // 用户发布的内容与收藏由 Supabase 持久化，不再依赖浏览器 localStorage。
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('ns_discussions', JSON.stringify(discussions));
-    }
-  }, [discussions]);
 
   useEffect(() => {
     if (announcements.length <= 1) return;
