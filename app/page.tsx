@@ -1576,32 +1576,81 @@ export default function Home() {
 
         {/* STUDY LOUNGE 视图 */}
         {activeTab === 'lounges' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Virtual Study Lounge Rooms</h1>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div>
+              <h1 style={{ fontSize: '2rem', fontWeight: '800', marginBottom: '0.4rem' }}>Quiet Study Rooms</h1>
+              <p style={{ color: theme.textMuted, margin: 0 }}>A calm space to focus together. No audio, just study time and text chat.</p>
+            </div>
             {joinedRoom ? (
-              <div style={{ backgroundColor: theme.cardBg, border: `2px solid ${theme.accent}`, borderRadius: '16px', padding: '2rem', textAlign: 'center' }}>
-                <h2>{joinedRoom.name}</h2>
-                <div style={{ fontSize: '3.5rem', fontWeight: '900', color: theme.accent, margin: '1rem 0' }}>{formatTimer(pomodoroTime)}</div>
-                <button onClick={() => setIsTimerRunning(!isTimerRunning)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.5rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  {isTimerRunning ? 'Pause Session' : 'Start Focus Session'}
-                </button>
-                <button onClick={() => setJoinedRoom(null)} style={{ marginLeft: '1rem', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMain, padding: '0.6rem 1rem', borderRadius: '8px', cursor: 'pointer' }}>
-                  Leave Room
-                </button>
+              <div className="ns-study-room-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 0.85fr) minmax(280px, 1.35fr) minmax(240px, 1fr)', gap: '1rem', alignItems: 'stretch' }}>
+                <section style={{ background: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1rem', minHeight: '460px' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '0.35rem' }}>In this room</h3>
+                  <p style={{ color: theme.textMuted, fontSize: '0.8rem', marginTop: 0 }}>{roomPresence.length} online · earliest join first</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                    {roomPresence.map((person) => (
+                      <div key={person.user_id} style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+                        {person.avatar_url ? <img src={person.avatar_url} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, color: theme.accent, fontWeight: 800, flexShrink: 0 }}>{(person.display_name || 'S').slice(0, 1).toUpperCase()}</div>}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.display_name}{person.user_id === user?.id ? ' (You)' : ''}</div>
+                          <div style={{ fontSize: '0.75rem', color: theme.textMuted }}>Here for {formatTimer(Math.max(0, Number(person.study_seconds) || 0))}</div>
+                          <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>Joined {person.joined_at ? new Date(person.joined_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {roomPresence.length === 0 && <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Loading the room...</p>}
+                  </div>
+                </section>
+
+                <section style={{ background: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1.5rem 1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ color: theme.textMuted, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Focus session</div>
+                  <h2 style={{ margin: '0.6rem 0' }}>{joinedRoom.name}</h2>
+                  <div style={{ fontSize: 'clamp(2.8rem, 5vw, 4rem)', lineHeight: 1.1, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: theme.accent, margin: '1rem 0' }}>{formatTimer(pomodoroTime)}</div>
+                  <div style={{ color: theme.textMuted, fontSize: '0.9rem' }}>{isTimerRunning ? 'Focus in progress' : 'Ready when you are'}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.6rem', margin: '1.25rem 0' }}>
+                    <button onClick={() => setIsTimerRunning(!isTimerRunning)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.65rem 1.1rem', borderRadius: '9px', fontWeight: 'bold', cursor: 'pointer' }}>{isTimerRunning ? 'Pause' : 'Start focus'}</button>
+                    <button onClick={() => { setIsTimerRunning(false); setPomodoroTime(1500); }} style={{ background: 'transparent', color: theme.textMain, border: '1px solid ' + theme.border, padding: '0.65rem 1rem', borderRadius: '9px', cursor: 'pointer' }}>Reset</button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem', width: '100%', maxWidth: '360px' }}>
+                    <div style={{ background: theme.bg, borderRadius: '10px', padding: '0.9rem 0.5rem' }}><div style={{ color: theme.textMuted, fontSize: '0.75rem' }}>This room session</div><strong style={{ fontSize: '1.25rem' }}>{formatTimer(roomStudySeconds)}</strong></div>
+                    <div style={{ background: theme.bg, borderRadius: '10px', padding: '0.9rem 0.5rem' }}><div style={{ color: theme.textMuted, fontSize: '0.75rem' }}>Total study time</div><strong style={{ fontSize: '1.25rem' }}>{formatTimer(usageSeconds)}</strong></div>
+                  </div>
+                  <p style={{ color: theme.textMuted, fontSize: '0.75rem', marginTop: '1rem' }}>Silent by design · No audio features</p>
+                  <button onClick={() => { setIsTimerRunning(false); setJoinedRoom(null); setRoomStudySeconds(0); }} style={{ marginTop: '0.5rem', background: 'transparent', border: 'none', color: theme.textMuted, cursor: 'pointer', textDecoration: 'underline' }}>Leave room</button>
+                </section>
+
+                <section style={{ background: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1rem', minHeight: '460px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '0.25rem' }}>Room chat</h3>
+                  <p style={{ color: theme.textMuted, fontSize: '0.8rem', marginTop: 0 }}>Text only · Messages are saved</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', overflowY: 'auto', flex: 1, maxHeight: '370px', paddingRight: '0.2rem' }}>
+                    {roomMessages.map((message) => (
+                      <div key={message.id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                        {message.avatar_url ? <img src={message.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, color: theme.accent, fontSize: '0.75rem', fontWeight: 800, flexShrink: 0 }}>{(message.display_name || 'S').slice(0, 1).toUpperCase()}</div>}
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem', alignItems: 'baseline' }}><strong style={{ fontSize: '0.8rem' }}>{message.display_name}</strong><span style={{ color: theme.textMuted, fontSize: '0.68rem', whiteSpace: 'nowrap' }}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
+                          <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '0.2rem 0 0', fontSize: '0.86rem' }}>{message.body}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {roomMessages.length === 0 && <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>No messages yet. Keep the room quiet and focused.</p>}
+                  </div>
+                  <form onSubmit={sendRoomMessage} style={{ display: 'flex', gap: '0.45rem', marginTop: '1rem' }}>
+                    <input value={roomChatInput} onChange={(e) => setRoomChatInput(e.target.value)} maxLength={1000} placeholder="Write a message..." aria-label="Room chat message" style={{ minWidth: 0, flex: 1, padding: '0.7rem', borderRadius: '8px', border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain }} />
+                    <button type="submit" disabled={roomSending || !roomChatInput.trim()} style={{ border: 'none', borderRadius: '8px', padding: '0.7rem 0.85rem', background: theme.accent, color: '#fff', cursor: roomSending ? 'wait' : 'pointer', opacity: roomSending || !roomChatInput.trim() ? 0.6 : 1 }}>Send</button>
+                  </form>
+                </section>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
                 {lounges.map(room => (
-                  <div key={room.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.5rem' }}>
+                  <div key={room.id} style={{ backgroundColor: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1.5rem' }}>
                     <h3>{room.name}</h3>
                     <p style={{ fontSize: '0.85rem', color: theme.textMuted, margin: '0.5rem 0 1rem' }}>{room.description}</p>
-                    <button onClick={() => setJoinedRoom(room)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', width: '100%' }}>
-                      Join Study Room
-                    </button>
+                    <button onClick={() => { if (!user) { setShowAuthModal(true); return; } setRoomStudySeconds(0); setJoinedRoom(room); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', width: '100%' }}>Join Study Room</button>
                   </div>
                 ))}
               </div>
             )}
+            <style>{'@media (max-width: 900px) { .ns-study-room-grid { grid-template-columns: 1fr !important; } }'}</style>
           </div>
         )}
 
