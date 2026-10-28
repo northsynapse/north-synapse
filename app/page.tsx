@@ -1224,9 +1224,12 @@ export default function Home() {
     const { error: profileEnsureError } = await supabase.from('profiles').upsert({ id: user.id, email: user.email || '', username: username || user.email?.split('@')[0] || 'Student', nickname: nickname || username || user.email?.split('@')[0] || 'Student' }, { onConflict: 'id' });
     if (profileEnsureError) console.error('Profile ensure before comment failed:', profileEnsureError.message);
 
+    const commentBody = newCommentText.trim();
     const { data: savedComment, error } = await supabase.from('resource_comments').insert({
-      resource_id: previewResource.id, author_id: user.id, body: newCommentText.trim()
-    }).select('*').single();
+      resource_id: previewResource.id,
+      author_id: user.id,
+      body: commentBody
+    }).select('id,resource_id,author_id,body,created_at').single();
     if (error || !savedComment) { console.error('Comment save failed:', error?.message, error?.details, error?.hint); alert(`Could not save comment: ${error?.message || 'Unknown database error'}`); return; }
     const commentObj: CommentItem = {
       id: savedComment.id, authorEmail: user.email, authorName: nickname || username || user.email.split('@')[0],
@@ -1668,7 +1671,7 @@ export default function Home() {
                 myResources.map(res => (
                   <button type="button" key={res.id} onClick={() => setPreviewResource(res)} style={{ width: '100%', textAlign: 'left', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem', color: theme.textMain, cursor: 'pointer' }}>
                     <strong>{res.title}</strong>
-                    <p style={{ margin: '0.35rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>{res.subject} · {res.grade} · Open note</p>
+                    <p style={{ margin: '0.35rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>Open note</p>
                   </button>
                 ))
               ) : (
