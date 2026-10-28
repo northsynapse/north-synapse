@@ -422,6 +422,12 @@ export default function Home() {
         resourceIds.length ? supabase.from('resource_bookmarks').select('resource_id,user_id').in('resource_id', resourceIds) : Promise.resolve({ data: [], error: null } as any),
         discussionIds.length ? supabase.from('discussion_bookmarks').select('discussion_id,user_id').in('discussion_id', discussionIds) : Promise.resolve({ data: [], error: null } as any)
       ]);
+      const commentIds = (commentsResult.data || []).map((x: any) => x.id);
+      const replyIds = (repliesResult.data || []).map((x: any) => x.id);
+      const [commentLikesResult, replyLikesResult] = await Promise.all([
+        commentIds.length ? supabase.from('comment_likes').select('comment_id,user_id').in('comment_id', commentIds) : Promise.resolve({ data: [], error: null } as any),
+        replyIds.length ? supabase.from('reply_likes').select('reply_id,user_id').in('reply_id', replyIds) : Promise.resolve({ data: [], error: null } as any)
+      ]);
       if (!active) return;
       const profiles = profileMap as Map<string, any>;
       const likes = likesResult.data || [];
@@ -433,7 +439,8 @@ export default function Home() {
         const author = profiles.get(r.author_id);
         const comments = (commentsResult.data || []).filter((x: any) => x.resource_id === r.id).map((x: any) => {
           const p = profiles.get(x.author_id);
-          return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: 0, likedByMe: false };
+          const commentLikes = commentLikesResult.data || [];
+          return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: commentLikes.filter((like: any) => like.comment_id === x.id).length, likedByMe: commentLikes.some((like: any) => like.comment_id === x.id && like.user_id === userId) };
         });
         return {
           id: r.id, title: r.title, subject: r.subject || '', grade: r.grade || '', description: r.description || '', content: r.content || '',
@@ -450,7 +457,8 @@ export default function Home() {
         const author = profiles.get(d.author_id);
         const replies = (repliesResult.data || []).filter((x: any) => x.discussion_id === d.id).map((x: any) => {
           const p = profiles.get(x.author_id);
-          return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: 0, likedByMe: false };
+          const replyLikes = replyLikesResult.data || [];
+          return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: replyLikes.filter((like: any) => like.reply_id === x.id).length, likedByMe: replyLikes.some((like: any) => like.reply_id === x.id && like.user_id === userId) };
         });
         return {
           id: d.id, title: d.title, content: d.content, authorEmail: author?.email || '', authorName: author?.nickname || author?.username || 'Student',
