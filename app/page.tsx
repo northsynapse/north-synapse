@@ -398,17 +398,16 @@ export default function Home() {
     return () => { active = false; };
   }, [user?.id]);
 
-  // 登录后从数据库加载笔记、讨论、评论、回复与收藏状态。
+  // 无论是否登录都从数据库加载全部社区内容；登录状态只影响个人互动状态。
   useEffect(() => {
-    const userId = user?.id;
-    if (!userId) return;
+    const userId = user?.id || null;
     let active = true;
 
     const loadCommunityData = async () => {
       const [resourcesResult, discussionsResult, profilesResult] = await Promise.all([
         supabase.from('resources').select('*').order('created_at', { ascending: false }),
         supabase.from('discussions').select('*').order('created_at', { ascending: false }),
-        supabase.from('profiles').select('id,email,username,nickname,avatar_path')
+        user?.id ? supabase.from('profiles').select('id,email,username,nickname,avatar_path') : supabase.from('public_author_profiles').select('id,username,nickname,avatar_path')
       ]);
       if (!active) return;
       if (resourcesResult.error || discussionsResult.error || profilesResult.error) {
@@ -1208,7 +1207,7 @@ export default function Home() {
     const { data: savedComment, error } = await supabase.from('resource_comments').insert({
       resource_id: previewResource.id, author_id: user.id, content: newCommentText.trim()
     }).select('*').single();
-    if (error || !savedComment) { console.error('Comment save failed:', error?.message); alert('Could not save comment. Please try again.'); return; }
+    if (error || !savedComment) { console.error('Comment save failed:', error?.message, error?.details, error?.hint); alert(`Could not save comment: ${error?.message || 'Unknown database error'}`); return; }
     const commentObj: CommentItem = {
       id: savedComment.id, authorEmail: user.email, authorName: nickname || username || user.email.split('@')[0],
       authorAvatar: avatarUrl, text: savedComment.content,
@@ -1251,6 +1250,13 @@ export default function Home() {
     const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(res.grade);
     const matchesSearch = searchQuery === '' || res.title.toLowerCase().includes(searchQuery.toLowerCase()) || res.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSubject && matchesGrade && matchesSearch;
+  });
+  const [resourceSort, setResourceSort] = useState<'newest' | 'likes' | 'comments' | 'bookmarks'>('newest');
+  const sortedFilteredResources = [...filteredResources].sort((a, b) => {
+    if (resourceSort === 'likes') return b.likes - a.likes;
+    if (resourceSort === 'comments') return b.comments.length - a.comments.length;
+    if (resourceSort === 'bookmarks') return b.bookmarks - a.bookmarks;
+    return new Date(b.date).getTime() - new Date(a.date).getTime();
   });
 
   const citationText = useMemo(() => {
@@ -1422,12 +1428,22 @@ export default function Home() {
               </div>
             </div>
 
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.7rem', marginBottom: '0.4rem' }}>
+              <label htmlFor="resource-sort" style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Sort by</label>
+              <select id="resource-sort" value={resourceSort} onChange={(e) => setResourceSort(e.target.value as typeof resourceSort)} style={{ background: theme.cardBg, color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0.55rem 0.7rem' }}>
+                <option value="newest">Publish time</option><option value="likes">Likes</option><option value="comments">Comments</option><option value="bookmarks">Saves</option>
+              </select>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {filteredResources.map((res) => (
+              {sortedFilteredResources.map((res) => (
                 <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.6rem' }}>
                     <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px' }}>{res.subject}</span>
                     <span style={{ backgroundColor: theme.bg, color: theme.textMuted, fontSize: '0.75rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}` }}>{res.grade}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', margin: '0.4rem 0 0.8rem' }}>
+                    {res.authorAvatar ? <img src={res.authorAvatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 32, height: 32, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{(res.authorName || 'S').slice(0, 1).toUpperCase()}</div>}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}><span style={{ fontSize: '0.85rem', fontWeight: 650 }}>{res.authorName}</span><span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{res.date}</span></div>
                   </div>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
                   <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '1rem' }}>{res.description}</p>
@@ -1441,6 +1457,7 @@ export default function Home() {
                       {!isAdmin && <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>
                         Save ({res.bookmarks})
                       </button>}
+                      <span style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Comments ({res.comments.length})</span>
                     </div>
                   </div>
                 </div>
