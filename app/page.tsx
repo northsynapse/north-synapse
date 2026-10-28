@@ -394,7 +394,7 @@ export default function Home() {
     const cleanEmail = authEmail.trim().toLowerCase();
     const cleanPassword = authPassword;
 
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(cleanEmail)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       alert('Please enter a valid email address.');
       setLoading(false);
       return;
