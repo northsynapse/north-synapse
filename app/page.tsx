@@ -455,7 +455,7 @@ export default function Home() {
         const comments = (commentsResult.data || []).filter((x: any) => x.resource_id === r.id).map((x: any) => {
           const p = profiles.get(x.author_id);
           const commentLikes = commentLikesResult.data || [];
-          return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: commentLikes.filter((like: any) => like.comment_id === x.id).length, likedByMe: commentLikes.some((like: any) => like.comment_id === x.id && like.user_id === userId) };
+          return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.body, date: formatDate(x.created_at), likes: commentLikes.filter((like: any) => like.comment_id === x.id).length, likedByMe: commentLikes.some((like: any) => like.comment_id === x.id && like.user_id === userId) };
         });
         return {
           id: r.id, title: r.title, subject: r.subject || '', grade: r.grade || '', description: r.description || '', content: r.content || '', tags: Array.isArray(r.tags) ? r.tags : [],
