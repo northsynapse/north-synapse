@@ -725,7 +725,7 @@ export default function Home() {
       id: String(data.id), name: data.name, subject: data.subject || 'General Study',
       description: data.description || '', isPrivate: Boolean(data.is_private),
       roomCode: data.room_code || undefined, createdAt: data.created_at,
-      lastActivityAt: data.last_activity_at || data.created_at, createdBy: data.created_by, activeUsers: 0
+      lastActivityAt: data.last_activity_at || data.created_at, createdBy: data.created_by || '', activeUsers: 0
     };
     setLounges(previous => [room, ...previous.filter(item => item.id !== room.id)]);
     setNewRoomName(''); setNewRoomDescription(''); setNewRoomSubject('General Study');
