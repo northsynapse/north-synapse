@@ -183,10 +183,34 @@ export default function Home() {
 
 
 
-  const [announcements] = useState<AnnouncementItem[]>([
-    { id: '1', title: 'Welcome to North Synapse Academic Platform', content: 'A centralized workspace for verified course resources, virtual study rooms, and academic peer discussions.', date: 'Oct 24, 2026', authorName: 'North Synapse Official' },
-    { id: '2', title: 'AP & Competition Prep Resource Categories Added', content: 'We updated our Resource Hub filter tags with AP Courses, Academic Competitions, French, and Geography!', date: 'Oct 24, 2026', authorName: 'North Synapse Official' }
-  ]);
+  // 官方公告以 Supabase 数据库为唯一来源，避免公告只存在于前端代码。
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    const loadAnnouncements = async () => {
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('id,title,content,author_name,created_at')
+        .eq('is_published', true)
+        .order('created_at', { ascending: false });
+      if (!active) return;
+      if (error) {
+        console.error('Unable to load announcements from database:', error.message);
+        setAnnouncements([]);
+        return;
+      }
+      setAnnouncements((data || []).map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        content: item.content,
+        authorName: item.author_name || 'North Synapse Official',
+        date: new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      })));
+    };
+    void loadAnnouncements();
+    return () => { active = false; };
+  }, []);
 
   const [previewResource, setPreviewResource] = useState<ResourceItem | null>(null);
   const [newCommentText, setNewCommentText] = useState('');
