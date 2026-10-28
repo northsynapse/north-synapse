@@ -837,7 +837,7 @@ export default function Home() {
     setDriveResourceUrl('');
   }
 
-  function handleCreateResourceSubmit(e: React.FormEvent) {
+  async function handleCreateResourceSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (isAdmin) return;
     if (!user) {
@@ -849,26 +849,29 @@ export default function Home() {
     const plainContent = richEditorRef.current ? (richEditorRef.current.innerText || '').trim() : newResContent.trim();
     if (!newResTitle.trim() || (!plainContent && !editorHtml && resourceAttachments.length === 0)) return;
 
-    const newRes: ResourceItem = {
-      id: Date.now().toString(),
-      title: newResTitle.trim(),
-      subject: newResSubject,
-      grade: newResGrade,
-      description: newResDescription.trim() || plainContent.slice(0, 90) + '...',
-      content: editorHtml || plainContent,
-      attachments: [...resourceAttachments],
-      authorName: nickname || username || user.email.split('@')[0],
-      authorEmail: user.email,
-      authorAvatar: avatarUrl,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      likes: 0,
-      bookmarks: 0,
-      likedByMe: false,
-      bookmarkedByMe: false,
-      comments: []
-    };
+    const { data: saved, error } = await supabase.from('resources').insert({
+      author_id: user.id, title: newResTitle.trim(), subject: newResSubject, grade: newResGrade,
+      description: newResDescription.trim() || plainContent.slice(0, 90) + '...', content: editorHtml || plainContent
+    }).select('*').single();
+    if (error || !saved) { console.error('Publish failed:', error?.message); alert('The note could not be saved. Please try again.'); return; }
 
-    setResources([newRes, ...resources]);
+    const attachmentRows = resourceAttachments.map(file => ({
+      resource_id: saved.id, author_id: user.id, name: file.name,
+      content_type: file.type || 'application/octet-stream', external_url: file.url, storage_path: null
+    }));
+    if (attachmentRows.length) {
+      const { error: attachmentError } = await supabase.from('resource_attachments').insert(attachmentRows);
+      if (attachmentError) console.error('Attachment save failed:', attachmentError.message);
+    }
+
+    const newRes: ResourceItem = {
+      id: saved.id, title: saved.title, subject: saved.subject, grade: saved.grade,
+      description: saved.description, content: saved.content, attachments: [...resourceAttachments],
+      authorName: nickname || username || user.email.split('@')[0], authorEmail: user.email, authorAvatar: avatarUrl,
+      date: new Date(saved.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      likes: 0, bookmarks: 0, likedByMe: false, bookmarkedByMe: false, comments: []
+    };
+    setResources(prev => [newRes, ...prev.filter(item => item.id !== newRes.id)]);
     setShowCreateResourceModal(false);
     setNewResTitle('');
     setNewResDescription('');
@@ -880,7 +883,7 @@ export default function Home() {
     alert('Academic resource note published!');
   }
 
-  function handleCreateDiscussionSubmit(e: React.FormEvent) {
+  async function handleCreateDiscussionSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (isAdmin) return;
     if (!user) {
@@ -890,20 +893,17 @@ export default function Home() {
     }
     if (!newDiscTitle.trim() || !newDiscContent.trim()) return;
 
+    const { data: saved, error } = await supabase.from('discussions').insert({
+      author_id: user.id, title: newDiscTitle.trim(), content: newDiscContent.trim()
+    }).select('*').single();
+    if (error || !saved) { console.error('Discussion save failed:', error?.message); alert('The discussion could not be saved. Please try again.'); return; }
     const newDisc: DiscussionItem = {
-      id: 'd_' + Date.now(),
-      title: newDiscTitle.trim(),
-      content: newDiscContent.trim(),
-      authorEmail: user.email,
+      id: saved.id, title: saved.title, content: saved.content, authorEmail: user.email,
       authorName: nickname || username || user.email.split('@')[0],
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      repliesCount: 0,
-      replies: [],
-      bookmarkedByMe: false,
-      bookmarks: 0
+      date: new Date(saved.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      repliesCount: 0, replies: [], bookmarkedByMe: false, bookmarks: 0
     };
-
-    setDiscussions([newDisc, ...discussions]);
+    setDiscussions(prev => [newDisc, ...prev.filter(item => item.id !== newDisc.id)]);
     setShowCreateDiscussionModal(false);
     setNewDiscTitle('');
     setNewDiscContent('');
