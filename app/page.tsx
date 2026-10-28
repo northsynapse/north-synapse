@@ -172,6 +172,9 @@ export default function Home() {
   const [selectedDiscussion, setSelectedDiscussion] = useState<DiscussionItem | null>(null);
   const [newReplyText, setNewReplyText] = useState('');
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  // Dashboard 默认仅展示前 4 项，避免个人内容过多时页面过长。
+  const [expandedDashboardSections, setExpandedDashboardSections] = useState<Record<string, boolean>>({});
+  const DASHBOARD_PREVIEW_LIMIT = 4;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -1650,9 +1653,9 @@ export default function Home() {
             </div>
 
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Published Resources ({myResources.length})</h2>
+              <h2 title="Show all or fewer" onClick={() => setExpandedDashboardSections(p => ({ ...p, resources: !p.resources }))} style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem', cursor: myResources.length > DASHBOARD_PREVIEW_LIMIT ? 'pointer' : 'default' }}>My Published Resources ({myResources.length}){myResources.length > DASHBOARD_PREVIEW_LIMIT ? (expandedDashboardSections.resources ? ' · Show less' : ' · Show all') : ''}</h2>
               {myResources.length > 0 ? (
-                myResources.map(res => (
+                myResources.slice(0, expandedDashboardSections.resources ? undefined : DASHBOARD_PREVIEW_LIMIT).map(res => (
                   <button type="button" key={res.id} onClick={() => setPreviewResource(res)} style={{ width: '100%', textAlign: 'left', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem', color: theme.textMain, cursor: 'pointer' }}>
                     <strong>{res.title}</strong>
                     <p style={{ margin: '0.35rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>Open note</p>
@@ -1664,9 +1667,9 @@ export default function Home() {
             </div>
 
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Published Discussions ({myDiscussions.length})</h2>
+              <h2 title="Show all or fewer" onClick={() => setExpandedDashboardSections(p => ({ ...p, discussions: !p.discussions }))} style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem', cursor: myDiscussions.length > DASHBOARD_PREVIEW_LIMIT ? 'pointer' : 'default' }}>My Published Discussions ({myDiscussions.length}){myDiscussions.length > DASHBOARD_PREVIEW_LIMIT ? (expandedDashboardSections.discussions ? ' · Show less' : ' · Show all') : ''}</h2>
               {myDiscussions.length > 0 ? (
-                myDiscussions.map(disc => (
+                myDiscussions.slice(0, expandedDashboardSections.discussions ? undefined : DASHBOARD_PREVIEW_LIMIT).map(disc => (
                   <button type="button" key={disc.id} onClick={() => setSelectedDiscussion(disc)} style={{ width: '100%', textAlign: 'left', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem', color: theme.textMain, cursor: 'pointer' }}>
                     <strong>{disc.title}</strong>
                     <p style={{ margin: '0.35rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>{disc.repliesCount} replies · Open discussion</p>
@@ -1678,9 +1681,9 @@ export default function Home() {
             </div>
 
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Saved Bookmarks ({bookmarkedResources.length})</h2>
+              <h2 title="Show all or fewer" onClick={() => setExpandedDashboardSections(p => ({ ...p, bookmarks: !p.bookmarks }))} style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem', cursor: bookmarkedResources.length > DASHBOARD_PREVIEW_LIMIT ? 'pointer' : 'default' }}>My Saved Bookmarks ({bookmarkedResources.length}){bookmarkedResources.length > DASHBOARD_PREVIEW_LIMIT ? (expandedDashboardSections.bookmarks ? ' · Show less' : ' · Show all') : ''}</h2>
               {bookmarkedResources.length > 0 ? (
-                bookmarkedResources.map(bm => (
+                bookmarkedResources.slice(0, expandedDashboardSections.bookmarks ? undefined : DASHBOARD_PREVIEW_LIMIT).map(bm => (
                   <button type="button" key={bm.id} onClick={() => setPreviewResource(bm)} style={{ width: '100%', textAlign: 'left', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem', color: theme.textMain, cursor: 'pointer' }}>
                     <strong>{bm.title}</strong>
                     <p style={{ margin: '0.35rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>{bm.subject} · {bm.grade} · Open note</p>
@@ -1692,9 +1695,9 @@ export default function Home() {
             </div>
 
             <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>My Saved Discussions ({discussions.filter(d => d.bookmarkedByMe).length})</h2>
+              <h2 title="Show all or fewer" onClick={() => setExpandedDashboardSections(p => ({ ...p, savedDiscussions: !p.savedDiscussions }))} style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem', cursor: discussions.filter(d => d.bookmarkedByMe).length > DASHBOARD_PREVIEW_LIMIT ? 'pointer' : 'default' }}>My Saved Discussions ({discussions.filter(d => d.bookmarkedByMe).length}){discussions.filter(d => d.bookmarkedByMe).length > DASHBOARD_PREVIEW_LIMIT ? (expandedDashboardSections.savedDiscussions ? ' · Show less' : ' · Show all') : ''}</h2>
               {discussions.filter(d => d.bookmarkedByMe).length > 0 ? (
-                discussions.filter(d => d.bookmarkedByMe).map(disc => (
+                discussions.filter(d => d.bookmarkedByMe).slice(0, expandedDashboardSections.savedDiscussions ? undefined : DASHBOARD_PREVIEW_LIMIT).map(disc => (
                   <button type="button" key={disc.id} onClick={() => setSelectedDiscussion(disc)} style={{ width: '100%', textAlign: 'left', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem', marginBottom: '0.5rem', color: theme.textMain, cursor: 'pointer' }}>
                     <strong>{disc.title}</strong>
                     <p style={{ margin: '0.35rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>{disc.repliesCount} replies · Open discussion</p>
