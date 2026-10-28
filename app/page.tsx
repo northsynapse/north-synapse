@@ -48,7 +48,9 @@ interface DiscussionItem {
   content: string;
   authorEmail: string;
   authorName: string;
+  authorAvatar?: string;
   date: string;
+  createdAt?: string;
   repliesCount: number;
   replies: CommentItem[];
   bookmarkedByMe?: boolean;
@@ -469,8 +471,8 @@ export default function Home() {
           return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: replyLikes.filter((like: any) => like.reply_id === x.id).length, likedByMe: replyLikes.some((like: any) => like.reply_id === x.id && like.user_id === userId) };
         });
         return {
-          id: d.id, title: d.title, content: d.content, authorEmail: author?.email || '', authorName: d.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account',
-          date: formatDate(d.created_at), repliesCount: replies.length, replies,
+          id: d.id, title: d.title, content: d.content, authorEmail: author?.email || '', authorName: d.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account', authorAvatar: author?.avatar_path || '',
+          date: formatDate(d.created_at), createdAt: d.created_at, repliesCount: replies.length, replies,
           bookmarkedByMe: discussionBookmarks.some((x: any) => x.discussion_id === d.id && x.user_id === userId),
           bookmarks: discussionBookmarks.filter((x: any) => x.discussion_id === d.id).length
         };
@@ -1508,6 +1510,10 @@ export default function Home() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {discussions.map((disc) => (
                 <div key={disc.id} onClick={() => setSelectedDiscussion(disc)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.8rem' }}>
+                    {disc.authorAvatar ? <img src={disc.authorAvatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 32, height: 32, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{(disc.authorName || 'S').slice(0, 1).toUpperCase()}</div>}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}><span style={{ fontSize: '0.85rem', fontWeight: 650 }}>{disc.authorName}</span><span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{disc.date}</span></div>
+                  </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.8rem', marginBottom: '0.5rem' }}>
                     <strong style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{disc.title}</strong>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', flexShrink: 0 }}>
