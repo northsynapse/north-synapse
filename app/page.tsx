@@ -135,7 +135,7 @@ export default function Home() {
   const [newResDescription, setNewResDescription] = useState('');
   const [newResContent, setNewResContent] = useState('');
   const [selectedResourceTags, setSelectedResourceTags] = useState<string[]>([]);
-  const resourceTagOptions = ['Exam Prep', 'Lecture Notes', 'Practice Problems', 'Study Guide', 'Assignment Help', 'Lab Report', 'Summary', 'Other'];
+  const resourceTagOptions = ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'AP Courses', 'Academic Competitions', 'Mathematics', 'Science', 'English & ESL', 'French', 'History & Social Sciences', 'Geography', 'Business & Economics', 'Art & Music', 'Computer Science & Tech'];
 
   const [newDiscTitle, setNewDiscTitle] = useState('');
   const [newDiscContent, setNewDiscContent] = useState('');
@@ -973,7 +973,7 @@ export default function Home() {
       author_id: user.id, title: newResTitle.trim(), subject: newResSubject, grade: newResGrade,
       description: newResDescription.trim() || plainContent.slice(0, 90) + '...', content: editorHtml || plainContent, tags: selectedResourceTags
     }).select('*').single();
-    if (error || !saved) { console.error('Publish failed:', error?.message); alert('The note could not be saved. Please try again.'); return; }
+    if (error || !saved) { console.error('Publish failed:', error?.message, error?.details, error?.hint); alert(`The note could not be saved. ${error?.message || 'Please try again.'}`); return; }
 
     const attachmentRows = resourceAttachments.map(file => ({
       resource_id: saved.id, author_id: user.id, name: file.name,
@@ -1952,6 +1952,7 @@ export default function Home() {
               </div>
               <div style={{ border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                 <strong>Tags (optional)</strong>
+                <span style={{ fontSize: '0.78rem', color: theme.textMuted }}>Choose one or more grade levels and subjects, just like the Resource Hub filters.</span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
                   {resourceTagOptions.map(tag => <button key={tag} type="button" onClick={() => setSelectedResourceTags(previous => previous.includes(tag) ? previous.filter(item => item !== tag) : [...previous, tag])} style={{ padding: '0.4rem 0.65rem', borderRadius: 18, border: `1px solid ${selectedResourceTags.includes(tag) ? theme.accent : theme.border}`, background: selectedResourceTags.includes(tag) ? theme.accent : theme.bg, color: selectedResourceTags.includes(tag) ? '#FFF' : theme.textMain, cursor: 'pointer', fontSize: '0.82rem' }}>{tag}</button>)}
                 </div>
