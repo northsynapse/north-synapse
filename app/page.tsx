@@ -49,6 +49,7 @@ interface DiscussionItem {
   title: string;
   content: string;
   authorEmail: string;
+  authorId?: string;
   authorName: string;
   authorAvatar?: string;
   date: string;
@@ -475,7 +476,7 @@ export default function Home() {
           return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: replyLikes.filter((like: any) => like.reply_id === x.id).length, likedByMe: replyLikes.some((like: any) => like.reply_id === x.id && like.user_id === userId) };
         });
         return {
-          id: d.id, title: d.title, content: d.content, authorEmail: author?.email || '', authorName: d.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account', authorAvatar: author?.avatar_path || '',
+          id: d.id, title: d.title, content: d.content, authorEmail: author?.email || '', authorId: d.author_id || undefined, authorName: d.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account', authorAvatar: author?.avatar_path || '',
           date: formatDate(d.created_at), createdAt: d.created_at, repliesCount: replies.length, replies,
           bookmarkedByMe: discussionBookmarks.some((x: any) => x.discussion_id === d.id && x.user_id === userId),
           bookmarks: discussionBookmarks.filter((x: any) => x.discussion_id === d.id).length
