@@ -115,16 +115,16 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       console.error('检查自习室成员身份失败：', membershipError.message);
       return;
     }
-    if (!membership) {
-      setJoinedRoom(null); setMembers([]); setMessages([]); setTimerRunning(false);
-      return;
-    }
     const { data: roomRow, error: roomError } = await supabase.from('study_rooms')
       .select('id,name,subject,description,is_private,created_at,last_activity_at,created_by,owner_id,is_system_lobby,status,room_code')
       .eq('id', roomId).maybeSingle();
     if (roomError || !roomRow || roomRow.status !== 'active') {
       setJoinedRoom(null); setMembers([]); setMessages([]); setTimerRunning(false);
-      setNotice('This study room has ended or is no longer available.');
+      setKickNotice('This study room has ended. You have been returned to the room directory.');
+      return;
+    }
+    if (!membership) {
+      setJoinedRoom(null); setMembers([]); setMessages([]); setTimerRunning(false);
       return;
     }
     if (roomRow.is_private) setPrivateRoomCode(roomRow.room_code || '');
@@ -336,7 +336,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     setLoading(false);
     if (error) { setNotice('Could not end room: ' + error.message); return; }
     setJoinedRoom(null); setMembers([]); setMessages([]); setTimerRunning(false);
-    setNotice('The study room has been ended.'); await loadRooms();
+    setKickNotice('This study room has ended. You have been returned to the room directory.'); await loadRooms();
   }
 
   async function dismissKickNotice() {
@@ -398,14 +398,14 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   const buttonStyle: React.CSSProperties = { border: 0, borderRadius: 8, padding: '0.65rem 0.9rem', background: theme.accent, color: '#fff', cursor: 'pointer', fontWeight: 650 };
   const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '0.7rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.text, minWidth: 0 };
 
-  return <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', color: theme.text }}>
+  return <div style={joinedRoom ? { position: 'fixed', inset: 0, zIndex: 99999, overflowY: 'auto', padding: 'clamp(1rem, 2.5vw, 2rem)', boxSizing: 'border-box', background: theme.bg, display: 'flex', flexDirection: 'column', gap: '1.25rem', color: theme.text } : { display: 'flex', flexDirection: 'column', gap: '1.25rem', color: theme.text }}>
     <header style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
       <div><p style={{ color: theme.accent, fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', margin: '0 0 .35rem' }}>NORTH SYNAPSE / STUDY LOUNGE</p><h1 style={{ margin: 0, fontSize: '2rem' }}>Study Rooms</h1><p style={{ color: theme.muted, margin: '.45rem 0 0' }}>Quiet accountability, personal focus timers, and text-only chat.</p></div>
       {!joinedRoom && <button type="button" style={buttonStyle} onClick={() => { if (!user?.id) onSignIn(); else { setNotice(''); setShowCreate(true); } }}><Plus size={16} style={{ verticalAlign: 'middle', marginRight: 6 }}/>Create room</button>}
     </header>
 
     {notice && <div role="status" style={{ padding: '.75rem .9rem', borderRadius: 9, background: theme.card, border: '1px solid ' + theme.border, display: 'flex', justifyContent: 'space-between', gap: '.7rem' }}><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss" style={{ border: 0, background: 'transparent', color: theme.text }}><X size={16}/></button></div>}
-    {kickNotice && <div role="dialog" aria-modal="true" aria-labelledby="study-room-kick-title" style={{ position: 'fixed', inset: 0, zIndex: 100001, background: 'rgba(0,0,0,.68)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 420px)', borderColor: theme.danger }}><strong id="study-room-kick-title"><ShieldAlert size={17} style={{ verticalAlign: 'middle', marginRight: 7, color: theme.danger }}/>You were removed from the room</strong><p style={{ margin: '.55rem 0 0', color: theme.muted }}>{kickNotice}</p><button style={{ ...buttonStyle, marginTop: '1rem' }} onClick={() => void dismissKickNotice()}>Return to room directory</button></div></div>}
+    {kickNotice && <div role="dialog" aria-modal="true" aria-labelledby="study-room-kick-title" style={{ position: 'fixed', inset: 0, zIndex: 100001, background: 'rgba(0,0,0,.68)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 420px)', borderColor: theme.danger }}><strong id="study-room-kick-title"><ShieldAlert size={17} style={{ verticalAlign: 'middle', marginRight: 7, color: theme.danger }}/>Room access ended</strong><p style={{ margin: '.55rem 0 0', color: theme.muted }}>{kickNotice}</p><button style={{ ...buttonStyle, marginTop: '1rem' }} onClick={() => void dismissKickNotice()}>Return to room directory</button></div></div>}
 
     {!joinedRoom ? <>
       <form onSubmit={joinByCode} style={{ ...cardStyle, display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
