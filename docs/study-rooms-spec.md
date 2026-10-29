@@ -16,8 +16,8 @@ This change extends the existing Study Lounge on `feat/social-interactions-profi
 - Empty user-created rooms are ended after 24 hours. The Commons is never expired.
 
 ## Database additions
-- `study_rooms`: owner_id, is_system_lobby, status, empty_since, closed_at.
-- `study_room_active_members`: one row per user, enforcing single-room membership at the database level.
+- `study_rooms`: adds `owner_id`, `is_system_lobby`, `status`, `empty_since`, `closed_at`; preserves the existing `text` room IDs and adds a UUID-as-text default for new rooms.
+- `study_room_active_members`: one row per user, enforcing single-room membership at the database level; its `room_id` is `text` to match the existing schema.
 - `study_room_kick_events`: durable kick notification.
 - Security-definer RPCs perform join, private-code join, leave/owner handoff, kick, end and cleanup atomically.
 
@@ -26,7 +26,7 @@ This change extends the existing Study Lounge on `feat/social-interactions-profi
 - Direct client writes to owner/lifecycle fields are not used for privileged operations. RPCs validate auth.uid(), room ownership, room status, target membership and private room code.
 - The active-member table has read access for authenticated clients and no direct client insert/update/delete policy.
 - Kick events can only be read/acknowledged by the target user.
-- Chat and presence continue using the existing tables and policies; their current policies must be checked against active membership before production rollout.
+- Chat and presence RLS is narrowed to active room members; heartbeat RPCs verify the authoritative membership table.
 
 ## Presence and cleanup
 - Existing room heartbeat remains the online source. Two minutes without heartbeat is treated as offline by cleanup.
@@ -35,7 +35,7 @@ This change extends the existing Study Lounge on `feat/social-interactions-profi
 
 ## Rollout / verification
 1. Apply the additive migration to a staging Supabase project first.
-2. Confirm existing table columns and RLS policies match the migration assumptions.
+2. Confirm the existing `study_rooms`, `study_room_members`, `study_room_presence`, `study_room_messages`, and `study_room_goals` tables exist; the existing room IDs are text, not UUID.
 3. Test two independent authenticated accounts in separate browsers.
 4. Test public/private join, invalid codes, switching rooms, message sync, owner transfer, kick notification, room end, last-member leave and 24-hour cleanup.
 5. Run `npm run lint` and `npm run build` before merging.
