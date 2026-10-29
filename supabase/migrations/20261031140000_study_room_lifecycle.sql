@@ -10,7 +10,7 @@ alter table public.study_rooms
   add column if not exists closed_at timestamptz;
 
 alter table public.study_rooms alter column created_by drop not null;
-alter table public.study_rooms alter column id set default (gen_random_uuid()::text);
+alter table public.study_rooms alter column id set default gen_random_uuid();
 
 update public.study_rooms
 set owner_id = created_by
@@ -33,7 +33,7 @@ create index if not exists study_rooms_active_users_idx
 -- 在线成员的权威记录：user_id 主键确保一个账号同时只能加入一个房间。
 create table if not exists public.study_room_active_members (
   user_id uuid primary key references auth.users(id) on delete cascade,
-  room_id text not null references public.study_rooms(id) on delete cascade,
+  room_id uuid not null references public.study_rooms(id) on delete cascade,
   joined_at timestamptz not null default now()
 );
 create index if not exists study_room_active_members_room_joined_idx
@@ -42,7 +42,7 @@ create index if not exists study_room_active_members_room_joined_idx
 -- 踢出通知由数据库写入，只有被踢出的用户可以读取自己的通知。
 create table if not exists public.study_room_kick_events (
   id uuid primary key default gen_random_uuid(),
-  room_id text not null references public.study_rooms(id) on delete cascade,
+  room_id uuid not null references public.study_rooms(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now(),
   acknowledged_at timestamptz
@@ -81,9 +81,9 @@ create policy "Users can acknowledge their own study room kick events"
 
 -- 加入房间：先原子化移除该用户的旧房间，再登记唯一的当前房间。
 create or replace function public.join_study_room_v2(
-  p_room_id text,
+  p_room_id uuid,
   p_room_code text default null
-) returns text
+) returns uuid
 language plpgsql
 security definer
 set search_path = public, auth
@@ -91,7 +91,7 @@ as $$
 declare
   v_user_id uuid := auth.uid();
   v_room public.study_rooms%rowtype;
-  v_old_room_id text;
+  v_old_room_id uuid;
   v_old_owner uuid;
   v_old_next_owner uuid;
   v_old_remaining integer;
@@ -194,13 +194,13 @@ end;
 $$;
 
 create or replace function public.join_private_study_room_v2(p_room_code text)
-returns text
+returns uuid
 language plpgsql
 security definer
 set search_path = public, auth
 as $$
 declare
-  v_room_id text;
+  v_room_id uuid;
 begin
   if auth.uid() is null then raise exception 'Authentication required'; end if;
 
@@ -222,7 +222,7 @@ $$;
 -- 主动离开时：房主可指定新房主；未指定则交给最早加入的剩余成员。
 -- 如果房间暂时无人，保留 24 小时并设置 empty_since，之后由清理任务关闭。
 create or replace function public.leave_study_room_v2(
-  p_room_id text,
+  p_room_id uuid,
   p_new_owner_id uuid default null
 ) returns uuid
 language plpgsql
@@ -288,7 +288,7 @@ end;
 $$;
 
 create or replace function public.kick_study_room_member_v2(
-  p_room_id text,
+  p_room_id uuid,
   p_target_user_id uuid
 ) returns boolean
 language plpgsql
@@ -333,7 +333,7 @@ begin
 end;
 $$;
 
-create or replace function public.end_study_room_v2(p_room_id text)
+create or replace function public.end_study_room_v2(p_room_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -490,18 +490,18 @@ begin
 end;
 $$;
 
-revoke all on function public.join_study_room_v2(text, text) from public, anon;
+revoke all on function public.join_study_room_v2(uuid, text) from public, anon;
 revoke all on function public.join_private_study_room_v2(text) from public, anon;
-revoke all on function public.leave_study_room_v2(text, uuid) from public, anon;
-revoke all on function public.kick_study_room_member_v2(text, uuid) from public, anon;
-revoke all on function public.end_study_room_v2(text) from public, anon;
+revoke all on function public.leave_study_room_v2(uuid, uuid) from public, anon;
+revoke all on function public.kick_study_room_member_v2(uuid, uuid) from public, anon;
+revoke all on function public.end_study_room_v2(uuid) from public, anon;
 revoke all on function public.cleanup_study_rooms() from public, anon, authenticated;
 
-grant execute on function public.join_study_room_v2(text, text) to authenticated;
+grant execute on function public.join_study_room_v2(uuid, text) to authenticated;
 grant execute on function public.join_private_study_room_v2(text) to authenticated;
-grant execute on function public.leave_study_room_v2(text, uuid) to authenticated;
-grant execute on function public.kick_study_room_member_v2(text, uuid) to authenticated;
-grant execute on function public.end_study_room_v2(text) to authenticated;
+grant execute on function public.leave_study_room_v2(uuid, uuid) to authenticated;
+grant execute on function public.kick_study_room_member_v2(uuid, uuid) to authenticated;
+grant execute on function public.end_study_room_v2(uuid) to authenticated;
 grant execute on function public.cleanup_study_rooms() to service_role;
 
 
@@ -676,7 +676,7 @@ using (
   )
 );
 
-create or replace function public.can_view_study_room_members(p_room_id text)
+create or replace function public.can_view_study_room_members(p_room_id uuid)
 returns boolean
 language sql
 stable
@@ -696,8 +696,8 @@ as $$
   );
 $$;
 
-revoke all on function public.can_view_study_room_members(text) from public, anon;
-grant execute on function public.can_view_study_room_members(text) to authenticated;
+revoke all on function public.can_view_study_room_members(uuid) from public, anon;
+grant execute on function public.can_view_study_room_members(uuid) to authenticated;
 
 create policy "Authenticated users can read visible room membership"
 on public.study_room_active_members for select to authenticated
@@ -775,7 +775,7 @@ for each row execute function public.guard_study_room_lifecycle_fields();
 -- Revalidate every heartbeat against the authoritative active-room membership.
 -- The RPC is SECURITY DEFINER so it can update last_activity_at despite lifecycle-field RLS.
 create or replace function public.heartbeat_study_room(
-  p_room_id text,
+  p_room_id uuid,
   p_display_name text,
   p_avatar_url text,
   p_seconds integer default 0
@@ -820,8 +820,8 @@ begin
   return v_current_seconds;
 end;
 $$;
-revoke all on function public.heartbeat_study_room(text, text, text, integer) from public, anon;
-grant execute on function public.heartbeat_study_room(text, text, text, integer) to authenticated;
+revoke all on function public.heartbeat_study_room(uuid, text, text, integer) from public, anon;
+grant execute on function public.heartbeat_study_room(uuid, text, text, integer) to authenticated;
 
 -- Publish the room directory itself for live status/owner updates.
 do $$
