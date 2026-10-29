@@ -413,3 +413,128 @@ grant execute on function public.leave_study_room_v2(uuid, uuid) to authenticate
 grant execute on function public.kick_study_room_member_v2(uuid, uuid) to authenticated;
 grant execute on function public.end_study_room_v2(uuid) to authenticated;
 grant execute on function public.cleanup_study_rooms() to service_role;
+
+
+-- Private-room metadata and chat are scoped by room membership.
+-- Replace existing SELECT policies on these feature tables so an older permissive policy
+-- cannot accidentally expose private room codes or private-room chat history.
+alter table public.study_rooms enable row level security;
+alter table public.study_room_messages enable row level security;
+alter table public.study_room_presence enable row level security;
+
+do $$
+declare p record;
+begin
+  for p in
+    select policyname from pg_policies
+    where schemaname = 'public' and tablename = 'study_rooms' and cmd = 'SELECT'
+  loop
+    execute format('drop policy %I on public.study_rooms', p.policyname);
+  end loop;
+  for p in
+    select policyname from pg_policies
+    where schemaname = 'public' and tablename = 'study_room_messages' and cmd in ('SELECT', 'INSERT')
+  loop
+    execute format('drop policy %I on public.study_room_messages', p.policyname);
+  end loop;
+  for p in
+    select policyname from pg_policies
+    where schemaname = 'public' and tablename = 'study_room_presence' and cmd = 'SELECT'
+  loop
+    execute format('drop policy %I on public.study_room_presence', p.policyname);
+  end loop;
+end;
+$$;
+
+create policy "Study rooms visible only when public or joined"
+on public.study_rooms for select to authenticated
+using (
+  status = 'active'
+  and (
+    not is_private
+    or created_by = auth.uid()
+    or owner_id = auth.uid()
+    or exists (
+      select 1 from public.study_room_active_members am
+      where am.room_id = study_rooms.id and am.user_id = auth.uid()
+    )
+  )
+);
+
+create policy "Study room messages readable by room members"
+on public.study_room_messages for select to authenticated
+using (
+  exists (
+    select 1 from public.study_room_active_members am
+    where am.room_id = study_room_messages.room_id and am.user_id = auth.uid()
+  )
+);
+
+create policy "Active members can send study room messages"
+on public.study_room_messages for insert to authenticated
+with check (
+  user_id = auth.uid()
+  and exists (
+    select 1 from public.study_room_active_members am
+    where am.room_id = study_room_messages.room_id and am.user_id = auth.uid()
+  )
+);
+
+create policy "Presence visible in public rooms or to private room members"
+on public.study_room_presence for select to authenticated
+using (
+  exists (
+    select 1 from public.study_rooms r
+    where r.id = study_room_presence.room_id
+      and (
+        not r.is_private
+        or exists (
+          select 1 from public.study_room_active_members am
+          where am.room_id = r.id and am.user_id = auth.uid()
+        )
+      )
+  )
+);
+
+-- Keep lifecycle/ownership fields under RPC control rather than direct client updates.
+create or replace function public.guard_study_room_lifecycle_fields()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if current_user in ('authenticated', 'anon') then
+    if tg_op = 'INSERT' then
+      if new.owner_id is distinct from auth.uid()
+         or coalesce(new.is_system_lobby, false)
+         or coalesce(new.status, 'active') <> 'active'
+         or new.closed_at is not null then
+        raise exception 'Lifecycle fields may only be set by trusted room operations';
+      end if;
+    else
+      if new.owner_id is distinct from old.owner_id
+         or new.is_system_lobby is distinct from old.is_system_lobby
+         or new.status is distinct from old.status
+         or new.empty_since is distinct from old.empty_since
+         or new.closed_at is distinct from old.closed_at then
+        raise exception 'Lifecycle fields may only be changed by trusted room operations';
+      end if;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists guard_study_room_lifecycle_fields on public.study_rooms;
+create trigger guard_study_room_lifecycle_fields
+before insert or update on public.study_rooms
+for each row execute function public.guard_study_room_lifecycle_fields();
+
+-- Publish the room directory itself for live status/owner updates.
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    begin alter publication supabase_realtime add table public.study_rooms; exception when duplicate_object then null; when others then null; end;
+  end if;
+end;
+$$;
