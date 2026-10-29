@@ -1805,6 +1805,8 @@ export default function Home() {
             nickname={nickname}
             avatarUrl={avatarUrl}
             isDarkMode={isDarkMode}
+            onToggleTheme={() => setIsDarkMode(v => !v)}
+            onShowTerms={() => setShowTermsModal(true)}
             onSignIn={() => setShowAuthModal(true)}
           />
         )}
