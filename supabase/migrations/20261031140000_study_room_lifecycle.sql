@@ -54,6 +54,20 @@ create index if not exists study_room_kick_events_user_pending_idx
 alter table public.study_room_active_members enable row level security;
 alter table public.study_room_kick_events enable row level security;
 
+-- 兼容尚未创建 presence 表的现有项目；心跳与在线列表依赖此表。
+create table if not exists public.study_room_presence (
+  room_id uuid not null references public.study_rooms(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  display_name text not null default 'Student',
+  avatar_url text not null default '',
+  joined_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  study_seconds integer not null default 0 check (study_seconds >= 0),
+  primary key (room_id, user_id)
+);
+create index if not exists study_room_presence_last_seen_idx
+  on public.study_room_presence (last_seen_at);
+
 -- Explicit grants for the new tables; RLS policies below further narrow row access.
 grant select on public.study_room_active_members to authenticated;
 grant select, update on public.study_room_kick_events to authenticated;
