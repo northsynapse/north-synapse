@@ -375,7 +375,8 @@ declare
   v_owner uuid;
 begin
   delete from public.study_room_active_members am
-  where not exists (
+  where am.joined_at <= now() - interval '2 minutes'
+    and not exists (
     select 1 from public.study_room_presence p
     where p.room_id = am.room_id
       and p.user_id = am.user_id
