@@ -293,7 +293,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     const roomId = String(data.id);
     const { error: joinError } = await supabase.rpc('join_study_room_v2', { p_room_id: roomId, p_room_code: roomCode });
     setLoading(false);
-    if (joinError) { setNotice('The room was created, but joining failed: ' + joinError.message); return; }
+    if (joinError) { setNotice('The room was created, but joining failed: ' + joinError.message); await loadRooms(); return; }
     setShowCreate(false); setNewName(''); setNewDescription(''); setNewPrivate(false);
     setTimerRunning(false); setRemainingSeconds(durationMinutes * 60);
     await refreshRoom(roomId); await loadRooms();
@@ -401,7 +401,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   return <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', color: theme.text }}>
     <header style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
       <div><p style={{ color: theme.accent, fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', margin: '0 0 .35rem' }}>NORTH SYNAPSE / STUDY LOUNGE</p><h1 style={{ margin: 0, fontSize: '2rem' }}>Study Rooms</h1><p style={{ color: theme.muted, margin: '.45rem 0 0' }}>Quiet accountability, personal focus timers, and text-only chat.</p></div>
-      {!joinedRoom && <button type="button" style={buttonStyle} onClick={() => { if (!user?.id) onSignIn(); else setShowCreate(v => !v); }}><Plus size={16} style={{ verticalAlign: 'middle', marginRight: 6 }}/>{showCreate ? 'Cancel' : 'Create room'}</button>}
+      {!joinedRoom && <button type="button" style={buttonStyle} onClick={() => { if (!user?.id) onSignIn(); else { setNotice(''); setShowCreate(true); } }}><Plus size={16} style={{ verticalAlign: 'middle', marginRight: 6 }}/>'Create room'</button>}
     </header>
 
     {notice && <div role="status" style={{ padding: '.75rem .9rem', borderRadius: 9, background: theme.card, border: '1px solid ' + theme.border, display: 'flex', justifyContent: 'space-between', gap: '.7rem' }}><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss" style={{ border: 0, background: 'transparent', color: theme.text }}><X size={16}/></button></div>}
@@ -413,14 +413,6 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
         <button style={buttonStyle} type="submit" disabled={loading}>{loading ? 'Joining…' : 'Join room'}</button>
       </form>
 
-      {showCreate && <form onSubmit={createRoom} style={{ ...cardStyle, display: 'grid', gap: '.8rem' }}>
-        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Create a study room</h2>
-        <label><span style={{ display: 'block', fontSize: '.8rem', color: theme.muted, marginBottom: '.35rem' }}>ROOM NAME</span><input required maxLength={100} value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Grade 11 Calculus Focus" style={inputStyle}/></label>
-        <label><span style={{ display: 'block', fontSize: '.8rem', color: theme.muted, marginBottom: '.35rem' }}>SUBJECT</span><select value={newSubject} onChange={e => setNewSubject(e.target.value)} style={inputStyle}>{['General Study','Mathematics','Science','English & ESL','Computer Science & Tech','French','History & Social Sciences','Business & Economics'].map(x => <option key={x}>{x}</option>)}</select></label>
-        <label><span style={{ display: 'block', fontSize: '.8rem', color: theme.muted, marginBottom: '.35rem' }}>DESCRIPTION / RULES</span><textarea maxLength={1000} rows={3} value={newDescription} onChange={e => setNewDescription(e.target.value)} placeholder="Purpose, rules, subject focus, or anything members should know." style={inputStyle}/></label>
-        <label style={{ display: 'flex', gap: '.55rem', alignItems: 'center' }}><input type="checkbox" checked={newPrivate} onChange={e => setNewPrivate(e.target.checked)}/>Private room (requires a room code)</label>
-        <button type="submit" disabled={loading || !newName.trim()} style={{ ...buttonStyle, opacity: loading ? .6 : 1 }}>{loading ? 'Creating…' : 'Create and enter room'}</button>
-      </form>}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '.7rem' }}>
         <label style={{ flex: '1 1 240px', position: 'relative' }}><Search size={16} style={{ position: 'absolute', top: 12, left: 12, color: theme.muted }}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search rooms by name" style={{ ...inputStyle, paddingLeft: 36 }}/></label>
@@ -465,6 +457,22 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
         </section>
       </div>
     </>}
+
+
+    {showCreate && !joinedRoom && <div role="dialog" aria-modal="true" aria-labelledby="create-study-room-title" onMouseDown={e => { if (e.target === e.currentTarget && !loading) setShowCreate(false); }} style={{ position: 'fixed', inset: 0, zIndex: 100002, background: 'rgba(3, 6, 14, .76)', backdropFilter: 'blur(8px)', display: 'grid', placeItems: 'center', padding: '1rem' }}>
+      <form onSubmit={createRoom} style={{ ...cardStyle, width: 'min(100%, 520px)', maxHeight: 'min(88vh, 760px)', overflowY: 'auto', display: 'grid', gap: '.9rem', boxShadow: '0 24px 80px rgba(0,0,0,.38)', borderColor: theme.accent }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+          <div><p style={{ margin: '0 0 .35rem', color: theme.accent, fontSize: '.7rem', fontWeight: 800, letterSpacing: '.14em' }}>NORTH SYNAPSE / STUDY LOUNGE</p><h2 id="create-study-room-title" style={{ margin: 0, fontSize: '1.35rem' }}>Create a study room</h2><p style={{ margin: '.4rem 0 0', color: theme.muted, fontSize: '.88rem' }}>Make a focused space to learn together.</p></div>
+          <button type="button" aria-label="Close create room dialog" onClick={() => setShowCreate(false)} disabled={loading} style={{ border: '1px solid ' + theme.border, borderRadius: 8, padding: '.4rem', color: theme.text, background: 'transparent', cursor: 'pointer', flexShrink: 0 }}><X size={17}/></button>
+        </div>
+        <label><span style={{ display: 'block', fontSize: '.8rem', color: theme.muted, marginBottom: '.35rem' }}>ROOM NAME</span><input required maxLength={100} value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Grade 11 Calculus Focus" style={inputStyle}/></label>
+        <label><span style={{ display: 'block', fontSize: '.8rem', color: theme.muted, marginBottom: '.35rem' }}>SUBJECT</span><select value={newSubject} onChange={e => setNewSubject(e.target.value)} style={inputStyle}>{['General Study','Mathematics','Science','English & ESL','Computer Science & Tech','French','History & Social Sciences','Business & Economics'].map(x => <option key={x}>{x}</option>)}</select></label>
+        <label><span style={{ display: 'block', fontSize: '.8rem', color: theme.muted, marginBottom: '.35rem' }}>DESCRIPTION / RULES</span><textarea maxLength={1000} rows={3} value={newDescription} onChange={e => setNewDescription(e.target.value)} placeholder="Purpose, rules, or subject focus for members." style={{ ...inputStyle, resize: 'vertical' }}/></label>
+        <label style={{ display: 'flex', gap: '.6rem', alignItems: 'center', padding: '.75rem', border: '1px solid ' + theme.border, borderRadius: 9, cursor: 'pointer' }}><input type="checkbox" checked={newPrivate} onChange={e => setNewPrivate(e.target.checked)}/><span><strong style={{ display: 'block', fontSize: '.9rem' }}>Private room</strong><span style={{ color: theme.muted, fontSize: '.78rem' }}>Only students with the room code can join.</span></span></label>
+        {newPrivate && <p style={{ color: theme.muted, fontSize: '.8rem', margin: 0 }}>A room code will be generated automatically after creation.</p>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '.6rem', marginTop: '.2rem' }}><button type="button" onClick={() => setShowCreate(false)} disabled={loading} style={{ ...buttonStyle, background: 'transparent', color: theme.text, border: '1px solid ' + theme.border }}>Cancel</button><button type="submit" disabled={loading || !newName.trim()} style={{ ...buttonStyle, opacity: loading ? .6 : 1 }}>{loading ? 'Creating…' : 'Create and enter room'}</button></div>
+      </form>
+    </div>}
 
     {showHandoff && joinedRoom && <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex: 100000, background: 'rgba(0,0,0,.7)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 420px)' }}><h2 style={{ marginTop: 0 }}>Transfer room ownership</h2><p style={{ color: theme.muted }}>Choose the next owner. If you do not choose, the earliest remaining member becomes owner.</p><select value={handoffUserId} onChange={e => setHandoffUserId(e.target.value)} style={inputStyle}>{members.filter(p => p.user_id !== user?.id).map(p => <option key={p.user_id} value={p.user_id}>{p.display_name}</option>)}</select><div style={{ display: 'flex', justifyContent: 'flex-end', gap: '.6rem', marginTop: '1rem' }}><button type="button" style={{ ...buttonStyle, background: 'transparent', color: theme.text, border: '1px solid ' + theme.border }} onClick={() => setShowHandoff(false)}>Cancel</button><button type="button" style={buttonStyle} disabled={loading} onClick={() => void leaveRoom(handoffUserId || undefined)}>Transfer & leave</button><button type="button" style={{ ...buttonStyle, background: theme.muted }} disabled={loading} onClick={() => void leaveRoom()}>Default & leave</button></div></div></div>}
 
