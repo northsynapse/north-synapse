@@ -53,6 +53,13 @@ create index if not exists study_room_kick_events_user_pending_idx
 alter table public.study_room_active_members enable row level security;
 alter table public.study_room_kick_events enable row level security;
 
+-- Explicit grants for the new tables; RLS policies below further narrow row access.
+grant select on public.study_room_active_members to authenticated;
+grant select, update on public.study_room_kick_events to authenticated;
+grant select, insert on public.study_room_messages to authenticated;
+grant select, insert, update, delete on public.study_room_presence to authenticated;
+grant select, insert on public.study_rooms to authenticated;
+
 drop policy if exists "Authenticated users can read active study room members" on public.study_room_active_members;
 create policy "Authenticated users can read active study room members"
   on public.study_room_active_members for select to authenticated
@@ -659,6 +666,7 @@ begin
          or new.owner_id is distinct from auth.uid()
          or coalesce(new.is_system_lobby, false)
          or coalesce(new.status, 'active') <> 'active'
+         or new.empty_since is not null
          or new.closed_at is not null then
         raise exception 'Lifecycle fields may only be set by trusted room operations';
       end if;
