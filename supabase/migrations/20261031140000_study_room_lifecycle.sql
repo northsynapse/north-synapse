@@ -3,6 +3,7 @@
 
 alter table public.study_rooms
   add column if not exists description text,
+  add column if not exists room_code text,
   add column if not exists last_activity_at timestamptz not null default now(),
   add column if not exists created_by uuid references public.profiles(id) on delete set null,
   add column if not exists owner_id uuid references auth.users(id) on delete set null,
