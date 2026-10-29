@@ -457,7 +457,7 @@ $$;
 insert into public.study_rooms
   (id, name, subject, description, is_private, room_code, created_by, owner_id, is_system_lobby, status, empty_since)
 values
-  ('00000000-0000-4000-8000-000000000001'::uuid,
+  ('00000000-0000-4000-8000-000000000001',
    'The Commons', 'General Study',
    'The permanent public study hall. Open to all authenticated students.',
    false, null, null, null, true, 'active', null)
@@ -466,9 +466,12 @@ set name = excluded.name,
     subject = excluded.subject,
     description = excluded.description,
     is_private = false,
+    room_code = null,
+    owner_id = null,
     is_system_lobby = true,
     status = 'active',
-    empty_since = null;
+    empty_since = null,
+    closed_at = null;
 
 -- Realtime 订阅允许存在时才加入 publication；重复添加不阻断迁移。
 do $$
