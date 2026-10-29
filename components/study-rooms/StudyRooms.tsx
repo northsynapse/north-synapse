@@ -251,7 +251,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     void heartbeat();
     const heartbeatTimer = window.setInterval(heartbeat, 30000);
     const pollTimer = window.setInterval(() => { if (active) void refreshRoom(roomId); }, 5000);
-    const channel = supabase.channel(`study-room-${roomId}-${userId}`)
+    const channel = supabase.channel(`study-room-${roomId}-announcements`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'study_room_active_members', filter: `room_id=eq.${roomId}` }, () => { if (active) void refreshRoom(roomId); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'study_room_messages', filter: `room_id=eq.${roomId}` }, () => { if (active) void refreshRoom(roomId); })
       .on('broadcast', { event: 'admin_entered' }, ({ payload }) => {
@@ -289,7 +289,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
 
   async function announceAdminEntry(roomId: string, roomName: string) {
     if (!isAdmin) return;
-    const channel = supabase.channel(`study-room-${roomId}`);
+    const channel = supabase.channel(`study-room-${roomId}-announcements`);
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         void channel.send({
