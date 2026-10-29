@@ -33,6 +33,24 @@ create index if not exists study_rooms_active_created_idx
 create index if not exists study_rooms_active_users_idx
   on public.study_rooms (status, empty_since);
 
+-- 兼容旧版房间成员表引用；加入/离开流程会同步维护此表。
+create table if not exists public.study_room_members (
+  room_id uuid not null references public.study_rooms(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  primary key (room_id, user_id)
+);
+create index if not exists study_room_members_user_idx
+  on public.study_room_members (user_id);
+
+alter table public.study_room_members enable row level security;
+grant select on public.study_room_members to authenticated;
+
+drop policy if exists "Authenticated users can read study room members" on public.study_room_members;
+create policy "Authenticated users can read study room members"
+  on public.study_room_members for select to authenticated
+  using (true);
+
 -- 在线成员的权威记录：user_id 主键确保一个账号同时只能加入一个房间。
 create table if not exists public.study_room_active_members (
   user_id uuid primary key references auth.users(id) on delete cascade,
