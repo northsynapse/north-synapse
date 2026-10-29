@@ -56,6 +56,8 @@ alter table public.study_room_kick_events enable row level security;
 -- Explicit grants for the new tables; RLS policies below further narrow row access.
 grant select on public.study_room_active_members to authenticated;
 grant select, update on public.study_room_kick_events to authenticated;
+revoke update on public.study_room_kick_events from authenticated;
+grant update (acknowledged_at) on public.study_room_kick_events to authenticated;
 grant select, insert on public.study_room_messages to authenticated;
 grant select, insert, update, delete on public.study_room_presence to authenticated;
 grant select, insert on public.study_rooms to authenticated;
