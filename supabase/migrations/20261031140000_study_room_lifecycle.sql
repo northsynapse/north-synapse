@@ -539,7 +539,7 @@ $$;
 revoke all on function public.join_study_room_v2(uuid, text) from public, anon;
 revoke all on function public.join_private_study_room_v2(text) from public, anon;
 revoke all on function public.leave_study_room_v2(uuid, uuid) from public, anon;
-revoke all on function public.kick_study_room_member_v2(uuid, uuid) from public, anon;
+revoke all on function public.kick_study_room_member_v2(uuid, uuid, text) from public, anon;
 revoke all on function public.end_study_room_v2(uuid) from public, anon;
 revoke all on function public.cleanup_study_rooms() from public, anon, authenticated;
 
