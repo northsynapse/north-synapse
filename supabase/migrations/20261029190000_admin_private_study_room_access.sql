@@ -120,9 +120,14 @@ begin
           else excluded.joined_at
         end;
 
-  insert into public.study_room_members(user_id, room_id, joined_at)
-  values (v_user_id, p_room_id, now())
-  on conflict (user_id, room_id) do nothing;
+  delete from public.study_room_members
+  where user_id = v_user_id and room_id::text <> p_room_id::text;
+  insert into public.study_room_members(room_id, user_id)
+  values (p_room_id, v_user_id)
+  on conflict (room_id, user_id) do nothing;
+
+  delete from public.study_room_presence
+  where user_id = v_user_id and room_id::text <> p_room_id::text;
 
   return p_room_id;
 end;
