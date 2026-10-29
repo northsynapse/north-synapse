@@ -423,18 +423,18 @@ begin
   loop
     select user_id into v_owner
     from public.study_room_active_members
-    where room_id = v_room.id and user_id = v_room.owner_id;
+    where room_id::text = v_room.id::text and user_id = v_room.owner_id;
 
     if v_owner is null then
       select user_id into v_owner
       from public.study_room_active_members
-      where room_id = v_room.id
+      where room_id::text = v_room.id::text
       order by joined_at asc
       limit 1;
       update public.study_rooms set owner_id = v_owner where id = v_room.id;
     end if;
 
-    if exists (select 1 from public.study_room_active_members where room_id = v_room.id) then
+    if exists (select 1 from public.study_room_active_members where room_id::text = v_room.id::text) then
       update public.study_rooms set empty_since = null where id = v_room.id;
     else
       update public.study_rooms set empty_since = coalesce(empty_since, now()) where id = v_room.id;
@@ -583,7 +583,7 @@ using (
     or owner_id = auth.uid()
     or exists (
       select 1 from public.study_room_active_members am
-      where am.room_id = study_rooms.id and am.user_id = auth.uid()
+      where am.room_id::text = study_rooms.id::text and am.user_id = auth.uid()
     )
   )
 );
