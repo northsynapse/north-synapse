@@ -2000,12 +2000,14 @@ export default function Home() {
 
       </main>
 
-      {/* 常驻的用户须知入口：放在主内容区顶部，避免长页面中难以找到 */}
-      <div style={{ position: 'fixed', top: '5.25rem', right: '1rem', zIndex: 1000001, display: 'flex', justifyContent: 'flex-end', padding: '.25rem', background: 'transparent' }}>
-        <button type="button" onClick={() => setShowTermsModal(true)} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, padding: '.45rem .75rem', borderRadius: '8px', cursor: 'pointer', minHeight: '40px', fontWeight: 650, boxShadow: '0 4px 18px rgba(0,0,0,.12)' }}>Terms of Service & User Notice</button>
+      {/* 桌面端提供紧凑的须知入口；移动端使用页脚入口，避免遮挡内容 */}
+      <div className="ns-terms-float" style={{ position: 'fixed', bottom: '1rem', right: '1rem', zIndex: 1000 }}>
+        <button type="button" onClick={() => setShowTermsModal(true)} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, padding: '.45rem .7rem', borderRadius: '999px', cursor: 'pointer', minHeight: '36px', fontSize: '.8rem', fontWeight: 600, boxShadow: '0 3px 12px rgba(0,0,0,.1)' }}>User notice</button>
       </div>
 
       {/* 常驻的用户须知入口：登录前后都能打开 */}
+      <style>{`@media (max-width: 640px) { .ns-terms-float { display: none !important; } }`}</style>
+
       <footer style={{ maxWidth: '1080px', margin: '0 auto', padding: '1rem 1rem 2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', color: theme.textMuted, fontSize: '0.85rem' }}>
         <span>North Synapse · Student Learning Community</span>
         <button type="button" onClick={() => setShowTermsModal(true)} style={{ background: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMain, padding: '0.55rem 0.85rem', borderRadius: '8px', cursor: 'pointer', minHeight: '40px' }}>Terms of Service & User Notice</button>
