@@ -14,9 +14,11 @@ create or replace function auth.uid()
 returns uuid
 language sql
 stable
-as $$
+as $
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
-$$;
+$;
+grant usage on schema auth to anon, authenticated;
+grant execute on function auth.uid() to anon, authenticated;
 
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
