@@ -427,24 +427,36 @@ declare p record;
 begin
   for p in
     select policyname from pg_policies
-    where schemaname = 'public' and tablename = 'study_rooms' and cmd = 'SELECT'
+    where schemaname = 'public' and tablename = 'study_rooms'
   loop
     execute format('drop policy %I on public.study_rooms', p.policyname);
   end loop;
   for p in
     select policyname from pg_policies
-    where schemaname = 'public' and tablename = 'study_room_messages' and cmd in ('SELECT', 'INSERT')
+    where schemaname = 'public' and tablename = 'study_room_messages'
   loop
     execute format('drop policy %I on public.study_room_messages', p.policyname);
   end loop;
   for p in
     select policyname from pg_policies
-    where schemaname = 'public' and tablename = 'study_room_presence' and cmd = 'SELECT'
+    where schemaname = 'public' and tablename = 'study_room_presence'
   loop
     execute format('drop policy %I on public.study_room_presence', p.policyname);
   end loop;
+  for p in
+    select policyname from pg_policies
+    where schemaname = 'public' and tablename = 'study_room_active_members'
+  loop
+    execute format('drop policy %I on public.study_room_active_members', p.policyname);
+  end loop;
+  for p in
+    select policyname from pg_policies
+    where schemaname = 'public' and tablename = 'study_room_kick_events'
+  loop
+    execute format('drop policy %I on public.study_room_kick_events', p.policyname);
+  end loop;
 end;
-$$;
+$;
 
 create policy "Study rooms visible only when public or joined"
 on public.study_rooms for select to authenticated
@@ -459,6 +471,15 @@ using (
       where am.room_id = study_rooms.id and am.user_id = auth.uid()
     )
   )
+);
+
+create policy "Authenticated students can create their own study rooms"
+on public.study_rooms for insert to authenticated
+with check (
+  created_by = auth.uid()
+  and owner_id = auth.uid()
+  and coalesce(is_system_lobby, false) = false
+  and status = 'active'
 );
 
 create policy "Study room messages readable by room members"
@@ -495,6 +516,23 @@ using (
       )
   )
 );
+
+create policy "Authenticated users can read active room membership"
+on public.study_room_active_members for select to authenticated
+using (true);
+
+create policy "Users can read their own study room kick events"
+on public.study_room_kick_events for select to authenticated
+using (user_id = auth.uid());
+
+create policy "Users can acknowledge their own study room kick events"
+on public.study_room_kick_events for update to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+create policy "Users can remove their own room presence"
+on public.study_room_presence for delete to authenticated
+using (user_id = auth.uid());
 
 -- Keep lifecycle/ownership fields under RPC control rather than direct client updates.
 create or replace function public.guard_study_room_lifecycle_fields()
