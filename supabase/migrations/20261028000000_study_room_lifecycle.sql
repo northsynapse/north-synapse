@@ -517,9 +517,32 @@ using (
   )
 );
 
-create policy "Authenticated users can read active room membership"
+create or replace function public.can_view_study_room_members(p_room_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, auth
+as $
+  select exists (
+    select 1 from public.study_rooms r
+    where r.id = p_room_id
+      and (
+        not r.is_private
+        or exists (
+          select 1 from public.study_room_active_members am
+          where am.room_id = r.id and am.user_id = auth.uid()
+        )
+      )
+  );
+$;
+
+revoke all on function public.can_view_study_room_members(uuid) from public, anon;
+grant execute on function public.can_view_study_room_members(uuid) to authenticated;
+
+create policy "Authenticated users can read visible room membership"
 on public.study_room_active_members for select to authenticated
-using (true);
+using (user_id = auth.uid() or public.can_view_study_room_members(room_id));
 
 create policy "Users can read their own study room kick events"
 on public.study_room_kick_events for select to authenticated
