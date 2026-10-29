@@ -154,11 +154,11 @@ begin
 
     update public.study_rooms
     set owner_id = case
-          when v_old_remaining = 0 then null
+          when v_old_remaining = 0 and not is_system_lobby then null
           when v_old_owner = v_user_id then v_old_next_owner
           else owner_id
         end,
-        empty_since = case when v_old_remaining = 0 then coalesce(empty_since, now()) else null end,
+        empty_since = case when v_old_remaining = 0 and not is_system_lobby then coalesce(empty_since, now()) else null end,
         last_activity_at = now()
     where id = v_old_room_id and status = 'active';
   end if;
@@ -275,7 +275,11 @@ begin
         last_activity_at = now()
     where id = p_room_id;
   elsif v_remaining = 0 then
-    update public.study_rooms set owner_id = null, empty_since = now(), last_activity_at = now() where id = p_room_id;
+    update public.study_rooms
+    set owner_id = case when is_system_lobby then owner_id else null end,
+        empty_since = case when is_system_lobby then null else now() end,
+        last_activity_at = now()
+    where id = p_room_id;
   end if;
 
   return v_next_owner;
@@ -453,7 +457,7 @@ end;
 $$;
 
 -- 固定公共大厅：若历史表约束允许系统创建者为空，则创建 The Commons。
--- 如果当前项目对 created_by 有额外 NOT NULL 约束，需在 Supabase 中手动指定系统创建者后运行该 INSERT。
+-- 系统大厅不归属于任何用户；上方已允许 created_by 为空。
 insert into public.study_rooms
   (id, name, subject, description, is_private, room_code, created_by, owner_id, is_system_lobby, status, empty_since)
 values
