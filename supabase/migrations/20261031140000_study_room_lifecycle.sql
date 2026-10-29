@@ -9,6 +9,7 @@ notify pgrst, 'reload schema';
 
 alter table public.study_rooms
   add column if not exists description text,
+  add column if not exists grade text not null default 'All grades',
   add column if not exists room_code text,
   add column if not exists last_activity_at timestamptz not null default now(),
   add column if not exists created_by uuid references public.profiles(id) on delete set null,
@@ -72,13 +73,15 @@ create table if not exists public.study_room_kick_events (
   room_id uuid not null references public.study_rooms(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now(),
-  acknowledged_at timestamptz
+  acknowledged_at timestamptz,
+  reason text
 );
 create index if not exists study_room_kick_events_user_pending_idx
   on public.study_room_kick_events (user_id, created_at desc)
   where acknowledged_at is null;
 
 alter table public.study_room_active_members enable row level security;
+alter table public.study_room_kick_events add column if not exists reason text;
 alter table public.study_room_kick_events enable row level security;
 
 -- 兼容尚未创建 presence 表的现有项目；心跳与在线列表依赖此表。
@@ -328,9 +331,11 @@ begin
 end;
 $$;
 
+drop function if exists public.kick_study_room_member_v2(uuid, uuid);
 create or replace function public.kick_study_room_member_v2(
   p_room_id uuid,
-  p_target_user_id uuid
+  p_target_user_id uuid,
+  p_reason text default null
 ) returns boolean
 language plpgsql
 security definer
@@ -359,8 +364,8 @@ begin
     where room_id::text = p_room_id::text and user_id = p_target_user_id
   ) then raise exception 'Target user is not an active member'; end if;
 
-  insert into public.study_room_kick_events(room_id, user_id)
-  values (p_room_id, p_target_user_id);
+  insert into public.study_room_kick_events(room_id, user_id, reason)
+  values (p_room_id, p_target_user_id, nullif(left(trim(coalesce(p_reason, '')), 300), ''));
 
   delete from public.study_room_active_members where room_id::text = p_room_id::text and user_id = p_target_user_id;
   delete from public.study_room_members where room_id::text = p_room_id::text and user_id = p_target_user_id;
@@ -541,7 +546,7 @@ revoke all on function public.cleanup_study_rooms() from public, anon, authentic
 grant execute on function public.join_study_room_v2(uuid, text) to authenticated;
 grant execute on function public.join_private_study_room_v2(text) to authenticated;
 grant execute on function public.leave_study_room_v2(uuid, uuid) to authenticated;
-grant execute on function public.kick_study_room_member_v2(uuid, uuid) to authenticated;
+grant execute on function public.kick_study_room_member_v2(uuid, uuid, text) to authenticated;
 grant execute on function public.end_study_room_v2(uuid) to authenticated;
 grant execute on function public.cleanup_study_rooms() to service_role;
 
@@ -611,6 +616,14 @@ using (
     )
   )
 );
+
+-- 访客可以浏览公开自习室目录，但加入房间仍需登录。
+grant select on public.study_rooms to anon;
+drop policy if exists "Guests can browse public study rooms" on public.study_rooms;
+create policy "Guests can browse public study rooms"
+on public.study_rooms for select to anon
+using (status = 'active' and not is_private);
+
 
 create policy "Authenticated students can create their own study rooms"
 on public.study_rooms for insert to authenticated
