@@ -7,7 +7,7 @@ import { Crown, LockKeyhole, MessageCircle, Plus, Search, Send, Users, X, LogOut
 type Room = {
   id: string; name: string; subject: string; grade: string; description: string;
   isPrivate: boolean; roomCode?: string; createdAt: string;
-  lastActivityAt: string; createdBy: string; createdByName: string; ownerId: string | null;
+  lastActivityAt: string; createdBy: string; createdByName?: string; ownerId: string | null;
   isSystemLobby: boolean; status: string; activeUsers: number;
 };
 type Person = {
