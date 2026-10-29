@@ -129,6 +129,7 @@ end;
 $;
 reset role;
 
+set request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 select public.leave_study_room_v2('test-kick', null);
 update public.study_rooms set empty_since = now() - interval '25 hours' where id = 'test-kick';
 select public.cleanup_study_rooms();
