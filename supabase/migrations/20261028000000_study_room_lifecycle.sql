@@ -205,7 +205,7 @@ begin
         last_activity_at = now()
     where id = p_room_id;
   elsif v_remaining = 0 then
-    update public.study_rooms set empty_since = now(), last_activity_at = now() where id = p_room_id;
+    update public.study_rooms set owner_id = null, empty_since = now(), last_activity_at = now() where id = p_room_id;
   end if;
 
   return v_next_owner;
@@ -505,7 +505,8 @@ as $$
 begin
   if current_user in ('authenticated', 'anon') then
     if tg_op = 'INSERT' then
-      if new.owner_id is distinct from auth.uid()
+      if new.created_by is distinct from auth.uid()
+         or new.owner_id is distinct from auth.uid()
          or coalesce(new.is_system_lobby, false)
          or coalesce(new.status, 'active') <> 'active'
          or new.closed_at is not null then
