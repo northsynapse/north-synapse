@@ -197,7 +197,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   }, [timerRunning]);
 
   const sortedRooms = useMemo(() => {
-    const visible = rooms.filter((room) => room.name.toLowerCase().includes(search.trim().toLowerCase()));
+    const visible = rooms.filter((room) => room.isSystemLobby || room.name.toLowerCase().includes(search.trim().toLowerCase()));
     visible.sort((a, b) => {
       if (a.isSystemLobby) return -1;
       if (b.isSystemLobby) return 1;
