@@ -297,6 +297,7 @@ export default function Home() {
       const profile = {
         id: authUser.id,
         email,
+        createdAt: authUser.created_at || '',
         username: metadata.username || defaultName,
         nickname: metadata.nickname || metadata.username || defaultName,
         grade: metadata.grade || '',
@@ -356,7 +357,7 @@ export default function Home() {
     const loadProfile = async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('email,username,nickname,grade,gender,bio,avatar_path,total_study_seconds')
+        .select('email,username,nickname,grade,gender,bio,avatar_path,total_study_seconds,created_at')
         .eq('id', userId)
         .maybeSingle();
       if (!active) return;
@@ -377,6 +378,7 @@ export default function Home() {
       setUser((previous: any) => previous?.id === userId ? {
         ...previous,
         email: data.email || previous.email,
+        createdAt: data.created_at || previous.createdAt || '',
         username: savedUsername,
         nickname: savedNickname,
         grade: data.grade || '',
@@ -1514,7 +1516,8 @@ export default function Home() {
     const resourceTags = res.tags || [];
     const matchesSubject = selectedSubjects.length === 0 || selectedSubjects.some(tag => resourceTags.includes(tag));
     const matchesGrade = selectedGrades.length === 0 || selectedGrades.some(tag => resourceTags.includes(tag));
-    const matchesSearch = searchQuery === '' || res.title.toLowerCase().includes(searchQuery.toLowerCase()) || res.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const query = searchQuery.trim().toLowerCase();
+    const matchesSearch = !query || res.title.toLowerCase().includes(query) || res.description.toLowerCase().includes(query) || (res.authorName || '').toLowerCase().includes(query) || (res.tags || []).some((tag: string) => tag.toLowerCase().includes(query));
     return matchesSubject && matchesGrade && matchesSearch;
   });
   const [resourceSort, setResourceSort] = useState<'newest' | 'likes' | 'comments' | 'bookmarks'>('newest');
@@ -1618,7 +1621,7 @@ export default function Home() {
   const myResources = resources.filter(r => r.authorEmail === user?.email);
   const bookmarkedResources = resources.filter(r => r.bookmarkedByMe);
   const myDiscussions = discussions.filter(d => d.authorEmail?.toLowerCase() === user?.email?.toLowerCase());
-  const joinedDate = user?.createdAt || user?.joinedAt || 'Not available';
+  const joinedDate = user?.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : 'Not available';
   const formatDuration = (seconds: number) => {
     const totalMinutes = Math.floor(Math.max(0, seconds) / 60);
     const hours = Math.floor(totalMinutes / 60);
@@ -1996,6 +1999,11 @@ export default function Home() {
         )}
 
       </main>
+
+      {/* 常驻的用户须知入口：放在主内容区顶部，避免长页面中难以找到 */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 1000, display: 'flex', justifyContent: 'flex-end', padding: '.35rem 1rem', background: theme.bg, borderBottom: `1px solid ${theme.border}` }}>
+        <button type="button" onClick={() => setShowTermsModal(true)} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, padding: '.45rem .75rem', borderRadius: '8px', cursor: 'pointer', minHeight: '40px', fontWeight: 650 }}>Terms of Service & User Notice</button>
+      </div>
 
       {/* 常驻的用户须知入口：登录前后都能打开 */}
       <footer style={{ maxWidth: '1080px', margin: '0 auto', padding: '1rem 1rem 2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', color: theme.textMuted, fontSize: '0.85rem' }}>
