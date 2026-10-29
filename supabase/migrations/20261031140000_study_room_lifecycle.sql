@@ -41,7 +41,7 @@ create index if not exists study_room_active_members_room_joined_idx
 -- 踢出通知由数据库写入，只有被踢出的用户可以读取自己的通知。
 create table if not exists public.study_room_kick_events (
   id uuid primary key default gen_random_uuid(),
-  room_id uuid not null references public.study_rooms(id) on delete cascade,
+  room_id text not null references public.study_rooms(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now(),
   acknowledged_at timestamptz
