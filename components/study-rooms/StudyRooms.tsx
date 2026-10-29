@@ -401,7 +401,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   return <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', color: theme.text }}>
     <header style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
       <div><p style={{ color: theme.accent, fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', margin: '0 0 .35rem' }}>NORTH SYNAPSE / STUDY LOUNGE</p><h1 style={{ margin: 0, fontSize: '2rem' }}>Study Rooms</h1><p style={{ color: theme.muted, margin: '.45rem 0 0' }}>Quiet accountability, personal focus timers, and text-only chat.</p></div>
-      {!joinedRoom && <button type="button" style={buttonStyle} onClick={() => { if (!user?.id) onSignIn(); else { setNotice(''); setShowCreate(true); } }}><Plus size={16} style={{ verticalAlign: 'middle', marginRight: 6 }}/>'Create room'</button>}
+      {!joinedRoom && <button type="button" style={buttonStyle} onClick={() => { if (!user?.id) onSignIn(); else { setNotice(''); setShowCreate(true); } }}><Plus size={16} style={{ verticalAlign: 'middle', marginRight: 6 }}/>Create room</button>}
     </header>
 
     {notice && <div role="status" style={{ padding: '.75rem .9rem', borderRadius: 9, background: theme.card, border: '1px solid ' + theme.border, display: 'flex', justifyContent: 'space-between', gap: '.7rem' }}><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss" style={{ border: 0, background: 'transparent', color: theme.text }}><X size={16}/></button></div>}
