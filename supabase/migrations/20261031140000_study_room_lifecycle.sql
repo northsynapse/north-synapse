@@ -154,21 +154,21 @@ begin
     if v_old_owner = v_user_id then
       select user_id into v_old_next_owner
       from public.study_room_active_members
-      where room_id = v_old_room_id and user_id <> v_user_id
+      where room_id::text = v_old_room_id::text and user_id <> v_user_id
       order by joined_at asc
       limit 1;
     end if;
 
     delete from public.study_room_active_members
-    where user_id = v_user_id and room_id = v_old_room_id;
+    where user_id = v_user_id and room_id::text = v_old_room_id::text;
     delete from public.study_room_members
-    where user_id = v_user_id and room_id = v_old_room_id;
+    where user_id = v_user_id and room_id::text = v_old_room_id::text;
     delete from public.study_room_presence
-    where user_id = v_user_id and room_id = v_old_room_id;
+    where user_id = v_user_id and room_id::text = v_old_room_id::text;
 
     select count(*) into v_old_remaining
     from public.study_room_active_members
-    where room_id = v_old_room_id;
+    where room_id::text = v_old_room_id::text;
 
     update public.study_rooms
     set owner_id = case
@@ -198,13 +198,13 @@ begin
         end;
 
   delete from public.study_room_members
-  where user_id = v_user_id and room_id <> p_room_id;
+  where user_id = v_user_id and room_id::text <> p_room_id::text;
   insert into public.study_room_members(room_id, user_id)
   values (p_room_id, v_user_id)
   on conflict (room_id, user_id) do nothing;
 
   delete from public.study_room_presence
-  where user_id = v_user_id and room_id <> p_room_id;
+  where user_id = v_user_id and room_id::text <> p_room_id::text;
 
   return p_room_id;
 end;
@@ -260,7 +260,7 @@ begin
   for update;
 
   if not found then return null; end if;
-  if not exists (select 1 from public.study_room_active_members where room_id = p_room_id and user_id = v_user_id) then
+  if not exists (select 1 from public.study_room_active_members where room_id::text = p_room_id::text and user_id = v_user_id) then
     raise exception 'You are not an active member of this room';
   end if;
 
@@ -268,23 +268,23 @@ begin
     if p_new_owner_id is not null then
       select user_id into v_next_owner
       from public.study_room_active_members
-      where room_id = p_room_id and user_id = p_new_owner_id and user_id <> v_user_id;
+      where room_id::text = p_room_id::text and user_id = p_new_owner_id and user_id <> v_user_id;
       if v_next_owner is null then raise exception 'Selected new owner is not an active room member'; end if;
     else
       select user_id into v_next_owner
       from public.study_room_active_members
-      where room_id = p_room_id and user_id <> v_user_id
+      where room_id::text = p_room_id::text and user_id <> v_user_id
       order by joined_at asc
       limit 1;
     end if;
   end if;
 
-  delete from public.study_room_active_members where user_id = v_user_id and room_id = p_room_id;
-  delete from public.study_room_members where user_id = v_user_id and room_id = p_room_id;
-  delete from public.study_room_presence where user_id = v_user_id and room_id = p_room_id;
+  delete from public.study_room_active_members where user_id = v_user_id and room_id::text = p_room_id::text;
+  delete from public.study_room_members where user_id = v_user_id and room_id::text = p_room_id::text;
+  delete from public.study_room_presence where user_id = v_user_id and room_id::text = p_room_id::text;
 
   select count(*) into v_remaining
-  from public.study_room_active_members where room_id = p_room_id;
+  from public.study_room_active_members where room_id::text = p_room_id::text;
 
   if v_current_owner = v_user_id then
     update public.study_rooms
@@ -326,23 +326,23 @@ begin
   for update;
 
   if not found or v_owner_id <> v_user_id then raise exception 'Only the room owner can remove members'; end if;
-  if not exists (select 1 from public.study_room_active_members where room_id = p_room_id and user_id = v_user_id) then
+  if not exists (select 1 from public.study_room_active_members where room_id::text = p_room_id::text and user_id = v_user_id) then
     raise exception 'Only an active room owner can remove members';
   end if;
 
   if not exists (
     select 1 from public.study_room_active_members
-    where room_id = p_room_id and user_id = p_target_user_id
+    where room_id::text = p_room_id::text and user_id = p_target_user_id
   ) then raise exception 'Target user is not an active member'; end if;
 
   insert into public.study_room_kick_events(room_id, user_id)
   values (p_room_id, p_target_user_id);
 
-  delete from public.study_room_active_members where room_id = p_room_id and user_id = p_target_user_id;
-  delete from public.study_room_members where room_id = p_room_id and user_id = p_target_user_id;
-  delete from public.study_room_presence where room_id = p_room_id and user_id = p_target_user_id;
+  delete from public.study_room_active_members where room_id::text = p_room_id::text and user_id = p_target_user_id;
+  delete from public.study_room_members where room_id::text = p_room_id::text and user_id = p_target_user_id;
+  delete from public.study_room_presence where room_id::text = p_room_id::text and user_id = p_target_user_id;
 
-  select count(*) into v_remaining from public.study_room_active_members where room_id = p_room_id;
+  select count(*) into v_remaining from public.study_room_active_members where room_id::text = p_room_id::text;
   if v_remaining = 0 then
     update public.study_rooms set empty_since = now(), last_activity_at = now() where id = p_room_id;
   end if;
@@ -371,7 +371,7 @@ begin
   if not found then raise exception 'Study room is unavailable'; end if;
   if v_is_system_lobby then raise exception 'The public lobby cannot be ended'; end if;
   if v_owner_id <> v_user_id then raise exception 'Only the room owner can end this room'; end if;
-  if not exists (select 1 from public.study_room_active_members where room_id = p_room_id and user_id = v_user_id) then
+  if not exists (select 1 from public.study_room_active_members where room_id::text = p_room_id::text and user_id = v_user_id) then
     raise exception 'Only an active room owner can end this room';
   end if;
 
@@ -379,9 +379,9 @@ begin
   set status = 'ended', closed_at = now(), empty_since = null
   where id = p_room_id;
 
-  delete from public.study_room_active_members where room_id = p_room_id;
-  delete from public.study_room_members where room_id = p_room_id;
-  delete from public.study_room_presence where room_id = p_room_id;
+  delete from public.study_room_active_members where room_id::text = p_room_id::text;
+  delete from public.study_room_members where room_id::text = p_room_id::text;
+  delete from public.study_room_presence where room_id::text = p_room_id::text;
   return true;
 end;
 $$;
@@ -410,7 +410,7 @@ begin
   delete from public.study_room_members m
   where not exists (
     select 1 from public.study_room_active_members am
-    where am.room_id = m.room_id and am.user_id = m.user_id
+    where am.room_id::text = m.room_id::text and am.user_id = m.user_id
   );
 
   delete from public.study_room_presence p
@@ -603,7 +603,7 @@ using (
   user_id = auth.uid()
   and exists (
     select 1 from public.study_room_active_members am
-    where am.room_id = study_room_goals.room_id and am.user_id = auth.uid()
+    where am.room_id::text = study_room_goals.room_id::text and am.user_id = auth.uid()
   )
 );
 
@@ -613,7 +613,7 @@ with check (
   user_id = auth.uid()
   and exists (
     select 1 from public.study_room_active_members am
-    where am.room_id = study_room_goals.room_id and am.user_id = auth.uid()
+    where am.room_id::text = study_room_goals.room_id::text and am.user_id = auth.uid()
   )
 );
 
@@ -623,14 +623,14 @@ using (
   user_id = auth.uid()
   and exists (
     select 1 from public.study_room_active_members am
-    where am.room_id = study_room_goals.room_id and am.user_id = auth.uid()
+    where am.room_id::text = study_room_goals.room_id::text and am.user_id = auth.uid()
   )
 )
 with check (
   user_id = auth.uid()
   and exists (
     select 1 from public.study_room_active_members am
-    where am.room_id = study_room_goals.room_id and am.user_id = auth.uid()
+    where am.room_id::text = study_room_goals.room_id::text and am.user_id = auth.uid()
   )
 );
 
@@ -639,7 +639,7 @@ on public.study_room_messages for select to authenticated
 using (
   exists (
     select 1 from public.study_room_active_members am
-    where am.room_id = study_room_messages.room_id and am.user_id = auth.uid()
+    where am.room_id::text = study_room_messages.room_id::text and am.user_id = auth.uid()
   )
 );
 
@@ -673,7 +673,7 @@ with check (
   user_id = auth.uid()
   and exists (
     select 1 from public.study_room_active_members am
-    where am.room_id = study_room_messages.room_id and am.user_id = auth.uid()
+    where am.room_id::text = study_room_messages.room_id::text and am.user_id = auth.uid()
   )
 );
 
@@ -682,12 +682,12 @@ on public.study_room_presence for select to authenticated
 using (
   exists (
     select 1 from public.study_rooms r
-    where r.id = study_room_presence.room_id
+    where r.id::text = study_room_presence.room_id::text
       and (
         not r.is_private
         or exists (
           select 1 from public.study_room_active_members am
-          where am.room_id = r.id and am.user_id = auth.uid()
+          where am.room_id::text = r.id::text and am.user_id = auth.uid()
         )
       )
   )
@@ -702,12 +702,12 @@ set search_path = public, auth
 as $$
   select exists (
     select 1 from public.study_rooms r
-    where r.id = p_room_id
+    where r.id::text = p_room_id::text
       and (
         not r.is_private
         or exists (
           select 1 from public.study_room_active_members am
-          where am.room_id = r.id and am.user_id = auth.uid()
+          where am.room_id::text = r.id::text and am.user_id = auth.uid()
         )
       )
   );
@@ -735,14 +735,14 @@ using (
   user_id = auth.uid()
   and exists (
     select 1 from public.study_room_active_members am
-    where am.room_id = study_room_presence.room_id and am.user_id = auth.uid()
+    where am.room_id::text = study_room_presence.room_id::text and am.user_id = auth.uid()
   )
 )
 with check (
   user_id = auth.uid()
   and exists (
     select 1 from public.study_room_active_members am
-    where am.room_id = study_room_presence.room_id and am.user_id = auth.uid()
+    where am.room_id::text = study_room_presence.room_id::text and am.user_id = auth.uid()
   )
 );
 
@@ -812,8 +812,8 @@ begin
   if not exists (
     select 1
     from public.study_room_active_members am
-    join public.study_rooms r on r.id = am.room_id
-    where am.user_id = v_user_id and am.room_id = p_room_id and r.status = 'active'
+    join public.study_rooms r on r.id::text = am.room_id::text
+    where am.user_id = v_user_id and am.room_id::text = p_room_id::text and r.status = 'active'
   ) then
     raise exception 'Room membership required';
   end if;
