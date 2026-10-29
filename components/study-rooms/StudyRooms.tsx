@@ -52,6 +52,8 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   const [chatSending, setChatSending] = useState(false);
   const [notice, setNotice] = useState('');
   const [kickNotice, setKickNotice] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminEntryNotice, setAdminEntryNotice] = useState('');
   const [handoffUserId, setHandoffUserId] = useState('');
   const [showHandoff, setShowHandoff] = useState(false);
   const [privateRoomCode, setPrivateRoomCode] = useState('');
@@ -108,7 +110,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     const counts = new Map<string, number>();
     (activeRows || []).forEach((row: any) => counts.set(String(row.room_id), (counts.get(String(row.room_id)) || 0) + 1));
     setRooms(rows
-      .filter((room: any) => !room.is_private || room.created_by === user?.id || room.owner_id === user?.id || room.is_system_lobby)
+      .filter((room: any) => isAdmin || !room.is_private || room.created_by === user?.id || room.owner_id === user?.id || room.is_system_lobby)
       .map((room: any) => ({
         id: String(room.id), name: room.name, subject: room.subject || 'General Study', grade: room.grade || 'All grades',
         description: room.description || '', isPrivate: !!room.is_private, roomCode: room.room_code || undefined,
@@ -117,7 +119,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
         isSystemLobby: !!room.is_system_lobby, status: room.status,
         activeUsers: counts.get(String(room.id)) || 0
       })));
-  }, [user?.id]);
+  }, [user?.id, isAdmin]);
 
   const refreshRoom = useCallback(async (roomId: string) => {
     if (!user?.id) return;
@@ -180,6 +182,22 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
 
   useEffect(() => { void loadRooms(); }, [loadRooms]);
 
+  // 使用数据库端的管理员校验函数确认权限
+  useEffect(() => {
+    if (!user?.id) { setIsAdmin(false); return; }
+    let active = true;
+    void supabase.rpc('is_current_user_admin').then(({ data, error }) => {
+      if (!active) return;
+      if (error) {
+        console.error('验证管理员权限失败：', error.message);
+        setIsAdmin(false);
+      } else {
+        setIsAdmin(data === true);
+      }
+    });
+    return () => { active = false; };
+  }, [user?.id]);
+
   useEffect(() => {
     if (!user?.id) return;
     let active = true;
@@ -236,6 +254,9 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     const channel = supabase.channel(`study-room-${roomId}-${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'study_room_active_members', filter: `room_id=eq.${roomId}` }, () => { if (active) void refreshRoom(roomId); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'study_room_messages', filter: `room_id=eq.${roomId}` }, () => { if (active) void refreshRoom(roomId); })
+      .on('broadcast', { event: 'admin_entered' }, ({ payload }) => {
+        if (active && payload?.adminName) setAdminEntryNotice(`${payload.adminName} (North Synapse administrator) has entered this study room. The administrator can view this room's chat for moderation and safety purposes.`);
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'study_rooms', filter: `id=eq.${roomId}` }, () => { if (active) void refreshRoom(roomId); })
 .subscribe();
     void refreshRoom(roomId);
@@ -266,6 +287,20 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     return visible;
   }, [rooms, search, sortBy, gradeFilter, subjectFilter]);
 
+  async function announceAdminEntry(roomId: string, roomName: string) {
+    if (!isAdmin) return;
+    const channel = supabase.channel(`study-room-${roomId}`);
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        void channel.send({
+          type: 'broadcast',
+          event: 'admin_entered',
+          payload: { adminName: displayName, roomName }
+        }).finally(() => { void supabase.removeChannel(channel); });
+      }
+    });
+  }
+
   async function joinRoom(room: Room, code?: string) {
     if (!user?.id) { onSignIn(); return; }
     if (loading) return;
@@ -278,6 +313,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     if (error) { setNotice(error.message.includes('Invalid room code') ? 'That room code is incorrect.' : error.message); return; }
     setTimerRunning(false); setRemainingSeconds(durationMinutes * 60); setGoal(''); setGoalDraft('');
     await refreshRoom(room.id); await loadRooms();
+    if (isAdmin) void announceAdminEntry(room.id, room.name);
   }
 
   async function joinByCode(e: React.FormEvent) {
@@ -291,6 +327,10 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     if (error || !id) { setNotice('No active private room matches that code.'); return; }
     setRoomCodeInput(''); setTimerRunning(false); setRemainingSeconds(durationMinutes * 60);
     await refreshRoom(String(id)); await loadRooms();
+    if (isAdmin) {
+      const { data: roomInfo } = await supabase.from('study_rooms').select('name').eq('id', String(id)).maybeSingle();
+      void announceAdminEntry(String(id), roomInfo?.name || 'a study room');
+    }
   }
 
   async function createRoom(e: React.FormEvent) {
@@ -434,6 +474,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     {notice && <div role="dialog" aria-modal="true" aria-labelledby="study-room-notice-title" style={{ position: 'fixed', inset: 0, zIndex: 100003, background: 'rgba(3,6,14,.68)', backdropFilter: 'blur(7px)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 430px)', boxShadow: '0 24px 80px rgba(0,0,0,.38)' }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}><h2 id="study-room-notice-title" style={{ margin: 0, fontSize: '1.15rem' }}>Study room notice</h2><button type="button" onClick={() => setNotice('')} aria-label="Close notice" style={{ background: 'transparent', color: theme.text, border: '1px solid ' + theme.border, borderRadius: 8, padding: '.35rem', cursor: 'pointer' }}><X size={16}/></button></div><p style={{ color: theme.muted, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{notice}</p><button type="button" style={{ ...buttonStyle, width: '100%' }} onClick={() => setNotice('')}>Got it</button></div></div>}
     {showOwnerNotice && joinedRoom && <div role="dialog" aria-modal="true" aria-labelledby="study-room-owner-title" style={{ position: 'fixed', inset: 0, zIndex: 100005, background: 'rgba(3,6,14,.7)', backdropFilter: 'blur(7px)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 420px)', boxShadow: '0 24px 80px rgba(0,0,0,.38)', borderColor: theme.accent }}><h2 id="study-room-owner-title" style={{ marginTop: 0 }}><Crown size={18} style={{ verticalAlign: 'middle', marginRight: 7, color: theme.accent }}/>You are now the room owner</h2><p style={{ color: theme.muted, lineHeight: 1.6 }}>You have received host permissions for <strong>{joinedRoom.name}</strong>. You can manage members and end the room.</p><button type="button" style={{ ...buttonStyle, width: '100%' }} onClick={() => setShowOwnerNotice(false)}>Got it</button></div></div>}
 
+    {adminEntryNotice && <div role="dialog" aria-modal="true" aria-labelledby="study-room-admin-entry-title" style={{ position: 'fixed', inset: 0, zIndex: 100004, background: 'rgba(3,6,14,.72)', backdropFilter: 'blur(7px)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 430px)', borderColor: theme.accent, boxShadow: '0 24px 80px rgba(0,0,0,.38)' }}><h2 id="study-room-admin-entry-title" style={{ marginTop: 0, fontSize: '1.15rem' }}><ShieldAlert size={18} style={{ verticalAlign: 'middle', marginRight: 7, color: theme.accent }}/>Administrator entered</h2><p style={{ color: theme.muted, lineHeight: 1.6 }}>{adminEntryNotice}</p><button type="button" style={{ ...buttonStyle, width: '100%' }} onClick={() => setAdminEntryNotice('')}>Got it</button></div></div>}
     {kickNotice && <div role="dialog" aria-modal="true" aria-labelledby="study-room-kick-title" style={{ position: 'fixed', inset: 0, zIndex: 100001, background: 'rgba(0,0,0,.68)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 420px)', borderColor: theme.danger }}><strong id="study-room-kick-title"><ShieldAlert size={17} style={{ verticalAlign: 'middle', marginRight: 7, color: theme.danger }}/>{kickNotice.toLowerCase().includes('removed') ? 'Removed by room host' : 'Study room ended'}</strong><p style={{ margin: '.55rem 0 0', color: theme.muted }}>{kickNotice}</p><button style={{ ...buttonStyle, marginTop: '1rem' }} onClick={() => void dismissKickNotice()}>Return to room directory</button></div></div>}
 
     {!joinedRoom ? <>
