@@ -75,8 +75,6 @@ end;
 $$;
 reset role;
 
-reset role;
-
 set request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 select public.end_study_room_v2('test-private');
 
@@ -98,7 +96,7 @@ select public.join_study_room_v2('test-kick', null);
 set request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 select public.kick_study_room_member_v2('test-kick', '10000000-0000-4000-8000-000000000002');
 
-do $
+do $smoke$
 begin
   if exists (select 1 from public.study_room_active_members where room_id = 'test-kick' and user_id = '10000000-0000-4000-8000-000000000002') then
     raise exception 'Kicked users must be removed from active membership';
@@ -107,26 +105,26 @@ begin
     raise exception 'Kicking a user must create a notification event';
   end if;
 end;
-$;
+$smoke$;
 
 -- 踢出通知只能由被踢出的账号读取。
 set role authenticated;
 set request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
-do $
+do $smoke$
 begin
   if exists (select 1 from public.study_room_kick_events where room_id = 'test-kick') then
     raise exception 'Other users must not read kick notifications';
   end if;
 end;
-$;
+$smoke$;
 set request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
-do $
+do $smoke$
 begin
   if not exists (select 1 from public.study_room_kick_events where room_id = 'test-kick') then
     raise exception 'The kicked user must be able to read their own notification';
   end if;
 end;
-$;
+$smoke$;
 reset role;
 
 set request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
