@@ -536,7 +536,7 @@ begin
     execute format('drop policy %I on public.study_room_kick_events', p.policyname);
   end loop;
 end;
-$;
+$$;
 
 create policy "Study rooms visible only when public or joined"
 on public.study_rooms for select to authenticated
@@ -603,7 +603,7 @@ language sql
 stable
 security definer
 set search_path = public, auth
-as $
+as $$
   select exists (
     select 1 from public.study_rooms r
     where r.id = p_room_id
@@ -615,7 +615,7 @@ as $
         )
       )
   );
-$;
+$$;
 
 revoke all on function public.can_view_study_room_members(text) from public, anon;
 grant execute on function public.can_view_study_room_members(text) to authenticated;
@@ -701,7 +701,7 @@ create or replace function public.heartbeat_study_room(
 language plpgsql
 security definer
 set search_path = public, auth
-as $
+as $$
 declare
   v_user_id uuid := auth.uid();
   v_current_seconds integer;
@@ -737,7 +737,7 @@ begin
 
   return v_current_seconds;
 end;
-$;
+$$;
 revoke all on function public.heartbeat_study_room(text, text, text, integer) from public, anon;
 grant execute on function public.heartbeat_study_room(text, text, text, integer) to authenticated;
 
