@@ -31,3 +31,36 @@ jobs:
         run: npx tsc --noEmit
       - name: Build Next.js
         run: npm run build
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: northsynapse_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d northsynapse_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Prepare isolated Supabase-compatible schema
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d northsynapse_test -v ON_ERROR_STOP=1 -f supabase/tests/study_room_schema_fixture.sql
+      - name: Apply study room migration
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d northsynapse_test -v ON_ERROR_STOP=1 -f supabase/migrations/20261031140000_study_room_lifecycle.sql
+      - name: Run lifecycle smoke tests
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d northsynapse_test -v ON_ERROR_STOP=1 -f supabase/tests/study_room_lifecycle_smoke.sql
