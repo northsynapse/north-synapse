@@ -20,11 +20,11 @@ type Message = {
 };
 type Props = {
   user: any; username: string; nickname: string; avatarUrl: string;
-  isDarkMode: boolean; onSignIn: () => void;
+  isDarkMode: boolean; onSignIn: () => void; onToggleTheme: () => void; onShowTerms: () => void;
 };
 
 
-export default function StudyRooms({ user, username, nickname, avatarUrl, isDarkMode, onSignIn }: Props) {
+export default function StudyRooms({ user, username, nickname, avatarUrl, isDarkMode, onSignIn, onToggleTheme, onShowTerms }: Props) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [joinedRoom, setJoinedRoom] = useState<Room | null>(null);
   const [members, setMembers] = useState<Person[]>([]);
@@ -50,6 +50,8 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   const [handoffUserId, setHandoffUserId] = useState('');
   const [showHandoff, setShowHandoff] = useState(false);
   const [privateRoomCode, setPrivateRoomCode] = useState('');
+  const [showMembersPanel, setShowMembersPanel] = useState(true);
+  const [showChatPanel, setShowChatPanel] = useState(true);
 
   const theme = {
     bg: isDarkMode ? '#0E1117' : '#F8FAFC',
@@ -229,7 +231,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   useEffect(() => {
     if (!timerRunning) return;
     const timer = window.setInterval(() => setRemainingSeconds((value) => {
-      if (value <= 1) { setTimerRunning(false); setNotice('Focus session complete. Well done!'); return 0; }
+      if (value <= 1) { setTimerRunning(false); setNotice('Focus session complete. Take a moment to review your progress or begin another session.'); return 0; }
       return value - 1;
     }), 1000);
     return () => window.clearInterval(timer);
@@ -366,7 +368,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       room_id: joinedRoom.id, user_id: user.id, goal: cleanGoal, updated_at: new Date().toISOString()
     }, { onConflict: 'room_id,user_id' });
     if (error) setNotice('Could not save your goal: ' + error.message);
-    else { setGoal(cleanGoal); setNotice('Study goal saved.'); }
+    else { setGoal(cleanGoal); setNotice('Your study intention has been saved.'); }
   }
 
   async function sendMessage(e: React.FormEvent) {
@@ -400,11 +402,11 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
 
   return <div style={joinedRoom ? { position: 'fixed', inset: 0, zIndex: 99999, overflowY: 'auto', padding: 'clamp(1rem, 2.5vw, 2rem)', boxSizing: 'border-box', background: theme.bg, display: 'flex', flexDirection: 'column', gap: '1.25rem', color: theme.text } : { display: 'flex', flexDirection: 'column', gap: '1.25rem', color: theme.text }}>
     <header style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-      <div><p style={{ color: theme.accent, fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', margin: '0 0 .35rem' }}>NORTH SYNAPSE / STUDY LOUNGE</p><h1 style={{ margin: 0, fontSize: '2rem' }}>Study Rooms</h1><p style={{ color: theme.muted, margin: '.45rem 0 0' }}>Quiet accountability, personal focus timers, and text-only chat.</p></div>
+      <div><p style={{ color: theme.accent, fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', margin: '0 0 .35rem' }}>NORTH SYNAPSE / STUDY LOUNGE</p><h1 style={{ margin: 0, fontSize: '2rem' }}>Study Rooms</h1></div>
       {!joinedRoom && <button type="button" style={buttonStyle} onClick={() => { if (!user?.id) onSignIn(); else { setNotice(''); setShowCreate(true); } }}><Plus size={16} style={{ verticalAlign: 'middle', marginRight: 6 }}/>Create room</button>}
     </header>
 
-    {notice && <div role="status" style={{ padding: '.75rem .9rem', borderRadius: 9, background: theme.card, border: '1px solid ' + theme.border, display: 'flex', justifyContent: 'space-between', gap: '.7rem' }}><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss" style={{ border: 0, background: 'transparent', color: theme.text }}><X size={16}/></button></div>}
+    {notice && <div role="dialog" aria-modal="true" aria-labelledby="study-room-notice-title" style={{ position: 'fixed', inset: 0, zIndex: 100003, background: 'rgba(3,6,14,.68)', backdropFilter: 'blur(7px)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 430px)', boxShadow: '0 24px 80px rgba(0,0,0,.38)' }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}><h2 id="study-room-notice-title" style={{ margin: 0, fontSize: '1.15rem' }}>Study room notice</h2><button type="button" onClick={() => setNotice('')} aria-label="Close notice" style={{ background: 'transparent', color: theme.text, border: '1px solid ' + theme.border, borderRadius: 8, padding: '.35rem', cursor: 'pointer' }}><X size={16}/></button></div><p style={{ color: theme.muted, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{notice}</p><button type="button" style={{ ...buttonStyle, width: '100%' }} onClick={() => setNotice('')}>Got it</button></div></div>}
     {kickNotice && <div role="dialog" aria-modal="true" aria-labelledby="study-room-kick-title" style={{ position: 'fixed', inset: 0, zIndex: 100001, background: 'rgba(0,0,0,.68)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 420px)', borderColor: theme.danger }}><strong id="study-room-kick-title"><ShieldAlert size={17} style={{ verticalAlign: 'middle', marginRight: 7, color: theme.danger }}/>Room access ended</strong><p style={{ margin: '.55rem 0 0', color: theme.muted }}>{kickNotice}</p><button style={{ ...buttonStyle, marginTop: '1rem' }} onClick={() => void dismissKickNotice()}>Return to room directory</button></div></div>}
 
     {!joinedRoom ? <>
@@ -428,33 +430,40 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
         {sortedRooms.length === 0 && <p style={{ color: theme.muted }}>No rooms found. Create one to get started.</p>}
       </div>
     </> : <>
-      <section style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-        <div style={{ minWidth: 0, flex: '1 1 280px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}><h2 style={{ margin: 0 }}>{joinedRoom.name}</h2>{isOwner && <span style={{ background: theme.accent, color: '#fff', padding: '.18rem .5rem', borderRadius: 5, fontSize: '.72rem' }}><Crown size={12} style={{ verticalAlign: 'middle', marginRight: 4 }}/>OWNER</span>}{joinedRoom.isPrivate && <span style={{ color: theme.muted, fontSize: '.8rem' }}><LockKeyhole size={14} style={{ verticalAlign: 'middle', marginRight: 4 }}/>Private</span>}</div><p style={{ color: theme.muted, whiteSpace: 'pre-wrap', margin: '.45rem 0 0' }}>{joinedRoom.description}</p>{joinedRoom.isPrivate && <p style={{ margin: '.55rem 0 0', fontSize: '.82rem' }}>Room code: <strong style={{ letterSpacing: '.12em' }}>{privateRoomCode || (isOwner ? 'Loading…' : 'Private')}</strong></p>}</div>
-        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>{isOwner && !isSystemLobby && <button type="button" onClick={() => void endRoom()} style={{ ...buttonStyle, background: theme.danger }} disabled={loading}>End room</button>}<button type="button" onClick={() => void handleLeave()} style={{ ...buttonStyle, background: 'transparent', color: theme.text, border: '1px solid ' + theme.border }} disabled={loading}><LogOut size={15} style={{ verticalAlign: 'middle', marginRight: 5 }}/>Leave room</button></div>
+      <section style={{ ...cardStyle, padding: '.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0, flex: '1 1 260px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}><h1 style={{ margin: 0, fontSize: 'clamp(1.25rem, 2.5vw, 1.8rem)', letterSpacing: '-.025em' }}>{joinedRoom.name}</h1>{isOwner && <span style={{ background: theme.accent, color: '#fff', padding: '.15rem .45rem', borderRadius: 5, fontSize: '.68rem' }}><Crown size={11} style={{ verticalAlign: 'middle', marginRight: 4 }}/>HOST</span>}{joinedRoom.isPrivate && <span style={{ color: theme.muted, fontSize: '.75rem' }}><LockKeyhole size={13} style={{ verticalAlign: 'middle', marginRight: 4 }}/>Private</span>}</div>{joinedRoom.description && <p style={{ color: theme.muted, whiteSpace: 'pre-wrap', margin: '.25rem 0 0', fontSize: '.88rem' }}>{joinedRoom.description}</p>}</div>
+        <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button type="button" title="Toggle members panel" onClick={() => setShowMembersPanel(v => !v)} style={{ ...buttonStyle, padding: '.45rem .6rem', background: showMembersPanel ? theme.accent : 'transparent', color: showMembersPanel ? '#fff' : theme.text, border: '1px solid ' + theme.border }}><Users size={14} style={{ verticalAlign: 'middle', marginRight: 4 }}/>Members</button>
+          <button type="button" title="Toggle chat panel" onClick={() => setShowChatPanel(v => !v)} style={{ ...buttonStyle, padding: '.45rem .6rem', background: showChatPanel ? theme.accent : 'transparent', color: showChatPanel ? '#fff' : theme.text, border: '1px solid ' + theme.border }}><MessageCircle size={14} style={{ verticalAlign: 'middle', marginRight: 4 }}/>Chat</button>
+          <button type="button" onClick={onToggleTheme} style={{ ...buttonStyle, padding: '.45rem .6rem', background: 'transparent', color: theme.text, border: '1px solid ' + theme.border }}>{isDarkMode ? 'Light' : 'Dark'}</button>
+          <button type="button" onClick={onShowTerms} style={{ ...buttonStyle, padding: '.45rem .6rem', background: 'transparent', color: theme.text, border: '1px solid ' + theme.border }}>User notice</button>
+          {isOwner && !isSystemLobby && <button type="button" onClick={() => void endRoom()} style={{ ...buttonStyle, padding: '.45rem .6rem', background: theme.danger }} disabled={loading}>End</button>}
+          <button type="button" onClick={() => void handleLeave()} style={{ ...buttonStyle, padding: '.45rem .6rem', background: 'transparent', color: theme.text, border: '1px solid ' + theme.border }} disabled={loading}><LogOut size={14} style={{ verticalAlign: 'middle', marginRight: 4 }}/>Leave</button>
+        </div>
       </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(190px, .85fr) minmax(260px, 1.2fr) minmax(260px, 1fr)', gap: '1rem', alignItems: 'stretch' }} className="ns-study-room-columns">
-        <section style={{ ...cardStyle, maxHeight: '72vh', overflowY: 'auto' }}><h3 style={{ margin: '0 0 .35rem' }}>Members · {members.length} online</h3><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Owner first, then earliest join</p>
+      <div style={{ display: 'grid', gridTemplateColumns: ${showMembersPanel && showChatPanel ? 'minmax(190px,.8fr) minmax(300px,1.2fr) minmax(280px,1fr)' : showMembersPanel || showChatPanel ? 'minmax(190px,.8fr) minmax(300px,1.2fr)' : 'minmax(0,1fr)'}, gap: '1rem', alignItems: 'stretch' }} className="ns-study-room-columns">
+        {showMembersPanel && <section style={{ ...cardStyle, maxHeight: '72vh', overflowY: 'auto' }}><h3 style={{ margin: '0 0 .35rem' }}>Members · {members.length} online</h3><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Owner first, then earliest join</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem' }}>{members.map(person => <div key={person.user_id} style={{ display: 'flex', gap: '.55rem', alignItems: 'center' }}>
             {person.avatar_url ? <img src={person.avatar_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}/> : <div style={{ width: 36, height: 36, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', color: theme.accent, fontWeight: 800, flexShrink: 0 }}>{person.display_name.slice(0,1).toUpperCase()}</div>}
             <div style={{ minWidth: 0, flex: 1 }}><div style={{ fontWeight: 700, fontSize: '.86rem', overflowWrap: 'anywhere' }}>{person.display_name}{person.user_id === user?.id ? ' (You)' : ''}{person.user_id === joinedRoom.ownerId && <span style={{ color: theme.accent, fontSize: '.68rem' }}> · Owner</span>}</div><div style={{ color: theme.muted, fontSize: '.72rem' }}>Online {formatDuration(Math.max(0, Math.floor((Date.now() - new Date(person.joined_at).getTime()) / 1000)))}</div></div>
             {isOwner && person.user_id !== user?.id && <button type="button" title="Remove member" aria-label={`Remove ${person.display_name}`} onClick={() => void kickMember(person.user_id)} style={{ background: 'transparent', border: '1px solid ' + theme.border, borderRadius: 6, color: theme.danger, cursor: 'pointer', padding: '.25rem' }}><X size={14}/></button>}
           </div>)}</div>
-        </section>
+        </section>}
 
         <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '.85rem' }}><p style={{ color: theme.muted, fontSize: '.75rem', letterSpacing: '.12em', margin: 0 }}>PERSONAL FOCUS TIMER</p><div style={{ fontSize: 'clamp(2.5rem, 5vw, 3.8rem)', fontWeight: 850, fontVariantNumeric: 'tabular-nums', color: theme.accent }}>{formatDuration(remainingSeconds)}</div>
           <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', justifyContent: 'center' }}><label style={{ fontSize: '.8rem', color: theme.muted }}>Minutes <input type="number" min={1} max={240} value={durationMinutes} disabled={timerRunning} onChange={e => { const n = Math.max(1, Math.min(240, Number(e.target.value) || 1)); setDurationMinutes(n); setRemainingSeconds(n * 60); }} style={{ ...inputStyle, width: 90, display: 'inline-block', marginLeft: 5 }}/></label><button type="button" style={buttonStyle} onClick={() => setTimerRunning(v => !v)}>{timerRunning ? 'Pause' : 'Start'}</button><button type="button" style={{ ...buttonStyle, background: 'transparent', color: theme.text, border: '1px solid ' + theme.border }} onClick={() => { setTimerRunning(false); setRemainingSeconds(durationMinutes * 60); }}>Reset</button></div>
-          <form onSubmit={saveGoal} style={{ width: '100%', textAlign: 'left', borderTop: '1px solid ' + theme.border, paddingTop: '1rem' }}><label style={{ display: 'block', fontWeight: 750, marginBottom: '.45rem' }}>My study goal</label><textarea rows={4} maxLength={500} value={goalDraft} onChange={e => setGoalDraft(e.target.value)} placeholder="What do you want to finish?" style={{ ...inputStyle, resize: 'vertical' }}/><button type="submit" style={{ ...buttonStyle, marginTop: '.55rem' }}>Save goal</button>{goal && <p style={{ color: theme.muted, fontSize: '.8rem', whiteSpace: 'pre-wrap' }}>Saved: {goal}</p>}</form>
-          <p style={{ color: theme.muted, fontSize: '.75rem', margin: 0 }}>Personal timer and goal · no audio</p>
+          <form onSubmit={saveGoal} style={{ width: '100%', textAlign: 'left', borderTop: '1px solid ' + theme.border, paddingTop: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', alignItems: 'baseline', marginBottom: '.45rem' }}><label htmlFor="study-intention" style={{ display: 'block', fontWeight: 750 }}>Session intention</label><span style={{ color: theme.muted, fontSize: '.7rem' }}>PERSONAL</span></div><p style={{ color: theme.muted, fontSize: '.78rem', lineHeight: 1.5, margin: '0 0 .6rem' }}>Define one clear outcome for this session. Keep it specific and achievable.</p><textarea id="study-intention" rows={3} maxLength={500} value={goalDraft} onChange={e => setGoalDraft(e.target.value)} placeholder="e.g. Finish 10 practice questions and review mistakes." style={{ ...inputStyle, resize: 'vertical' }}/><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.5rem', marginTop: '.45rem' }}><span style={{ color: theme.muted, fontSize: '.7rem' }}>{goalDraft.length}/500</span><button type="submit" style={{ ...buttonStyle, padding: '.5rem .75rem' }}>Save intention</button></div>{goal && <div style={{ marginTop: '.75rem', padding: '.7rem', border: '1px solid ' + theme.border, borderRadius: 9, background: theme.bg }}><span style={{ display: 'block', color: theme.accent, fontSize: '.68rem', fontWeight: 800, letterSpacing: '.08em', marginBottom: '.3rem' }}>CURRENT INTENTION</span><p style={{ margin: 0, fontSize: '.84rem', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{goal}</p></div>}</form>
+          <p style={{ color: theme.muted, fontSize: '.7rem', margin: 0 }}>This intention is private to your account.</p>
         </section>
 
-        <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', minHeight: 440 }}><h3 style={{ margin: '0 0 .25rem' }}><MessageCircle size={16} style={{ verticalAlign: 'middle', marginRight: 5 }}/>Room chat</h3><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Text only · latest 150 messages</p>
+        {showChatPanel && <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', minHeight: 440 }}><h3 style={{ margin: '0 0 .25rem' }}><MessageCircle size={16} style={{ verticalAlign: 'middle', marginRight: 5 }}/>Room chat</h3><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Text only · latest 150 messages</p>
           <div style={{ flex: 1, minHeight: 250, maxHeight: '54vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.9rem' }}>{messages.map(message => <div key={message.id} style={{ display: 'flex', gap: '.55rem', alignItems: 'flex-start' }}>
             {message.avatar_url ? <img src={message.avatar_url} alt="" style={{ width: 29, height: 29, borderRadius: '50%', objectFit: 'cover' }}/> : <div style={{ width: 29, height: 29, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, color: theme.accent, fontWeight: 800, fontSize: '.75rem' }}>{message.display_name.slice(0,1).toUpperCase()}</div>}
             <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', alignItems: 'baseline' }}><strong style={{ fontSize: '.8rem' }}>{message.display_name}</strong><time style={{ color: theme.muted, fontSize: '.68rem', whiteSpace: 'nowrap' }}>{formatClock(message.created_at)}</time></div><p style={{ margin: '.25rem 0 0', fontSize: '.87rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{message.body}</p></div>
           </div>)}</div>
           <form onSubmit={sendMessage} style={{ display: 'flex', gap: '.45rem', marginTop: '1rem' }}><input value={chatInput} onChange={e => setChatInput(e.target.value)} maxLength={1000} placeholder="Write a message…" style={{ ...inputStyle, flex: 1 }}/><button type="submit" disabled={chatSending || !chatInput.trim()} style={{ ...buttonStyle, padding: '.65rem' }} aria-label="Send message"><Send size={16}/></button></form>
-        </section>
+        </section>}
       </div>
     </>}
 
