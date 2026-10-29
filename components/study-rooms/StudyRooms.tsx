@@ -442,7 +442,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
         </div>
       </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: ${showMembersPanel && showChatPanel ? 'minmax(190px,.8fr) minmax(300px,1.2fr) minmax(280px,1fr)' : showMembersPanel || showChatPanel ? 'minmax(190px,.8fr) minmax(300px,1.2fr)' : 'minmax(0,1fr)'}, gap: '1rem', alignItems: 'stretch' }} className="ns-study-room-columns">
+      <div style={{ display: 'grid', gridTemplateColumns: showMembersPanel && showChatPanel ? 'minmax(190px,.8fr) minmax(300px,1.2fr) minmax(280px,1fr)' : showMembersPanel || showChatPanel ? 'minmax(190px,.8fr) minmax(300px,1.2fr)' : 'minmax(0,1fr)', gap: '1rem', alignItems: 'stretch' }} className="ns-study-room-columns">
         {showMembersPanel && <section style={{ ...cardStyle, maxHeight: '72vh', overflowY: 'auto' }}><h3 style={{ margin: '0 0 .35rem' }}>Members · {members.length} online</h3><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Owner first, then earliest join</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem' }}>{members.map(person => <div key={person.user_id} style={{ display: 'flex', gap: '.55rem', alignItems: 'center' }}>
             {person.avatar_url ? <img src={person.avatar_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}/> : <div style={{ width: 36, height: 36, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', color: theme.accent, fontWeight: 800, flexShrink: 0 }}>{person.display_name.slice(0,1).toUpperCase()}</div>}
