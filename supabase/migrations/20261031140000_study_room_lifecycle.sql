@@ -503,6 +503,7 @@ grant execute on function public.cleanup_study_rooms() to service_role;
 alter table public.study_rooms enable row level security;
 alter table public.study_room_messages enable row level security;
 alter table public.study_room_presence enable row level security;
+alter table public.study_room_goals enable row level security;
 
 do $$
 declare p record;
@@ -537,6 +538,13 @@ begin
   loop
     execute format('drop policy %I on public.study_room_kick_events', p.policyname);
   end loop;
+
+  for p in
+    select policyname from pg_policies
+    where schemaname = 'public' and tablename = 'study_room_goals'
+  loop
+    execute format('drop policy %I on public.study_room_goals', p.policyname);
+  end loop;
 end;
 $$;
 
@@ -564,6 +572,43 @@ with check (
   and status = 'active'
 );
 
+create policy "Users can read goals while in the room"
+on public.study_room_goals for select to authenticated
+using (
+  user_id = auth.uid()
+  and exists (
+    select 1 from public.study_room_active_members am
+    where am.room_id = study_room_goals.room_id and am.user_id = auth.uid()
+  )
+);
+
+create policy "Users can insert goals while in the room"
+on public.study_room_goals for insert to authenticated
+with check (
+  user_id = auth.uid()
+  and exists (
+    select 1 from public.study_room_active_members am
+    where am.room_id = study_room_goals.room_id and am.user_id = auth.uid()
+  )
+);
+
+create policy "Users can update goals while in the room"
+on public.study_room_goals for update to authenticated
+using (
+  user_id = auth.uid()
+  and exists (
+    select 1 from public.study_room_active_members am
+    where am.room_id = study_room_goals.room_id and am.user_id = auth.uid()
+  )
+)
+with check (
+  user_id = auth.uid()
+  and exists (
+    select 1 from public.study_room_active_members am
+    where am.room_id = study_room_goals.room_id and am.user_id = auth.uid()
+  )
+);
+
 create policy "Study room messages readable by room members"
 on public.study_room_messages for select to authenticated
 using (
@@ -572,6 +617,30 @@ using (
     where am.room_id = study_room_messages.room_id and am.user_id = auth.uid()
   )
 );
+
+create or replace function public.guard_study_room_message()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if char_length(coalesce(new.body, '')) > 1000 then
+    raise exception 'Messages must be 1000 characters or fewer';
+  end if;
+  if char_length(trim(coalesce(new.body, ''))) = 0 then
+    raise exception 'Message cannot be empty';
+  end if;
+  if current_user in ('authenticated', 'anon') and new.user_id is distinct from auth.uid() then
+    raise exception 'Message author must match the authenticated user';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists guard_study_room_message on public.study_room_messages;
+create trigger guard_study_room_message
+before insert or update of body, user_id on public.study_room_messages
+for each row execute function public.guard_study_room_message();
 
 create policy "Active members can send study room messages"
 on public.study_room_messages for insert to authenticated
