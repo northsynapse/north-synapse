@@ -240,7 +240,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     const cleanName = newName.trim();
     if (!cleanName || loading) return;
     setLoading(true); setNotice('');
-    const roomCode = newPrivate ? crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase() : null;
+    const roomCode = newPrivate ? crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase() : null;
     const { data, error } = await supabase.from('study_rooms').insert({
       name: cleanName, subject: newSubject, description: newDescription.trim(),
       is_private: newPrivate, room_code: roomCode, created_by: user.id,
