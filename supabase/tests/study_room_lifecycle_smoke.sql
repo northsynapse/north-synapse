@@ -35,7 +35,7 @@ begin
   if (select count(*) from public.study_room_active_members where user_id = '10000000-0000-4000-8000-000000000001') <> 1 then
     raise exception 'A user must have only one active room';
   end if;
-  if (select owner_id from public.study_rooms where id = 'test-public') <> '10000000-0000-4000-8000-000000000002'::uuid then
+  if (select owner_id from public.study_rooms where id = 'test-public') is distinct from '10000000-0000-4000-8000-000000000002'::uuid then
     raise exception 'Leaving an owned room must transfer ownership to the earliest remaining member';
   end if;
 end;
