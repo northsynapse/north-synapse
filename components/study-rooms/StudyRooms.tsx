@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Crown, LockKeyhole, MessageCircle, Plus, Search, Send, Timer, Users, X, LogOut, ShieldAlert } from 'lucide-react';
+import { Crown, LockKeyhole, MessageCircle, Plus, Search, Send, Users, X, LogOut, ShieldAlert } from 'lucide-react';
 
 type Room = {
   id: string; name: string; subject: string; description: string;
@@ -24,7 +24,6 @@ type Props = {
 };
 
 const LOBBY_ID = '00000000-0000-4000-8000-000000000001';
-const ROOM_RETENTION_HOURS = 24;
 
 export default function StudyRooms({ user, username, nickname, avatarUrl, isDarkMode, onSignIn }: Props) {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -52,7 +51,6 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   const [handoffUserId, setHandoffUserId] = useState('');
   const [showHandoff, setShowHandoff] = useState(false);
   const [privateRoomCode, setPrivateRoomCode] = useState('');
-  const [showRoomCode, setShowRoomCode] = useState(false);
 
   const theme = {
     bg: isDarkMode ? '#0E1117' : '#F8FAFC',
@@ -335,12 +333,6 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       });
     return () => { active = false; };
   }, [joinedRoom?.id, user?.id]);
-
-  async function loadPrivateCode(room: Room) {
-    if (!room.isPrivate || room.ownerId !== user?.id) return;
-    const { data, error } = await supabase.from('study_rooms').select('room_code').eq('id', room.id).maybeSingle();
-    if (!error) setPrivateRoomCode(data?.room_code || '');
-  }
 
   const cardStyle: React.CSSProperties = { background: theme.card, border: '1px solid ' + theme.border, borderRadius: 14, padding: '1rem', minWidth: 0 };
   const buttonStyle: React.CSSProperties = { border: 0, borderRadius: 8, padding: '0.65rem 0.9rem', background: theme.accent, color: '#fff', cursor: 'pointer', fontWeight: 650 };
