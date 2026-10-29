@@ -1,6 +1,9 @@
 -- North Synapse 自习室生命周期与权限补充迁移
 -- 本迁移只扩展自习室相关表，不修改资源中心、讨论区或个人资料表。
 
+alter table public.study_room_messages
+  add column if not exists avatar_url text not null default '';
+
 alter table public.study_rooms
   add column if not exists description text,
   add column if not exists room_code text,
