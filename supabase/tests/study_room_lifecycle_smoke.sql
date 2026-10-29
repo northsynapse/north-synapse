@@ -46,8 +46,12 @@ select public.join_private_study_room_v2('ROOMCODE12345');
 
 -- 验证私密房间信息、成员和聊天不会泄露给非成员。
 set role authenticated;
+set request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+insert into public.study_room_messages(room_id, user_id, display_name, avatar_url, body)
+values ('test-private', '10000000-0000-4000-8000-000000000001', 'Student One', '', 'Private room test message');
+
 set request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
-do $
+do $$
 begin
   if exists (select 1 from public.study_rooms where id = 'test-private') then
     raise exception 'Private room metadata must be hidden from non-members';
@@ -59,18 +63,18 @@ begin
     raise exception 'Private room chat must be hidden from non-members';
   end if;
 end;
-$;
+$$;
 
 set request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
-insert into public.study_room_messages(room_id, user_id, display_name, avatar_url, body)
-values ('test-private', '10000000-0000-4000-8000-000000000001', 'Student One', '', 'Private room test message');
-do $
+do $$
 begin
   if (select count(*) from public.study_room_messages where room_id = 'test-private') <> 1 then
     raise exception 'Active members must be able to read private room chat';
   end if;
 end;
-$;
+$$;
+reset role;
+
 reset role;
 
 set request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
