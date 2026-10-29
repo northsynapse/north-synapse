@@ -98,7 +98,8 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       ? await supabase.from('study_room_presence').select('room_id,user_id,last_seen_at').in('room_id', ids).gte('last_seen_at', new Date(Date.now() - 120000).toISOString())
       : { data: [], error: null };
     if (activeError) console.error('读取房间在线人数失败：', activeError.message);
-    const creatorIds = [...new Set(rows.map((room: any) => room.created_by).filter(Boolean))];
+    // 提取房间创建者 ID，并去重
+    const creatorIds = Array.from(new Set(rows.map((room: any) => room.created_by).filter(Boolean)));
     const { data: creatorRows, error: creatorError } = creatorIds.length
       ? await supabase.from('public_author_profiles').select('id,username,nickname').in('id', creatorIds)
       : { data: [], error: null };
