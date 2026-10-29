@@ -639,7 +639,7 @@ $$;
 
 drop trigger if exists guard_study_room_message on public.study_room_messages;
 create trigger guard_study_room_message
-before insert or update of body, user_id on public.study_room_messages
+before insert or update on public.study_room_messages
 for each row execute function public.guard_study_room_message();
 
 create policy "Active members can send study room messages"
