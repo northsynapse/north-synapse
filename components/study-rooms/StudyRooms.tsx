@@ -104,6 +104,21 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   }, [user?.id]);
 
   const refreshRoom = useCallback(async (roomId: string) => {
+    if (!user?.id) return;
+    const { data: membership, error: membershipError } = await supabase
+      .from('study_room_active_members')
+      .select('room_id')
+      .eq('room_id', roomId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (membershipError) {
+      console.error('检查自习室成员身份失败：', membershipError.message);
+      return;
+    }
+    if (!membership) {
+      setJoinedRoom(null); setMembers([]); setMessages([]); setTimerRunning(false);
+      return;
+    }
     const { data: roomRow, error: roomError } = await supabase.from('study_rooms')
       .select('id,name,subject,description,is_private,created_at,last_activity_at,created_by,owner_id,is_system_lobby,status,room_code')
       .eq('id', roomId).maybeSingle();
