@@ -2001,8 +2001,8 @@ export default function Home() {
       </main>
 
       {/* 常驻的用户须知入口：放在主内容区顶部，避免长页面中难以找到 */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 1000, display: 'flex', justifyContent: 'flex-end', padding: '.35rem 1rem', background: theme.bg, borderBottom: `1px solid ${theme.border}` }}>
-        <button type="button" onClick={() => setShowTermsModal(true)} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, padding: '.45rem .75rem', borderRadius: '8px', cursor: 'pointer', minHeight: '40px', fontWeight: 650 }}>Terms of Service & User Notice</button>
+      <div style={{ position: 'fixed', top: '5.25rem', right: '1rem', zIndex: 1000001, display: 'flex', justifyContent: 'flex-end', padding: '.25rem', background: 'transparent' }}>
+        <button type="button" onClick={() => setShowTermsModal(true)} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, padding: '.45rem .75rem', borderRadius: '8px', cursor: 'pointer', minHeight: '40px', fontWeight: 650, boxShadow: '0 4px 18px rgba(0,0,0,.12)' }}>Terms of Service & User Notice</button>
       </div>
 
       {/* 常驻的用户须知入口：登录前后都能打开 */}
