@@ -402,7 +402,7 @@ begin
   where am.joined_at <= now() - interval '2 minutes'
     and not exists (
     select 1 from public.study_room_presence p
-    where p.room_id = am.room_id
+    where p.room_id::text = am.room_id::text
       and p.user_id = am.user_id
       and p.last_seen_at > now() - interval '2 minutes'
   );
