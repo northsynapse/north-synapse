@@ -741,6 +741,9 @@ as $$
 begin
   if current_user in ('authenticated', 'anon') then
     if tg_op = 'INSERT' then
+      if new.room_code is not null then
+        new.room_code := upper(trim(new.room_code));
+      end if;
       if new.created_by is distinct from auth.uid()
          or new.owner_id is distinct from auth.uid()
          or coalesce(new.is_system_lobby, false)
