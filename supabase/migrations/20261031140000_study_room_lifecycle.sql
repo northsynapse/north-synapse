@@ -2,7 +2,10 @@
 -- 本迁移只扩展自习室相关表，不修改资源中心、讨论区或个人资料表。
 
 alter table public.study_room_messages
+  add column if not exists display_name text not null default 'Student',
   add column if not exists avatar_url text not null default '';
+
+notify pgrst, 'reload schema';
 
 alter table public.study_rooms
   add column if not exists description text,
