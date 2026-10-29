@@ -2,6 +2,7 @@
 -- 本迁移只扩展自习室相关表，不修改资源中心、讨论区或个人资料表。
 
 alter table public.study_rooms
+  add column if not exists created_by uuid references public.profiles(id) on delete set null,
   add column if not exists owner_id uuid references auth.users(id) on delete set null,
   add column if not exists is_system_lobby boolean not null default false,
   add column if not exists status text not null default 'active',
