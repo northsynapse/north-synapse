@@ -77,7 +77,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   const loadRooms = useCallback(async () => {
     const { data, error } = await supabase
       .from('study_rooms')
-      .select('id,name,subject,description,is_private,created_at,last_activity_at,created_by,owner_id,is_system_lobby,status,empty_since')
+      .select('id,name,subject,description,is_private,room_code,created_at,last_activity_at,created_by,owner_id,is_system_lobby,status,empty_since')
       .eq('status', 'active');
     if (error) {
       console.error('加载自习室失败：', error.message);
@@ -96,7 +96,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       .filter((room: any) => !room.is_private || room.created_by === user?.id || room.owner_id === user?.id || room.is_system_lobby)
       .map((room: any) => ({
         id: String(room.id), name: room.name, subject: room.subject || 'General Study',
-        description: room.description || '', isPrivate: !!room.is_private,
+        description: room.description || '', isPrivate: !!room.is_private, roomCode: room.room_code || undefined,
         createdAt: room.created_at, lastActivityAt: room.last_activity_at || room.created_at,
         createdBy: room.created_by || '', ownerId: room.owner_id || null,
         isSystemLobby: !!room.is_system_lobby, status: room.status,
@@ -137,7 +137,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     setJoinedRoom({
       id: String(roomRow.id), name: roomRow.name, subject: roomRow.subject || 'General Study',
       description: roomRow.description || '', isPrivate: !!roomRow.is_private,
-      roomCode: roomRow.owner_id === user?.id ? roomRow.room_code || undefined : undefined,
+      roomCode: roomRow.is_private ? roomRow.room_code || undefined : undefined,
       createdAt: roomRow.created_at, lastActivityAt: roomRow.last_activity_at || roomRow.created_at,
       createdBy: roomRow.created_by || '', ownerId: roomRow.owner_id || null,
       isSystemLobby: !!roomRow.is_system_lobby, status: roomRow.status, activeUsers: people.length
@@ -211,8 +211,11 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   async function joinRoom(room: Room, code?: string) {
     if (!user?.id) { onSignIn(); return; }
     if (loading) return;
+    let joinCode = code;
+    if (room.isPrivate && !joinCode) joinCode = room.roomCode || window.prompt('Enter the private room code') || undefined;
+    if (room.isPrivate && !joinCode?.trim()) return;
     setLoading(true); setNotice('');
-    const { error } = await supabase.rpc('join_study_room_v2', { p_room_id: room.id, p_room_code: code || null });
+    const { error } = await supabase.rpc('join_study_room_v2', { p_room_id: room.id, p_room_code: joinCode || null });
     setLoading(false);
     if (error) { setNotice(error.message.includes('Invalid room code') ? 'That room code is incorrect.' : error.message); return; }
     setTimerRunning(false); setRemainingSeconds(durationMinutes * 60); setGoal(''); setGoalDraft('');
