@@ -8,6 +8,8 @@ alter table public.study_rooms
   add column if not exists empty_since timestamptz,
   add column if not exists closed_at timestamptz;
 
+alter table public.study_rooms alter column created_by drop not null;
+
 update public.study_rooms
 set owner_id = created_by
 where owner_id is null and created_by is not null;
@@ -96,11 +98,13 @@ begin
     raise exception 'Invalid room code';
   end if;
 
+  perform pg_advisory_xact_lock(hashtext(v_user_id::text)::bigint);
+
   delete from public.study_room_active_members where user_id = v_user_id;
   delete from public.study_room_members where user_id = v_user_id;
   delete from public.study_room_presence where user_id = v_user_id;
 
-  if v_room.owner_id is null then
+  if v_room.owner_id is null and not v_room.is_system_lobby then
     update public.study_rooms
     set owner_id = v_user_id, empty_since = null, last_activity_at = now()
     where id = p_room_id;
@@ -395,6 +399,13 @@ begin
   end if;
 end;
 $$;
+
+revoke all on function public.join_study_room_v2(uuid, text) from public, anon;
+revoke all on function public.join_private_study_room_v2(text) from public, anon;
+revoke all on function public.leave_study_room_v2(uuid, uuid) from public, anon;
+revoke all on function public.kick_study_room_member_v2(uuid, uuid) from public, anon;
+revoke all on function public.end_study_room_v2(uuid) from public, anon;
+revoke all on function public.cleanup_study_rooms() from public, anon, authenticated;
 
 grant execute on function public.join_study_room_v2(uuid, text) to authenticated;
 grant execute on function public.join_private_study_room_v2(text) to authenticated;
