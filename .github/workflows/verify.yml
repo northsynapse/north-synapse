@@ -2,9 +2,12 @@ name: Verify Next.js
 
 on:
   pull_request:
-  push:
     branches:
-      - feat/study-rooms-lifecycle
+      - feat/social-interactions-profile-saves
+
+concurrency:
+  group: study-rooms-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:
