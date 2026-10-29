@@ -162,6 +162,35 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
 
   useEffect(() => {
     if (!user?.id) return;
+    let active = true;
+    const loadPendingKickNotice = async () => {
+      const { data, error } = await supabase
+        .from('study_room_kick_events')
+        .select('id,room_id,created_at')
+        .eq('user_id', user.id)
+        .is('acknowledged_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) {
+        console.error('读取自习室踢出通知失败：', error.message);
+        return;
+      }
+      if (active && data) setKickNotice('You were removed from this study room by the room owner.');
+    };
+    void loadPendingKickNotice();
+    const channel = supabase.channel(`study-room-kick-events-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'study_room_kick_events', filter: `user_id=eq.${user.id}` }, () => {
+        void loadPendingKickNotice();
+      }).subscribe();
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
     const channel = supabase.channel('study-room-directory')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'study_rooms' }, () => { void loadRooms(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'study_room_active_members' }, () => { void loadRooms(); })
@@ -188,12 +217,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       .on('postgres_changes', { event: '*', schema: 'public', table: 'study_room_active_members', filter: `room_id=eq.${roomId}` }, () => { if (active) void refreshRoom(roomId); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'study_room_messages', filter: `room_id=eq.${roomId}` }, () => { if (active) void refreshRoom(roomId); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'study_rooms', filter: `id=eq.${roomId}` }, () => { if (active) void refreshRoom(roomId); })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'study_room_kick_events', filter: `user_id=eq.${userId}` }, (payload: any) => {
-        if (payload.new?.room_id === roomId && active) {
-          setJoinedRoom(null); setMembers([]); setMessages([]); setTimerRunning(false);
-          setKickNotice('You were removed from this study room by the room owner.');
-        }
-      }).subscribe();
+.subscribe();
     void refreshRoom(roomId);
     return () => {
       active = false; window.clearInterval(heartbeatTimer); window.clearInterval(pollTimer);
@@ -315,6 +339,25 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     setNotice('The study room has been ended.'); await loadRooms();
   }
 
+  async function dismissKickNotice() {
+    if (user?.id) {
+      const { data } = await supabase
+        .from('study_room_kick_events')
+        .select('id')
+        .eq('user_id', user.id)
+        .is('acknowledged_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data?.id) {
+        await supabase.from('study_room_kick_events')
+          .update({ acknowledged_at: new Date().toISOString() })
+          .eq('id', data.id);
+      }
+    }
+    setKickNotice('');
+  }
+
   async function saveGoal(e: React.FormEvent) {
     e.preventDefault();
     if (!joinedRoom || !user?.id) return;
@@ -362,7 +405,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     </header>
 
     {notice && <div role="status" style={{ padding: '.75rem .9rem', borderRadius: 9, background: theme.card, border: '1px solid ' + theme.border, display: 'flex', justifyContent: 'space-between', gap: '.7rem' }}><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss" style={{ border: 0, background: 'transparent', color: theme.text }}><X size={16}/></button></div>}
-    {kickNotice && <div role="dialog" aria-modal="true" aria-labelledby="study-room-kick-title" style={{ position: 'fixed', inset: 0, zIndex: 100001, background: 'rgba(0,0,0,.68)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 420px)', borderColor: theme.danger }}><strong id="study-room-kick-title"><ShieldAlert size={17} style={{ verticalAlign: 'middle', marginRight: 7, color: theme.danger }}/>You were removed from the room</strong><p style={{ margin: '.55rem 0 0', color: theme.muted }}>{kickNotice}</p><button style={{ ...buttonStyle, marginTop: '1rem' }} onClick={() => setKickNotice('')}>Return to room directory</button></div></div>}
+    {kickNotice && <div role="dialog" aria-modal="true" aria-labelledby="study-room-kick-title" style={{ position: 'fixed', inset: 0, zIndex: 100001, background: 'rgba(0,0,0,.68)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 420px)', borderColor: theme.danger }}><strong id="study-room-kick-title"><ShieldAlert size={17} style={{ verticalAlign: 'middle', marginRight: 7, color: theme.danger }}/>You were removed from the room</strong><p style={{ margin: '.55rem 0 0', color: theme.muted }}>{kickNotice}</p><button style={{ ...buttonStyle, marginTop: '1rem' }} onClick={() => void dismissKickNotice()}>Return to room directory</button></div></div>}
 
     {!joinedRoom ? <>
       <form onSubmit={joinByCode} style={{ ...cardStyle, display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
