@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import { Crown, LockKeyhole, MessageCircle, Plus, Search, Send, Users, X, LogOut, ShieldAlert } from 'lucide-react';
 
 type Room = {
-  id: string; name: string; subject: string; description: string;
+  id: string; name: string; subject: string; grade: string; description: string;
   isPrivate: boolean; roomCode?: string; createdAt: string;
   lastActivityAt: string; createdBy: string; ownerId: string | null;
   isSystemLobby: boolean; status: string; activeUsers: number;
@@ -37,6 +37,11 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newSubject, setNewSubject] = useState('General Study');
+  const [newGrade, setNewGrade] = useState('All grades');
+  const [gradeFilter, setGradeFilter] = useState('All grades');
+  const [subjectFilter, setSubjectFilter] = useState('All subjects');
+  const [kickTargetId, setKickTargetId] = useState('');
+  const [kickReason, setKickReason] = useState('');
   const [newPrivate, setNewPrivate] = useState(false);
   const [goal, setGoal] = useState('');
   const [goalDraft, setGoalDraft] = useState('');
@@ -78,7 +83,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   const loadRooms = useCallback(async () => {
     const { data, error } = await supabase
       .from('study_rooms')
-      .select('id,name,subject,description,is_private,room_code,created_at,last_activity_at,created_by,owner_id,is_system_lobby,status,empty_since')
+      .select('id,name,subject,grade,description,is_private,room_code,created_at,last_activity_at,created_by,owner_id,is_system_lobby,status,empty_since')
       .eq('status', 'active');
     if (error) {
       console.error('加载自习室失败：', error.message);
@@ -96,7 +101,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     setRooms(rows
       .filter((room: any) => !room.is_private || room.created_by === user?.id || room.owner_id === user?.id || room.is_system_lobby)
       .map((room: any) => ({
-        id: String(room.id), name: room.name, subject: room.subject || 'General Study',
+        id: String(room.id), name: room.name, subject: room.subject || 'General Study', grade: room.grade || 'All grades',
         description: room.description || '', isPrivate: !!room.is_private, roomCode: room.room_code || undefined,
         createdAt: room.created_at, lastActivityAt: room.last_activity_at || room.created_at,
         createdBy: room.created_by || '', ownerId: room.owner_id || null,
@@ -118,7 +123,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       return;
     }
     const { data: roomRow, error: roomError } = await supabase.from('study_rooms')
-      .select('id,name,subject,description,is_private,created_at,last_activity_at,created_by,owner_id,is_system_lobby,status,room_code')
+      .select('id,name,subject,grade,description,is_private,created_at,last_activity_at,created_by,owner_id,is_system_lobby,status,room_code')
       .eq('id', roomId).maybeSingle();
     if (roomError || !roomRow || roomRow.status !== 'active') {
       setJoinedRoom(null); setMembers([]); setMessages([]); setTimerRunning(false);
@@ -151,7 +156,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     if (!messageError) setMessages(messageRows || []);
     else console.error('读取聊天消息失败：', messageError.message);
     setJoinedRoom({
-      id: String(roomRow.id), name: roomRow.name, subject: roomRow.subject || 'General Study',
+      id: String(roomRow.id), name: roomRow.name, subject: roomRow.subject || 'General Study', grade: roomRow.grade || 'All grades',
       description: roomRow.description || '', isPrivate: !!roomRow.is_private,
       roomCode: roomRow.is_private ? roomRow.room_code || undefined : undefined,
       createdAt: roomRow.created_at, lastActivityAt: roomRow.last_activity_at || roomRow.created_at,
@@ -168,7 +173,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     const loadPendingKickNotice = async () => {
       const { data, error } = await supabase
         .from('study_room_kick_events')
-        .select('id,room_id,created_at')
+        .select('id,room_id,created_at,reason')
         .eq('user_id', user.id)
         .is('acknowledged_at', null)
         .order('created_at', { ascending: false })
@@ -178,7 +183,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
         console.error('读取自习室踢出通知失败：', error.message);
         return;
       }
-      if (active && data) setKickNotice('You were removed from this study room by the room owner.');
+      if (active && data) setKickNotice((data.reason || '').trim() ? `You were removed from this study room. Reason: ${data.reason}` : 'You were removed from this study room by the room owner.');
     };
     void loadPendingKickNotice();
     const channel = supabase.channel(`study-room-kick-events-${user.id}`)
@@ -238,7 +243,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   }, [timerRunning]);
 
   const sortedRooms = useMemo(() => {
-    const visible = rooms.filter((room) => room.isSystemLobby || room.name.toLowerCase().includes(search.trim().toLowerCase()));
+    const visible = rooms.filter((room) => (room.isSystemLobby || `${room.name} ${room.description}`.toLowerCase().includes(search.trim().toLowerCase())) && (gradeFilter === 'All grades' || room.grade === gradeFilter) && (subjectFilter === 'All subjects' || room.subject === subjectFilter));
     visible.sort((a, b) => {
       if (a.isSystemLobby) return -1;
       if (b.isSystemLobby) return 1;
@@ -246,7 +251,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
     return visible;
-  }, [rooms, search, sortBy]);
+  }, [rooms, search, sortBy, gradeFilter, subjectFilter]);
 
   async function joinRoom(room: Room, code?: string) {
     if (!user?.id) { onSignIn(); return; }
@@ -283,7 +288,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     setLoading(true); setNotice('');
     const roomCode = newPrivate ? crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase() : null;
     const { data, error } = await supabase.from('study_rooms').insert({
-      name: cleanName, subject: newSubject, description: newDescription.trim(),
+      name: cleanName, subject: newSubject, grade: newGrade, description: newDescription.trim(),
       is_private: newPrivate, room_code: roomCode, created_by: user.id,
       owner_id: user.id, status: 'active', is_system_lobby: false, empty_since: null
     }).select('id').single();
@@ -296,7 +301,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     const { error: joinError } = await supabase.rpc('join_study_room_v2', { p_room_id: roomId, p_room_code: roomCode });
     setLoading(false);
     if (joinError) { setNotice('The room was created, but joining failed: ' + joinError.message); await loadRooms(); return; }
-    setShowCreate(false); setNewName(''); setNewDescription(''); setNewPrivate(false);
+    setShowCreate(false); setNewName(''); setNewDescription(''); setNewPrivate(false); setNewGrade('All grades'); setNewSubject('General Study');
     setTimerRunning(false); setRemainingSeconds(durationMinutes * 60);
     await refreshRoom(roomId); await loadRooms();
   }
@@ -322,12 +327,17 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
 
   async function kickMember(targetId: string) {
     if (!joinedRoom || !isOwner || targetId === user?.id || loading) return;
-    if (!window.confirm('Remove this member from the study room?')) return;
+    setKickTargetId(targetId); setKickReason('');
+  }
+
+  async function confirmKickMember(e: React.FormEvent) {
+    e.preventDefault();
+    if (!joinedRoom || !isOwner || !kickTargetId || loading) return;
     setLoading(true);
-    const { error } = await supabase.rpc('kick_study_room_member_v2', { p_room_id: joinedRoom.id, p_target_user_id: targetId });
+    const { error } = await supabase.rpc('kick_study_room_member_v2', { p_room_id: joinedRoom.id, p_target_user_id: kickTargetId, p_reason: kickReason.trim() || null });
     setLoading(false);
     if (error) setNotice('Could not remove member: ' + error.message);
-    else { setNotice('Member removed.'); await refreshRoom(joinedRoom.id); await loadRooms(); }
+    else { setKickTargetId(''); setKickReason(''); setNotice('Member removed from the room.'); await refreshRoom(joinedRoom.id); await loadRooms(); }
   }
 
   async function endRoom() {
@@ -400,13 +410,14 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   const buttonStyle: React.CSSProperties = { border: 0, borderRadius: 8, padding: '0.65rem 0.9rem', background: theme.accent, color: '#fff', cursor: 'pointer', fontWeight: 650 };
   const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '0.7rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.text, minWidth: 0 };
 
-  return <div style={joinedRoom ? { position: 'fixed', inset: 0, zIndex: 99999, overflowY: 'auto', padding: 'clamp(1rem, 2.5vw, 2rem)', boxSizing: 'border-box', background: theme.bg, display: 'flex', flexDirection: 'column', gap: '1.25rem', color: theme.text } : { display: 'flex', flexDirection: 'column', gap: '1.25rem', color: theme.text }}>
+  return <div style={joinedRoom ? { position: 'fixed', inset: 0, zIndex: 99999, width: '100vw', height: '100dvh', overflow: 'hidden', padding: 'clamp(.5rem, 1.2vw, 1rem)', boxSizing: 'border-box', background: theme.bg, display: 'flex', flexDirection: 'column', gap: '.65rem', color: theme.text } : { display: 'flex', flexDirection: 'column', gap: '1.25rem', color: theme.text }}>
     {!joinedRoom && <header style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
       <div><p style={{ color: theme.accent, fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', margin: '0 0 .35rem' }}>NORTH SYNAPSE / STUDY LOUNGE</p><h1 style={{ margin: 0, fontSize: '2rem' }}>Study Rooms</h1></div>
       {!joinedRoom && <button type="button" style={buttonStyle} onClick={() => { if (!user?.id) onSignIn(); else { setNotice(''); setShowCreate(true); } }}><Plus size={16} style={{ verticalAlign: 'middle', marginRight: 6 }}/>Create room</button>}
     </header>}
 
     {notice && <div role="dialog" aria-modal="true" aria-labelledby="study-room-notice-title" style={{ position: 'fixed', inset: 0, zIndex: 100003, background: 'rgba(3,6,14,.68)', backdropFilter: 'blur(7px)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 430px)', boxShadow: '0 24px 80px rgba(0,0,0,.38)' }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}><h2 id="study-room-notice-title" style={{ margin: 0, fontSize: '1.15rem' }}>Study room notice</h2><button type="button" onClick={() => setNotice('')} aria-label="Close notice" style={{ background: 'transparent', color: theme.text, border: '1px solid ' + theme.border, borderRadius: 8, padding: '.35rem', cursor: 'pointer' }}><X size={16}/></button></div><p style={{ color: theme.muted, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{notice}</p><button type="button" style={{ ...buttonStyle, width: '100%' }} onClick={() => setNotice('')}>Got it</button></div></div>}
+    {kickTargetId && <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex: 100004, background: 'rgba(0,0,0,.7)', display: 'grid', placeItems: 'center', padding: '1rem' }}><form onSubmit={confirmKickMember} style={{ ...cardStyle, width: 'min(100%, 420px)' }}><h2 style={{ marginTop: 0 }}>Remove member</h2><p style={{ color: theme.muted }}>Optionally provide a reason. The member will see it in a notice.</p><textarea rows={3} maxLength={300} value={kickReason} onChange={e => setKickReason(e.target.value)} placeholder="Reason for removal (optional)" style={{ ...inputStyle, resize: 'vertical' }}/><div style={{ display: 'flex', justifyContent: 'flex-end', gap: '.5rem', marginTop: '.8rem' }}><button type="button" style={{ ...buttonStyle, background: 'transparent', color: theme.text, border: '1px solid ' + theme.border }} onClick={() => setKickTargetId('')} disabled={loading}>Cancel</button><button type="submit" style={{ ...buttonStyle, background: theme.danger }} disabled={loading}>{loading ? 'Removing…' : 'Remove member'}</button></div></form></div>}
     {kickNotice && <div role="dialog" aria-modal="true" aria-labelledby="study-room-kick-title" style={{ position: 'fixed', inset: 0, zIndex: 100001, background: 'rgba(0,0,0,.68)', display: 'grid', placeItems: 'center', padding: '1rem' }}><div style={{ ...cardStyle, width: 'min(100%, 420px)', borderColor: theme.danger }}><strong id="study-room-kick-title"><ShieldAlert size={17} style={{ verticalAlign: 'middle', marginRight: 7, color: theme.danger }}/>Room access ended</strong><p style={{ margin: '.55rem 0 0', color: theme.muted }}>{kickNotice}</p><button style={{ ...buttonStyle, marginTop: '1rem' }} onClick={() => void dismissKickNotice()}>Return to room directory</button></div></div>}
 
     {!joinedRoom ? <>
@@ -418,20 +429,21 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '.7rem' }}>
         <label style={{ flex: '1 1 240px', position: 'relative' }}><Search size={16} style={{ position: 'absolute', top: 12, left: 12, color: theme.muted }}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search rooms by name" style={{ ...inputStyle, paddingLeft: 36 }}/></label>
+        <select aria-label="Filter by subject" value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)} style={{ ...inputStyle, width: 'auto' }}>{['All subjects','General Study','Mathematics','Science','English & ESL','Computer Science & Tech','French','History & Social Sciences','Business & Economics'].map(x => <option key={x}>{x}</option>)}</select><select aria-label="Filter by grade" value={gradeFilter} onChange={e => setGradeFilter(e.target.value)} style={{ ...inputStyle, width: 'auto' }}>{['All grades','Grade 9','Grade 10','Grade 11','Grade 12'].map(x => <option key={x}>{x}</option>)}</select>
         <label style={{ display: 'flex', gap: '.45rem', alignItems: 'center', color: theme.muted, fontSize: '.85rem' }}>Sort by <select value={sortBy} onChange={e => setSortBy(e.target.value as 'created' | 'active')} style={{ ...inputStyle, width: 'auto' }}><option value="created">Newest</option><option value="active">Online members</option></select></label>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
         {sortedRooms.map(room => <article key={room.id} style={{ ...cardStyle, borderColor: room.isSystemLobby ? theme.accent : theme.border }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.6rem', alignItems: 'flex-start' }}><div><h2 style={{ margin: 0, fontSize: '1.1rem' }}>{room.name}</h2><p style={{ color: theme.muted, fontSize: '.8rem', margin: '.35rem 0' }}>{room.subject} · {room.activeUsers} online</p></div>{room.isPrivate ? <LockKeyhole size={17}/> : room.isSystemLobby ? <Users size={17}/> : null}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.6rem', alignItems: 'flex-start' }}><div><h2 style={{ margin: 0, fontSize: '1.1rem' }}>{room.name}</h2><p style={{ color: theme.muted, fontSize: '.8rem', margin: '.35rem 0' }}>{room.subject} · {room.grade} · {room.activeUsers} online</p></div>{room.isPrivate ? <LockKeyhole size={17}/> : room.isSystemLobby ? <Users size={17}/> : null}</div>
           <p style={{ color: theme.muted, whiteSpace: 'pre-wrap', fontSize: '.87rem', minHeight: '2.7em' }}>{room.description || 'A quiet space to focus together.'}</p>
-          <button type="button" style={buttonStyle} onClick={() => void joinRoom(room)} disabled={loading}>{loading ? 'Joining…' : room.isSystemLobby ? 'Enter public lobby' : 'Join room'}</button>
+          <button type="button" style={buttonStyle} onClick={() => void joinRoom(room)} disabled={loading}>{loading ? 'Joining…' : !user?.id ? 'Sign in to join' : room.isSystemLobby ? 'Enter public lobby' : 'Join room'}</button>
         </article>)}
-        {sortedRooms.length === 0 && <p style={{ color: theme.muted }}>No rooms found. Create one to get started.</p>}
+        {sortedRooms.length === 0 && user?.id && <p style={{ color: theme.muted }}>No study rooms match these filters.</p>}
       </div>
     </> : <>
       <section style={{ ...cardStyle, padding: '.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <div style={{ minWidth: 0, flex: '1 1 260px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}><h1 style={{ margin: 0, fontSize: 'clamp(1.25rem, 2.5vw, 1.8rem)', letterSpacing: '-.025em' }}>{joinedRoom.name}</h1>{isOwner && <span style={{ background: theme.accent, color: '#fff', padding: '.15rem .45rem', borderRadius: 5, fontSize: '.68rem' }}><Crown size={11} style={{ verticalAlign: 'middle', marginRight: 4 }}/>HOST</span>}{joinedRoom.isPrivate && <span style={{ color: theme.muted, fontSize: '.75rem' }}><LockKeyhole size={13} style={{ verticalAlign: 'middle', marginRight: 4 }}/>Private</span>}</div>{joinedRoom.description && <p style={{ color: theme.muted, whiteSpace: 'pre-wrap', margin: '.25rem 0 0', fontSize: '.88rem' }}>{joinedRoom.description}</p>}</div>
+        <div style={{ minWidth: 0, flex: '1 1 260px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}><h1 style={{ margin: 0, fontSize: 'clamp(1.25rem, 2.5vw, 1.8rem)', letterSpacing: '-.025em' }}>{joinedRoom.name}</h1>{isOwner && <span style={{ background: theme.accent, color: '#fff', padding: '.15rem .45rem', borderRadius: 5, fontSize: '.68rem' }}><Crown size={11} style={{ verticalAlign: 'middle', marginRight: 4 }}/>HOST</span>}{joinedRoom.isPrivate && <span style={{ color: theme.muted, fontSize: '.75rem' }}><LockKeyhole size={13} style={{ verticalAlign: 'middle', marginRight: 4 }}/>Private</span>}</div><div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.3rem' }}><span style={{ border: '1px solid ' + theme.border, color: theme.muted, borderRadius: 999, padding: '.12rem .5rem', fontSize: '.7rem' }}>{joinedRoom.subject}</span><span style={{ border: '1px solid ' + theme.border, color: theme.muted, borderRadius: 999, padding: '.12rem .5rem', fontSize: '.7rem' }}>{joinedRoom.grade}</span></div>{joinedRoom.description && <p style={{ color: theme.muted, whiteSpace: 'pre-wrap', margin: '.25rem 0 0', fontSize: '.88rem' }}>{joinedRoom.description}</p>}</div>
         <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <button type="button" title="Toggle members panel" onClick={() => setShowMembersPanel(v => !v)} style={{ ...buttonStyle, padding: '.45rem .6rem', background: showMembersPanel ? theme.accent : 'transparent', color: showMembersPanel ? '#fff' : theme.text, border: '1px solid ' + theme.border }}><Users size={14} style={{ verticalAlign: 'middle', marginRight: 4 }}/>Members</button>
           <button type="button" title="Toggle chat panel" onClick={() => setShowChatPanel(v => !v)} style={{ ...buttonStyle, padding: '.45rem .6rem', background: showChatPanel ? theme.accent : 'transparent', color: showChatPanel ? '#fff' : theme.text, border: '1px solid ' + theme.border }}><MessageCircle size={14} style={{ verticalAlign: 'middle', marginRight: 4 }}/>Chat</button>
@@ -442,8 +454,8 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
         </div>
       </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: showMembersPanel && showChatPanel ? 'minmax(190px,.8fr) minmax(300px,1.2fr) minmax(280px,1fr)' : showMembersPanel || showChatPanel ? 'minmax(190px,.8fr) minmax(300px,1.2fr)' : 'minmax(0,1fr)', gap: '1rem', alignItems: 'stretch' }} className="ns-study-room-columns">
-        {showMembersPanel && <section style={{ ...cardStyle, maxHeight: '72vh', overflowY: 'auto' }}><h3 style={{ margin: '0 0 .35rem' }}>Members · {members.length} online</h3><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Owner first, then earliest join</p>
+      <div style={{ display: 'grid', gridTemplateColumns: showMembersPanel && showChatPanel ? 'minmax(190px,.8fr) minmax(300px,1.2fr) minmax(280px,1fr)' : showMembersPanel || showChatPanel ? 'minmax(190px,.8fr) minmax(300px,1.2fr)' : 'minmax(0,1fr)', gap: '.75rem', alignItems: 'stretch', flex: 1, minHeight: 0 }} className="ns-study-room-columns">
+        {showMembersPanel && <section style={{ ...cardStyle, height: '100%', minHeight: 0, overflowY: 'auto' }}><h3 style={{ margin: '0 0 .35rem' }}>Members · {members.length} online</h3><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Owner first, then earliest join</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem' }}>{members.map(person => <div key={person.user_id} style={{ display: 'flex', gap: '.55rem', alignItems: 'center' }}>
             {person.avatar_url ? <img src={person.avatar_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}/> : <div style={{ width: 36, height: 36, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', color: theme.accent, fontWeight: 800, flexShrink: 0 }}>{person.display_name.slice(0,1).toUpperCase()}</div>}
             <div style={{ minWidth: 0, flex: 1 }}><div style={{ fontWeight: 700, fontSize: '.86rem', overflowWrap: 'anywhere' }}>{person.display_name}{person.user_id === user?.id ? ' (You)' : ''}{person.user_id === joinedRoom.ownerId && <span style={{ color: theme.accent, fontSize: '.68rem' }}> · Owner</span>}</div><div style={{ color: theme.muted, fontSize: '.72rem' }}>Online {formatDuration(Math.max(0, Math.floor((Date.now() - new Date(person.joined_at).getTime()) / 1000)))}</div></div>
@@ -451,13 +463,13 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
           </div>)}</div>
         </section>}
 
-        <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '.85rem' }}><p style={{ color: theme.muted, fontSize: '.75rem', letterSpacing: '.12em', margin: 0 }}>PERSONAL FOCUS TIMER</p><div style={{ fontSize: 'clamp(2.5rem, 5vw, 3.8rem)', fontWeight: 850, fontVariantNumeric: 'tabular-nums', color: theme.accent }}>{formatDuration(remainingSeconds)}</div>
+        <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '.85rem', minHeight: 0, overflowY: 'auto' }}><p style={{ color: theme.muted, fontSize: '.75rem', letterSpacing: '.12em', margin: 0 }}>PERSONAL FOCUS TIMER</p><div style={{ fontSize: 'clamp(2.5rem, 5vw, 3.8rem)', fontWeight: 850, fontVariantNumeric: 'tabular-nums', color: theme.accent }}>{formatDuration(remainingSeconds)}</div>
           <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', justifyContent: 'center' }}><label style={{ fontSize: '.8rem', color: theme.muted }}>Minutes <input type="number" min={1} max={240} value={durationMinutes} disabled={timerRunning} onChange={e => { const n = Math.max(1, Math.min(240, Number(e.target.value) || 1)); setDurationMinutes(n); setRemainingSeconds(n * 60); }} style={{ ...inputStyle, width: 90, display: 'inline-block', marginLeft: 5 }}/></label><button type="button" style={buttonStyle} onClick={() => setTimerRunning(v => !v)}>{timerRunning ? 'Pause' : 'Start'}</button><button type="button" style={{ ...buttonStyle, background: 'transparent', color: theme.text, border: '1px solid ' + theme.border }} onClick={() => { setTimerRunning(false); setRemainingSeconds(durationMinutes * 60); }}>Reset</button></div>
           <form onSubmit={saveGoal} style={{ width: '100%', textAlign: 'left', borderTop: '1px solid ' + theme.border, paddingTop: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', alignItems: 'baseline', marginBottom: '.45rem' }}><label htmlFor="study-intention" style={{ display: 'block', fontWeight: 750 }}>Session intention</label><span style={{ color: theme.muted, fontSize: '.7rem' }}>PERSONAL</span></div><p style={{ color: theme.muted, fontSize: '.78rem', lineHeight: 1.5, margin: '0 0 .6rem' }}>Define one clear outcome for this session. Keep it specific and achievable.</p><textarea id="study-intention" rows={3} maxLength={500} value={goalDraft} onChange={e => setGoalDraft(e.target.value)} placeholder="e.g. Finish 10 practice questions and review mistakes." style={{ ...inputStyle, resize: 'vertical' }}/><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.5rem', marginTop: '.45rem' }}><span style={{ color: theme.muted, fontSize: '.7rem' }}>{goalDraft.length}/500</span><button type="submit" style={{ ...buttonStyle, padding: '.5rem .75rem' }}>Save intention</button></div>{goal && <div style={{ marginTop: '.75rem', padding: '.7rem', border: '1px solid ' + theme.border, borderRadius: 9, background: theme.bg }}><span style={{ display: 'block', color: theme.accent, fontSize: '.68rem', fontWeight: 800, letterSpacing: '.08em', marginBottom: '.3rem' }}>CURRENT INTENTION</span><p style={{ margin: 0, fontSize: '.84rem', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{goal}</p></div>}</form>
           <p style={{ color: theme.muted, fontSize: '.7rem', margin: 0 }}>This intention is private to your account.</p>
         </section>
 
-        {showChatPanel && <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', minHeight: 440 }}><h3 style={{ margin: '0 0 .25rem' }}><MessageCircle size={16} style={{ verticalAlign: 'middle', marginRight: 5 }}/>Room chat</h3><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Text only · latest 150 messages</p>
+        {showChatPanel && <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden' }}><h3 style={{ margin: '0 0 .25rem' }}><MessageCircle size={16} style={{ verticalAlign: 'middle', marginRight: 5 }}/>Room chat</h3><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Text only · latest 150 messages</p>
           <div style={{ flex: 1, minHeight: 250, maxHeight: '54vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.9rem' }}>{messages.map(message => <div key={message.id} style={{ display: 'flex', gap: '.55rem', alignItems: 'flex-start' }}>
             {message.avatar_url ? <img src={message.avatar_url} alt="" style={{ width: 29, height: 29, borderRadius: '50%', objectFit: 'cover' }}/> : <div style={{ width: 29, height: 29, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, color: theme.accent, fontWeight: 800, fontSize: '.75rem' }}>{message.display_name.slice(0,1).toUpperCase()}</div>}
             <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', alignItems: 'baseline' }}><strong style={{ fontSize: '.8rem' }}>{message.display_name}</strong><time style={{ color: theme.muted, fontSize: '.68rem', whiteSpace: 'nowrap' }}>{formatClock(message.created_at)}</time></div><p style={{ margin: '.25rem 0 0', fontSize: '.87rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{message.body}</p></div>
@@ -476,6 +488,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
         </div>
         <label><span style={{ display: 'block', fontSize: '.8rem', color: theme.muted, marginBottom: '.35rem' }}>ROOM NAME</span><input required maxLength={100} value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Grade 11 Calculus Focus" style={inputStyle}/></label>
         <label><span style={{ display: 'block', fontSize: '.8rem', color: theme.muted, marginBottom: '.35rem' }}>SUBJECT</span><select value={newSubject} onChange={e => setNewSubject(e.target.value)} style={inputStyle}>{['General Study','Mathematics','Science','English & ESL','Computer Science & Tech','French','History & Social Sciences','Business & Economics'].map(x => <option key={x}>{x}</option>)}</select></label>
+        <label><span style={{ display: 'block', fontSize: '.8rem', color: theme.muted, marginBottom: '.35rem' }}>GRADE LEVEL</span><select value={newGrade} onChange={e => setNewGrade(e.target.value)} style={inputStyle}>{['All grades','Grade 9','Grade 10','Grade 11','Grade 12'].map(x => <option key={x}>{x}</option>)}</select></label>
         <label><span style={{ display: 'block', fontSize: '.8rem', color: theme.muted, marginBottom: '.35rem' }}>DESCRIPTION / RULES</span><textarea maxLength={1000} rows={3} value={newDescription} onChange={e => setNewDescription(e.target.value)} placeholder="Purpose, rules, or subject focus for members." style={{ ...inputStyle, resize: 'vertical' }}/></label>
         <label style={{ display: 'flex', gap: '.6rem', alignItems: 'center', padding: '.75rem', border: '1px solid ' + theme.border, borderRadius: 9, cursor: 'pointer' }}><input type="checkbox" checked={newPrivate} onChange={e => setNewPrivate(e.target.checked)}/><span><strong style={{ display: 'block', fontSize: '.9rem' }}>Private room</strong><span style={{ color: theme.muted, fontSize: '.78rem' }}>Only students with the room code can join.</span></span></label>
         {newPrivate && <p style={{ color: theme.muted, fontSize: '.8rem', margin: 0 }}>A room code will be generated automatically after creation.</p>}
