@@ -55,8 +55,8 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   const [handoffUserId, setHandoffUserId] = useState('');
   const [showHandoff, setShowHandoff] = useState(false);
   const [privateRoomCode, setPrivateRoomCode] = useState('');
-  const [showMembersPanel, setShowMembersPanel] = useState(true);
-  const [showChatPanel, setShowChatPanel] = useState(true);
+  const [showMembersPanel, setShowMembersPanel] = useState(false);
+  const [showChatPanel, setShowChatPanel] = useState(false);
   const [showOwnerNotice, setShowOwnerNotice] = useState(false);
   const previousOwnerId = useRef<string | null>(null);
 
@@ -249,7 +249,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   }, [timerRunning]);
 
   const sortedRooms = useMemo(() => {
-    const visible = rooms.filter((room) => (room.isSystemLobby || `${room.name} ${room.description}`.toLowerCase().includes(search.trim().toLowerCase())) && (gradeFilter === 'All grades' || room.grade === gradeFilter) && (subjectFilter === 'All subjects' || room.subject === subjectFilter));
+    const visible = rooms.filter((room) => room.isSystemLobby || (`${room.name} ${room.description} ${room.subject} ${room.grade} ${room.createdBy}`.toLowerCase().includes(search.trim().toLowerCase()) && (gradeFilter === 'All grades' || room.grade === gradeFilter) && (subjectFilter === 'All subjects' || room.subject === subjectFilter)));
     visible.sort((a, b) => {
       if (a.isSystemLobby) return -1;
       if (b.isSystemLobby) return 1;
@@ -446,7 +446,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
         {sortedRooms.map(room => <article key={room.id} style={{ ...cardStyle, borderColor: room.isSystemLobby ? theme.accent : theme.border }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.6rem', alignItems: 'flex-start' }}><div><h2 style={{ margin: 0, fontSize: '1.1rem' }}>{room.name}</h2><p style={{ color: theme.muted, fontSize: '.8rem', margin: '.35rem 0' }}>{room.subject} · {room.grade} · {room.activeUsers} online</p></div>{room.isPrivate ? <LockKeyhole size={17}/> : room.isSystemLobby ? <Users size={17}/> : null}</div>
-          <p style={{ color: theme.muted, whiteSpace: 'pre-wrap', fontSize: '.87rem', minHeight: '2.7em' }}>{room.description || 'A quiet space to focus together.'}</p>
+          <p style={{ color: theme.muted, whiteSpace: 'pre-wrap', fontSize: '.87rem', minHeight: '2.7em' }}>{room.description || 'A quiet space to focus together.'}</p>{user?.id && room.createdBy === user.id && <span style={{ display: 'inline-flex', marginBottom: '.65rem', padding: '.2rem .5rem', borderRadius: 999, background: isDarkMode ? 'rgba(139,92,246,.18)' : 'rgba(139,92,246,.1)', color: theme.accent, fontSize: '.72rem', fontWeight: 750 }}>Created by you</span>}
           <button type="button" style={buttonStyle} onClick={() => void joinRoom(room)} disabled={loading}>{loading ? 'Joining…' : !user?.id ? 'Sign in to join' : room.isSystemLobby ? 'Enter public lobby' : 'Join room'}</button>
         </article>)}
         {sortedRooms.length === 0 && user?.id && <p style={{ color: theme.muted }}>No study rooms match these filters.</p>}
@@ -465,7 +465,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       </section>
 
       <div style={{ display: 'grid', gridTemplateColumns: showMembersPanel && showChatPanel ? 'minmax(190px,.8fr) minmax(300px,1.2fr) minmax(280px,1fr)' : showMembersPanel || showChatPanel ? 'minmax(190px,.8fr) minmax(300px,1.2fr)' : 'minmax(0,1fr)', gap: '.75rem', alignItems: 'stretch', flex: 1, minHeight: 0 }} className="ns-study-room-columns">
-        {showMembersPanel && <section className="ns-study-room-sidepanel ns-study-room-members" style={{ ...cardStyle, height: '100%', minHeight: 0, overflowY: 'auto' }}><h3 style={{ margin: '0 0 .35rem' }}>Members · {members.length} online</h3><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Owner first, then earliest join</p>
+        {showMembersPanel && <section className="ns-study-room-sidepanel ns-study-room-members" style={{ ...cardStyle, height: '100%', minHeight: 0, overflowY: 'auto' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.75rem' }}><h3 style={{ margin: '0 0 .35rem' }}>Members · {members.length} online</h3><button type="button" aria-label="Close members panel" onClick={() => setShowMembersPanel(false)} style={{ border: '1px solid ' + theme.border, borderRadius: 8, padding: '.4rem', color: theme.text, background: 'transparent', cursor: 'pointer' }}><X size={17}/></button></div><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Owner first, then earliest join</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem' }}>{members.map(person => <div key={person.user_id} style={{ display: 'flex', gap: '.55rem', alignItems: 'center' }}>
             {person.avatar_url ? <img src={person.avatar_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}/> : <div style={{ width: 36, height: 36, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', color: theme.accent, fontWeight: 800, flexShrink: 0 }}>{person.display_name.slice(0,1).toUpperCase()}</div>}
             <div style={{ minWidth: 0, flex: 1 }}><div style={{ fontWeight: 700, fontSize: '.86rem', overflowWrap: 'anywhere' }}>{person.display_name}{person.user_id === user?.id ? ' (You)' : ''}{person.user_id === joinedRoom.ownerId && <span style={{ color: theme.accent, fontSize: '.68rem' }}> · Owner</span>}</div><div style={{ color: theme.muted, fontSize: '.72rem' }}>Online {formatDuration(Math.max(0, Math.floor((Date.now() - new Date(person.joined_at).getTime()) / 1000)))}</div></div>
@@ -479,7 +479,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
           <p style={{ color: theme.muted, fontSize: '.7rem', margin: 0 }}>This intention is private to your account.</p>
         </section>
 
-        {showChatPanel && <section className="ns-study-room-sidepanel ns-study-room-chat" style={{ ...cardStyle, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden' }}><h3 style={{ margin: '0 0 .25rem' }}><MessageCircle size={16} style={{ verticalAlign: 'middle', marginRight: 5 }}/>Room chat</h3><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Text only · latest 150 messages</p>
+        {showChatPanel && <section className="ns-study-room-sidepanel ns-study-room-chat" style={{ ...cardStyle, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.75rem' }}><h3 style={{ margin: '0 0 .25rem' }}><MessageCircle size={16} style={{ verticalAlign: 'middle', marginRight: 5 }}/>Room chat</h3><button type="button" aria-label="Close chat panel" onClick={() => setShowChatPanel(false)} style={{ border: '1px solid ' + theme.border, borderRadius: 8, padding: '.4rem', color: theme.text, background: 'transparent', cursor: 'pointer', flexShrink: 0 }}><X size={17}/></button></div><p style={{ color: theme.muted, fontSize: '.78rem', margin: '0 0 1rem' }}>Text only · latest 150 messages</p>
           <div className="ns-study-room-messages" style={{ flex: 1, minHeight: 0, maxHeight: '54vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.9rem' }}>{messages.map(message => <div key={message.id} style={{ display: 'flex', gap: '.55rem', alignItems: 'flex-start' }}>
             {message.avatar_url ? <img src={message.avatar_url} alt="" style={{ width: 29, height: 29, borderRadius: '50%', objectFit: 'cover' }}/> : <div style={{ width: 29, height: 29, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, color: theme.accent, fontWeight: 800, fontSize: '.75rem' }}>{message.display_name.slice(0,1).toUpperCase()}</div>}
             <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', alignItems: 'baseline' }}><strong style={{ fontSize: '.8rem' }}>{message.display_name}</strong><time style={{ color: theme.muted, fontSize: '.68rem', whiteSpace: 'nowrap' }}>{formatClock(message.created_at)}</time></div><p style={{ margin: '.25rem 0 0', fontSize: '.87rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{message.body}</p></div>
