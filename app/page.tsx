@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/lib/supabase/client';
+import StudyRooms from '@/components/study-rooms/StudyRooms';
 
 type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard' | 'admin';
 
@@ -1796,137 +1797,16 @@ export default function Home() {
           </div>
         )}
 
-        {/* STUDY LOUNGE 视图 */}
+        {/* STUDY LOUNGE 视图：独立组件，避免改动其他功能 */}
         {activeTab === 'lounges' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div>
-              <h1 style={{ fontSize: '2rem', fontWeight: '800', marginBottom: '0.4rem' }}>Quiet Study Rooms</h1>
-              <p style={{ color: theme.textMuted, margin: 0 }}>A calm space to focus together. No audio, just study time and text chat.</p>
-            </div>
-            {joinedRoom ? (
-              <div className="ns-study-room-grid" style={{ display: 'grid', gridTemplateColumns: roomRosterHidden ? 'minmax(0, 1.15fr) minmax(280px, 1fr)' : 'minmax(180px, 0.85fr) minmax(280px, 1.35fr) minmax(240px, 1fr)', gap: '1rem', alignItems: 'stretch' }}>
-                {!roomRosterHidden && <section style={{ background: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1rem', minHeight: '460px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}><h3 style={{ marginTop: 0, marginBottom: '0.35rem' }}>In this room</h3><button type="button" onClick={() => setRoomRosterHidden(true)} aria-label="Hide room members" title="Hide room members" style={{ border: '1px solid ' + theme.border, background: 'transparent', color: theme.textMain, borderRadius: '7px', padding: '0.3rem 0.5rem', cursor: 'pointer' }}>Hide</button></div>
-                  <p style={{ color: theme.textMuted, fontSize: '0.8rem', marginTop: 0 }}>{roomPresence.length} online · longest study time first</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-                    {[...roomPresence].sort((a, b) => (Number(b.study_seconds) || 0) - (Number(a.study_seconds) || 0)).map((person) => (
-                      <div key={person.user_id} style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-                        {person.avatar_url ? <img src={person.avatar_url} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, color: theme.accent, fontWeight: 800, flexShrink: 0 }}>{(person.display_name || 'S').slice(0, 1).toUpperCase()}</div>}
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: '0.9rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.display_name}{person.user_id === user?.id ? ' (You)' : ''}</div>
-                          <div style={{ fontSize: '0.75rem', color: theme.textMuted }}>Here for {formatTimer(Math.max(0, Number(person.study_seconds) || 0))}</div>
-                          <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>Joined {person.joined_at ? new Date(person.joined_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</div>
-                        </div>
-                      </div>
-                    ))}
-                    {roomPresence.length === 0 && <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Loading the room...</p>}
-                  </div>
-                </section>}
-                <section style={{ background: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1rem', minHeight: '460px' }}>
-                  <h3 style={{ marginTop: 0, marginBottom: '0.35rem' }}>In this room</h3>
-                  <p style={{ color: theme.textMuted, fontSize: '0.8rem', marginTop: 0 }}>{roomPresence.length} online · earliest join first</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-                    {roomPresence.map((person) => (
-                      <div key={person.user_id} style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-                        {person.avatar_url ? <img src={person.avatar_url} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, color: theme.accent, fontWeight: 800, flexShrink: 0 }}>{(person.display_name || 'S').slice(0, 1).toUpperCase()}</div>}
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: '0.9rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.display_name}{person.user_id === user?.id ? ' (You)' : ''}</div>
-                          <div style={{ fontSize: '0.75rem', color: theme.textMuted }}>Here for {formatTimer(Math.max(0, Number(person.study_seconds) || 0))}</div>
-                          <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>Joined {person.joined_at ? new Date(person.joined_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</div>
-                        </div>
-                      </div>
-                    ))}
-                    {roomPresence.length === 0 && <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Loading the room...</p>}
-                  </div>
-                </section>
-
-                <section style={{ background: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1.5rem 1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ color: theme.textMuted, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Focus session</div>
-                  <h2 style={{ margin: '0.6rem 0' }}>{joinedRoom.name}</h2>
-                  <div style={{ fontSize: 'clamp(2.8rem, 5vw, 4rem)', lineHeight: 1.1, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: theme.accent, margin: '1rem 0' }}>{formatTimer(pomodoroTime)}</div>
-                  <div style={{ color: theme.textMuted, fontSize: '0.9rem' }}>{isTimerRunning ? 'Focus in progress' : 'Ready when you are'}</div>
-                  <form onSubmit={saveRoomGoal} style={{ width: '100%', maxWidth: '440px', textAlign: 'left', marginTop: '1rem', padding: '1rem', borderRadius: '12px', background: theme.bg, border: '1px solid ' + theme.border }}>
-                    <label htmlFor="study-room-goal" style={{ display: 'block', fontWeight: 750, fontSize: '0.9rem', marginBottom: '0.5rem' }}>My study goal</label>
-                    <textarea id="study-room-goal" value={roomGoalDraft} onChange={e => setRoomGoalDraft(e.target.value)} maxLength={500} rows={3} placeholder="What do you want to finish in this session?" style={{ boxSizing: 'border-box', width: '100%', resize: 'vertical', padding: '0.7rem', borderRadius: '8px', border: '1px solid ' + theme.border, background: theme.cardBg, color: theme.textMain }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginTop: '0.55rem' }}><span style={{ color: theme.textMuted, fontSize: '0.72rem' }}>{roomGoal ? 'Saved to your account' : 'Only visible to you'}</span><button type="submit" disabled={roomGoalSaving || roomGoalDraft.trim() === roomGoal} style={{ background: theme.accent, color: '#fff', border: 'none', borderRadius: '8px', padding: '0.5rem 0.8rem', cursor: 'pointer', opacity: roomGoalSaving || roomGoalDraft.trim() === roomGoal ? 0.55 : 1 }}>{roomGoalSaving ? 'Saving…' : 'Save goal'}</button></div>
-                  </form>
-                  {roomRosterHidden && <button type="button" onClick={() => setRoomRosterHidden(false)} style={{ marginTop: '0.8rem', border: '1px solid ' + theme.border, background: 'transparent', color: theme.textMain, borderRadius: '8px', padding: '0.55rem 0.8rem', cursor: 'pointer' }}>Show room members ({roomPresence.length})</button>}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.6rem', margin: '1.25rem 0' }}>
-                    <button onClick={() => setIsTimerRunning(!isTimerRunning)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.65rem 1.1rem', borderRadius: '9px', fontWeight: 'bold', cursor: 'pointer' }}>{isTimerRunning ? 'Pause' : 'Start focus'}</button>
-                    <button onClick={() => { setIsTimerRunning(false); setPomodoroTime(1500); }} style={{ background: 'transparent', color: theme.textMain, border: '1px solid ' + theme.border, padding: '0.65rem 1rem', borderRadius: '9px', cursor: 'pointer' }}>Reset</button>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem', width: '100%', maxWidth: '360px' }}>
-                    <div style={{ background: theme.bg, borderRadius: '10px', padding: '0.9rem 0.5rem' }}><div style={{ color: theme.textMuted, fontSize: '0.75rem' }}>This room session</div><strong style={{ fontSize: '1.25rem' }}>{formatTimer(roomStudySeconds)}</strong></div>
-                    <div style={{ background: theme.bg, borderRadius: '10px', padding: '0.9rem 0.5rem' }}><div style={{ color: theme.textMuted, fontSize: '0.75rem' }}>Total study time</div><strong style={{ fontSize: '1.25rem' }}>{formatTimer(usageSeconds)}</strong></div>
-                  </div>
-                  <p style={{ color: theme.textMuted, fontSize: '0.75rem', marginTop: '1rem' }}>Silent by design · No audio features</p>
-                  <button onClick={() => { setIsTimerRunning(false); setJoinedRoom(null); setRoomStudySeconds(0); }} style={{ marginTop: '0.5rem', background: 'transparent', border: 'none', color: theme.textMuted, cursor: 'pointer', textDecoration: 'underline' }}>Leave room</button>
-                </section>
-
-                <section style={{ background: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1rem', minHeight: '460px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                  <h3 style={{ marginTop: 0, marginBottom: '0.25rem' }}>Room chat</h3>
-                  <p style={{ color: theme.textMuted, fontSize: '0.8rem', marginTop: 0 }}>Text only · Messages are saved</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', overflowY: 'auto', flex: 1, maxHeight: '370px', paddingRight: '0.2rem' }}>
-                    {roomMessages.map((message) => (
-                      <div key={message.id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                        {message.avatar_url ? <img src={message.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, color: theme.accent, fontSize: '0.75rem', fontWeight: 800, flexShrink: 0 }}>{(message.display_name || 'S').slice(0, 1).toUpperCase()}</div>}
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem', alignItems: 'baseline' }}><strong style={{ fontSize: '0.8rem' }}>{message.display_name}</strong><span style={{ color: theme.textMuted, fontSize: '0.68rem', whiteSpace: 'nowrap' }}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
-                          <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '0.2rem 0 0', fontSize: '0.86rem' }}>{message.body}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {roomMessages.length === 0 && <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>No messages yet. Keep the room quiet and focused.</p>}
-                  </div>
-                  <form onSubmit={sendRoomMessage} style={{ display: 'flex', gap: '0.45rem', marginTop: '1rem' }}>
-                    <input value={roomChatInput} onChange={(e) => setRoomChatInput(e.target.value)} maxLength={1000} placeholder="Write a message..." aria-label="Room chat message" style={{ minWidth: 0, flex: 1, padding: '0.7rem', borderRadius: '8px', border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain }} />
-                    <button type="submit" disabled={roomSending || !roomChatInput.trim()} style={{ border: 'none', borderRadius: '8px', padding: '0.7rem 0.85rem', background: theme.accent, color: '#fff', cursor: roomSending ? 'wait' : 'pointer', opacity: roomSending || !roomChatInput.trim() ? 0.6 : 1 }}>Send</button>
-                  </form>
-                </section>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <input value={roomSearchQuery} onChange={e => setRoomSearchQuery(e.target.value)} placeholder="Search study rooms by name" aria-label="Search study rooms by name" style={{ flex: '1 1 240px', minWidth: 0, padding: '0.7rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain }} />
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: theme.textMuted, fontSize: '0.85rem' }}>Sort by
-                    <select value={roomSortBy} onChange={e => setRoomSortBy(e.target.value as 'created' | 'active')} style={{ padding: '0.65rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain }}>
-                      <option value="created">Creation date</option><option value="active">Recent activity</option>
-                    </select>
-                  </label>
-                  <button type="button" onClick={() => setShowCreateRoomForm(value => !value)} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: 8, padding: '0.7rem 0.9rem', cursor: 'pointer' }}>{showCreateRoomForm ? 'Cancel' : '+ Create room'}</button>
-                </div>
-                <form onSubmit={joinPrivateRoomByCode} style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', padding: '0.9rem', border: '1px solid ' + theme.border, borderRadius: 10, background: theme.cardBg }}>
-                  <input value={roomCodeInput} onChange={e => setRoomCodeInput(e.target.value.toUpperCase().slice(0, 12))} placeholder="Enter private room code" aria-label="Private room code" style={{ flex: '1 1 200px', minWidth: 0, padding: '0.65rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain, letterSpacing: '0.08em' }} />
-                  <button type="submit" disabled={roomActionLoading || !roomCodeInput.trim()} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: 8, padding: '0.65rem 1rem', cursor: 'pointer', opacity: roomActionLoading ? 0.6 : 1 }}>{roomActionLoading ? 'Joining…' : 'Join with code'}</button>
-                </form>
-                {showCreateRoomForm && <form onSubmit={createStudyRoom} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', padding: '1rem', border: '1px solid ' + theme.border, borderRadius: 10, background: theme.cardBg }}>
-                  <h3 style={{ margin: 0 }}>Create a study room</h3>
-                  <input required maxLength={100} value={newRoomName} onChange={e => setNewRoomName(e.target.value)} placeholder="Room name" style={{ padding: '0.7rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain }} />
-                  <select value={newRoomSubject} onChange={e => setNewRoomSubject(e.target.value)} style={{ padding: '0.7rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain }}>
-                    {['General Study', 'Mathematics', 'Science', 'English & ESL', 'Computer Science & Tech', 'French', 'History & Social Sciences'].map(subject => <option key={subject} value={subject}>{subject}</option>)}
-                  </select>
-                  <textarea maxLength={500} rows={3} value={newRoomDescription} onChange={e => setNewRoomDescription(e.target.value)} placeholder="What will this room focus on?" style={{ padding: '0.7rem', borderRadius: 8, border: '1px solid ' + theme.border, background: theme.bg, color: theme.textMain }} />
-                  <label style={{ display: 'flex', gap: '0.55rem', alignItems: 'center' }}><input type="checkbox" checked={newRoomIsPrivate} onChange={e => setNewRoomIsPrivate(e.target.checked)} />Private room (invite with a room code)</label>
-                  <button type="submit" disabled={roomActionLoading || !newRoomName.trim()} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: 8, padding: '0.75rem', cursor: 'pointer', opacity: roomActionLoading ? 0.6 : 1 }}>{roomActionLoading ? 'Creating…' : 'Create room'}</button>
-                </form>}
-                {roomListLoading ? <p style={{ color: theme.textMuted }}>Loading study rooms…</p> : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-                    {lounges.filter(room => !room.isPrivate || room.createdBy === user?.id).filter(room => room.name.toLowerCase().includes(roomSearchQuery.trim().toLowerCase())).sort((a, b) => roomSortBy === 'created' ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() : new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()).map(room => (
-                      <div key={room.id} style={{ backgroundColor: theme.cardBg, border: '1px solid ' + theme.border, borderRadius: '14px', padding: '1.25rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}><h3 style={{ margin: 0 }}>{room.name}</h3><span style={{ fontSize: '0.72rem', color: theme.textMuted }}>{room.isPrivate ? 'Private' : 'Public'}</span></div>
-                        <p style={{ color: theme.textMuted, fontSize: '0.8rem', margin: '0.5rem 0' }}>{room.subject} · {room.activeUsers} online</p>
-                        <p style={{ fontSize: '0.85rem', color: theme.textMuted, margin: '0 0 1rem', whiteSpace: 'pre-wrap' }}>{room.description || 'A quiet space to focus together.'}</p>
-                        <p style={{ fontSize: '0.72rem', color: theme.textMuted, margin: '0 0 0.8rem' }}>Created {new Date(room.createdAt).toLocaleDateString()}</p>
-                        <button disabled={roomActionLoading} onClick={() => void joinStudyRoom(room)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', width: '100%', opacity: roomActionLoading ? 0.6 : 1 }}>Join Study Room</button>
-                        {room.isPrivate && room.createdBy === user?.id && room.roomCode && <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem' }}>Room code: <strong style={{ letterSpacing: '0.1em' }}>{room.roomCode}</strong></p>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            <style>{'@media (max-width: 900px) { .ns-study-room-grid { grid-template-columns: 1fr !important; } }'}</style>
-          </div>
+          <StudyRooms
+            user={user}
+            username={username}
+            nickname={nickname}
+            avatarUrl={avatarUrl}
+            isDarkMode={isDarkMode}
+            onSignIn={() => setShowAuthModal(true)}
+          />
         )}
 
         {/* DISCUSSIONS 视图 */}
