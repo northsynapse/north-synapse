@@ -362,11 +362,15 @@ begin
     exception when others then
       null;
     end;
-    perform cron.schedule(
-      'north-synapse-study-room-cleanup',
-      '*/5 * * * *',
-      'select public.cleanup_study_rooms();'
-    );
+    begin
+      perform cron.schedule(
+        'north-synapse-study-room-cleanup',
+        '*/5 * * * *',
+        'select public.cleanup_study_rooms();'
+      );
+    exception when others then
+      null;
+    end;
   end if;
 end;
 $$;
