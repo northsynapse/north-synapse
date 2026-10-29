@@ -23,7 +23,6 @@ type Props = {
   isDarkMode: boolean; onSignIn: () => void;
 };
 
-const LOBBY_ID = '00000000-0000-4000-8000-000000000001';
 
 export default function StudyRooms({ user, username, nickname, avatarUrl, isDarkMode, onSignIn }: Props) {
   const [rooms, setRooms] = useState<Room[]>([]);
