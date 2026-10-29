@@ -7,7 +7,7 @@ import { Crown, LockKeyhole, MessageCircle, Plus, Search, Send, Users, X, LogOut
 type Room = {
   id: string; name: string; subject: string; grade: string; description: string;
   isPrivate: boolean; roomCode?: string; createdAt: string;
-  lastActivityAt: string; createdBy: string; ownerId: string | null;
+  lastActivityAt: string; createdBy: string; createdByName: string; ownerId: string | null;
   isSystemLobby: boolean; status: string; activeUsers: number;
 };
 type Person = {
@@ -98,6 +98,12 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       ? await supabase.from('study_room_presence').select('room_id,user_id,last_seen_at').in('room_id', ids).gte('last_seen_at', new Date(Date.now() - 120000).toISOString())
       : { data: [], error: null };
     if (activeError) console.error('读取房间在线人数失败：', activeError.message);
+    const creatorIds = [...new Set(rows.map((room: any) => room.created_by).filter(Boolean))];
+    const { data: creatorRows, error: creatorError } = creatorIds.length
+      ? await supabase.from('public_author_profiles').select('id,username,nickname').in('id', creatorIds)
+      : { data: [], error: null };
+    if (creatorError) console.error('读取自习室创建者失败：', creatorError.message);
+    const creatorNames = new Map<string, string>((creatorRows || []).map((profile: any) => [profile.id, profile.nickname || profile.username || 'Student']));
     const counts = new Map<string, number>();
     (activeRows || []).forEach((row: any) => counts.set(String(row.room_id), (counts.get(String(row.room_id)) || 0) + 1));
     setRooms(rows
@@ -106,7 +112,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
         id: String(room.id), name: room.name, subject: room.subject || 'General Study', grade: room.grade || 'All grades',
         description: room.description || '', isPrivate: !!room.is_private, roomCode: room.room_code || undefined,
         createdAt: room.created_at, lastActivityAt: room.last_activity_at || room.created_at,
-        createdBy: room.created_by || '', ownerId: room.owner_id || null,
+        createdBy: room.created_by || '', createdByName: creatorNames.get(room.created_by) || '', ownerId: room.owner_id || null,
         isSystemLobby: !!room.is_system_lobby, status: room.status,
         activeUsers: counts.get(String(room.id)) || 0
       })));
@@ -249,7 +255,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   }, [timerRunning]);
 
   const sortedRooms = useMemo(() => {
-    const visible = rooms.filter((room) => room.isSystemLobby || (`${room.name} ${room.description} ${room.subject} ${room.grade} ${room.createdBy}`.toLowerCase().includes(search.trim().toLowerCase()) && (gradeFilter === 'All grades' || room.grade === gradeFilter) && (subjectFilter === 'All subjects' || room.subject === subjectFilter)));
+    const visible = rooms.filter((room) => room.isSystemLobby || (`${room.name} ${room.description} ${room.subject} ${room.grade} ${room.createdByName} ${room.createdBy}`.toLowerCase().includes(search.trim().toLowerCase()) && (gradeFilter === 'All grades' || room.grade === gradeFilter) && (subjectFilter === 'All subjects' || room.subject === subjectFilter)));
     visible.sort((a, b) => {
       if (a.isSystemLobby) return -1;
       if (b.isSystemLobby) return 1;
@@ -446,7 +452,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
         {sortedRooms.map(room => <article key={room.id} style={{ ...cardStyle, borderColor: room.isSystemLobby ? theme.accent : theme.border }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.6rem', alignItems: 'flex-start' }}><div><h2 style={{ margin: 0, fontSize: '1.1rem' }}>{room.name}</h2><p style={{ color: theme.muted, fontSize: '.8rem', margin: '.35rem 0' }}>{room.subject} · {room.grade} · {room.activeUsers} online</p></div>{room.isPrivate ? <LockKeyhole size={17}/> : room.isSystemLobby ? <Users size={17}/> : null}</div>
-          <p style={{ color: theme.muted, whiteSpace: 'pre-wrap', fontSize: '.87rem', minHeight: '2.7em' }}>{room.description || 'A quiet space to focus together.'}</p>{user?.id && room.createdBy === user.id && <span style={{ display: 'inline-flex', marginBottom: '.65rem', padding: '.2rem .5rem', borderRadius: 999, background: isDarkMode ? 'rgba(139,92,246,.18)' : 'rgba(139,92,246,.1)', color: theme.accent, fontSize: '.72rem', fontWeight: 750 }}>Created by you</span>}
+          <p style={{ color: theme.muted, whiteSpace: 'pre-wrap', fontSize: '.87rem', minHeight: '2.7em' }}>{room.description || 'A quiet space to focus together.'}</p><p style={{ color: theme.muted, fontSize: '.75rem', margin: '0 0 .5rem' }}>Created by {room.createdByName || 'Student'}</p>{user?.id && room.createdBy === user.id && <span style={{ display: 'inline-flex', marginBottom: '.65rem', padding: '.2rem .5rem', borderRadius: 999, background: isDarkMode ? 'rgba(139,92,246,.18)' : 'rgba(139,92,246,.1)', color: theme.accent, fontSize: '.72rem', fontWeight: 750 }}>Created by you</span>}
           <button type="button" style={buttonStyle} onClick={() => void joinRoom(room)} disabled={loading}>{loading ? 'Joining…' : !user?.id ? 'Sign in to join' : room.isSystemLobby ? 'Enter public lobby' : 'Join room'}</button>
         </article>)}
         {sortedRooms.length === 0 && user?.id && <p style={{ color: theme.muted }}>No study rooms match these filters.</p>}
