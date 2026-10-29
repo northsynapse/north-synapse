@@ -89,9 +89,9 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     const rows = data || [];
     const ids = rows.map((room: any) => room.id);
     const { data: activeRows, error: activeError } = ids.length
-      ? await supabase.from('study_room_active_members').select('room_id,user_id').in('room_id', ids)
+      ? await supabase.from('study_room_presence').select('room_id,user_id,last_seen_at').in('room_id', ids).gte('last_seen_at', new Date(Date.now() - 120000).toISOString())
       : { data: [], error: null };
-    if (activeError) console.error('读取房间成员数量失败：', activeError.message);
+    if (activeError) console.error('读取房间在线人数失败：', activeError.message);
     const counts = new Map<string, number>();
     (activeRows || []).forEach((row: any) => counts.set(String(row.room_id), (counts.get(String(row.room_id)) || 0) + 1));
     setRooms(rows
@@ -115,7 +115,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
       setNotice('This study room has ended or is no longer available.');
       return;
     }
-    if (roomRow.is_private && roomRow.owner_id === user?.id) setPrivateRoomCode(roomRow.room_code || '');
+    if (roomRow.is_private) setPrivateRoomCode(roomRow.room_code || '');
     const { data: activeRows } = await supabase.from('study_room_active_members')
       .select('user_id,joined_at').eq('room_id', roomId).order('joined_at', { ascending: true });
     const { data: presenceRows, error: presenceError } = await supabase.from('study_room_presence')
