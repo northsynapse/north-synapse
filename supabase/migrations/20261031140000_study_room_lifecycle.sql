@@ -99,7 +99,7 @@ begin
   if v_user_id is null then
     raise exception 'Authentication required';
   end if;
-  if p_room_id is null or length(trim(p_room_id)) = 0 then
+  if p_room_id is null then
     raise exception 'Invalid study room';
   end if;
 
@@ -789,7 +789,7 @@ declare
   v_current_seconds integer;
 begin
   if v_user_id is null then raise exception 'Authentication required'; end if;
-  if p_room_id is null or char_length(p_room_id) > 80 then raise exception 'Invalid room'; end if;
+  if p_room_id is null then raise exception 'Invalid room'; end if;
   if p_seconds is null or p_seconds < 0 or p_seconds > 30 then raise exception 'Invalid study time increment'; end if;
 
   if not exists (
