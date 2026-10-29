@@ -28,7 +28,7 @@ create table public.profiles (
 );
 
 create table public.study_rooms (
-  id text primary key,
+  id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(trim(name)) between 1 and 100),
   subject text not null default 'General Study',
   description text not null default '',
@@ -41,7 +41,7 @@ create table public.study_rooms (
 );
 
 create table public.study_room_members (
-  room_id text not null references public.study_rooms(id) on delete cascade,
+  room_id uuid not null references public.study_rooms(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   joined_at timestamptz not null default now(),
   primary key (room_id, user_id)
