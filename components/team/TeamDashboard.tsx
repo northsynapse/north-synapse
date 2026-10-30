@@ -57,6 +57,14 @@ export default function TeamDashboard({ teamRole, isAdmin, isDarkMode }: Props) 
     setLoading(false);
   },[canOpen,isAdmin,teamRole,search,isCore]);
   useEffect(()=>{void load();},[load]);
+  useEffect(()=>{
+    if(!canOpen)return;
+    const channel=supabase.channel('team-operations-dashboard')
+      .on('postgres_changes',{event:'*',schema:'public',table:'content_reports'},()=>void load())
+      .on('postgres_changes',{event:'*',schema:'public',table:'support_tickets'},()=>void load())
+      .subscribe();
+    return()=>{void supabase.removeChannel(channel);};
+  },[canOpen,load]);
 
   async function toggleReportedContent(report:any){
     const {error:e}=await supabase.rpc('moderate_hide_content',{p_target_type:report.target_type,p_target_id:report.target_id,p_hidden:!report.target_hidden});
