@@ -6,6 +6,7 @@ import StudyRooms from '@/components/study-rooms/StudyRooms';
 import TeamChat from '@/components/team/TeamChat';
 import TeamManagement from '@/components/team/TeamManagement';
 import TeamDashboard from '@/components/team/TeamDashboard';
+import MySupportTickets from '@/components/team/MySupportTickets';
 
 type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard' | 'admin' | 'team-chat' | 'team-dashboard';
 
@@ -1973,6 +1974,7 @@ export default function Home() {
               <textarea required maxLength={8000} rows={4} value={supportMessage} onChange={e => setSupportMessage(e.target.value)} placeholder="How can we help?" style={{ width: '100%', padding: '0.7rem', borderRadius: 6, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}/>
               <button disabled={supportSubmitting} style={{ background: theme.accent, color: '#fff', border: 0, padding: '0.75rem 1.2rem', borderRadius: 8, fontWeight: 700, alignSelf: 'flex-start' }}>{supportSubmitting ? 'Sending…' : 'Send Support Request'}</button>
             </form>
+            <MySupportTickets userId={user?.id} isDarkMode={isDarkMode} />
           </div>
         )}
 
