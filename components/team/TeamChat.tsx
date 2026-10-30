@@ -72,7 +72,7 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
 
   async function deleteMessage(messageId: string) {
     const { error: deleteError } = await supabase.from('team_chat_messages').update({ deleted_at: new Date().toISOString() }).eq('id', messageId);
-    if (deleteError) setError(deleteError.message); else await load();
+    if (deleteError) setError(deleteError.message); else { await supabase.rpc('record_team_activity', { p_action: 'chat_message_deleted', p_target_user_id: null, p_details: { message_id: messageId } }); await load(); }
   }
 
   async function publishNotice(event: React.FormEvent) {
@@ -80,18 +80,18 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
     if (!noticeTitle.trim() || !noticeBody.trim() || !user?.id) return;
     const { error: publishError } = await supabase.from('team_chat_announcements').insert({ author_id: user.id, title: noticeTitle.trim(), content: noticeBody.trim(), is_pinned: true });
     if (publishError) setError(publishError.message);
-    else { setNoticeTitle(''); setNoticeBody(''); setShowNoticeForm(false); await load(); }
+    else { await supabase.rpc('record_team_activity', { p_action: 'chat_announcement_published', p_target_user_id: null, p_details: { title: noticeTitle.trim() } }); setNoticeTitle(''); setNoticeBody(''); setShowNoticeForm(false); await load(); }
   }
 
   async function deleteNotice(item: TeamNotice) {
     if (!window.confirm('Delete this team announcement?')) return;
     const { error: deleteError } = await supabase.from('team_chat_announcements').delete().eq('id', item.id);
-    if (deleteError) setError(deleteError.message); else await load();
+    if (deleteError) setError(deleteError.message); else { await supabase.rpc('record_team_activity', { p_action: 'chat_announcement_deleted', p_target_user_id: null, p_details: { announcement_id: item.id } }); await load(); }
   }
 
   async function togglePin(item: TeamNotice) {
     const { error: updateError } = await supabase.from('team_chat_announcements').update({ is_pinned: !item.is_pinned }).eq('id', item.id);
-    if (updateError) setError(updateError.message); else await load();
+    if (updateError) setError(updateError.message); else { await supabase.rpc('record_team_activity', { p_action: 'chat_announcement_pin_changed', p_target_user_id: null, p_details: { announcement_id: item.id, is_pinned: !item.is_pinned } }); await load(); }
   }
 
   if (!allowed) return <div style={{ padding: 28, border: `1px solid ${theme.border}`, borderRadius: 16, color: theme.text }}>Team membership is required to access this private chat.</div>;
