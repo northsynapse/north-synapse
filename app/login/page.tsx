@@ -55,7 +55,7 @@ export default function LoginPage() {
           ← North Synapse
         </Link>
 
-        <h1 className="mt-6 text-2xl font-bold">
+        <h1 className="mt-6 text-2xl font-extrabold">
           Welcome back
         </h1>
 
@@ -65,7 +65,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="mt-6 space-y-4">
           <div>
-            <label htmlFor="email" className="mb-2 block font-bold">
+            <label htmlFor="email" className="mb-2 block font-extrabold">
               Email
             </label>
             <input
@@ -104,7 +104,7 @@ export default function LoginPage() {
                 style={{
                   color: "#A78BFA",
                   fontSize: "0.875rem",
-                  fontWeight: 750,
+                  fontWeight: 800,
                   textDecoration: "underline",
                   textUnderlineOffset: "4px",
                   display: "inline-block",
@@ -125,7 +125,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-[var(--primary)] px-4 py-2.5 font-extrabold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            className="w-full rounded-xl bg-[var(--primary)] px-4 py-2.5 font-black text-white transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
