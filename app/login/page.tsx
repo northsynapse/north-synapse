@@ -46,8 +46,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 shadow-card">
+    <main className="flex min-h-screen items-center justify-center p-5">
+      <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-7 shadow-card">
         <Link
           href="/"
           className="text-sm text-[var(--muted)] hover:text-[var(--primary)]"
@@ -55,17 +55,17 @@ export default function LoginPage() {
           ← North Synapse
         </Link>
 
-        <h1 className="mt-8 text-3xl font-semibold">
+        <h1 className="mt-6 text-2xl font-bold">
           Welcome back
         </h1>
 
-        <p className="mt-2 text-[var(--muted)]">
+        <p className="mt-1.5 text-sm text-[var(--muted)]">
           Sign in to your learning community.
         </p>
 
-        <form onSubmit={handleLogin} className="mt-8 space-y-5">
+        <form onSubmit={handleLogin} className="mt-6 space-y-4">
           <div>
-            <label htmlFor="email" className="mb-2 block font-medium">
+            <label htmlFor="email" className="mb-2 block font-semibold">
               Email
             </label>
             <input
@@ -78,23 +78,15 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-transparent px-4 py-3 outline-none focus:border-[var(--primary)]"
+              className="w-full rounded-xl border border-[var(--border)] bg-transparent px-4 py-2.5 outline-none focus:border-[var(--primary)]"
               placeholder="you@example.com"
             />
           </div>
 
           <div>
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <label htmlFor="password" className="block font-medium">
-                Password
-              </label>
-              <Link
-                href="/forgot-password"
-                className="shrink-0 text-sm font-semibold text-[#A78BFA] underline decoration-[#A78BFA]/60 underline-offset-4 transition-colors hover:text-white"
-              >
-                Forgot password?
-              </Link>
-            </div>
+            <label htmlFor="password" className="mb-2 block font-semibold">
+              Password
+            </label>
             <input
               id="password"
               type="password"
@@ -102,9 +94,17 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-transparent px-4 py-3 outline-none focus:border-[var(--primary)]"
+              className="w-full rounded-xl border border-[var(--border)] bg-transparent px-4 py-2.5 outline-none focus:border-[var(--primary)]"
               placeholder="Enter your password"
             />
+            <div className="mt-2 flex justify-end">
+              <Link
+                href="/forgot-password"
+                style={{ color: "#A78BFA", fontSize: "0.875rem", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: "4px", display: "inline-block" }}
+              >
+                Forgot password?
+              </Link>
+            </div>
           </div>
 
           {error && (
@@ -116,7 +116,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-[var(--primary)] px-4 py-3 font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            className="w-full rounded-xl bg-[var(--primary)] px-4 py-2.5 font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
