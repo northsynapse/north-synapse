@@ -1988,7 +1988,7 @@ export default function Home() {
         )}
 
         {activeTab === 'team-chat' && (
-          <TeamChat user={user} nickname={nickname} username={username} avatarUrl={avatarUrl} teamRole={teamRole} isAdmin={isAdmin} isDarkMode={isDarkMode} />
+          <TeamChat user={user} nickname={nickname} username={username} teamRole={teamRole} isAdmin={isAdmin} isDarkMode={isDarkMode} />
         )}
 
         {/* 管理员控制台 */}
