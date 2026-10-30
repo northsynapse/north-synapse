@@ -369,7 +369,8 @@ export default function Home() {
       if (!active) return;
       if (error) { console.error('Unable to load team role:', error.message); return; }
       setTeamRole(data?.role || null);
-      setTeamBadgeVisible(data?.badge_visible ?? true);
+      const { data: badgeVisible } = await supabase.rpc('current_team_badge_visible');
+      setTeamBadgeVisible(badgeVisible ?? true);
     };
     void loadRole();
     const channel = supabase.channel(`team-role-${userId}`)
