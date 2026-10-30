@@ -5,8 +5,9 @@ import { supabase } from '@/lib/supabase/client';
 import StudyRooms from '@/components/study-rooms/StudyRooms';
 import TeamChat from '@/components/team/TeamChat';
 import TeamManagement from '@/components/team/TeamManagement';
+import TeamDashboard from '@/components/team/TeamDashboard';
 
-type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard' | 'admin' | 'team-chat';
+type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard' | 'admin' | 'team-chat' | 'team-dashboard';
 
 interface CommentItem {
   id: string;
@@ -1166,7 +1167,9 @@ export default function Home() {
       return;
     }
 
+    const { data: badgeRole } = await supabase.rpc('public_team_badge', { p_user_id: data.id });
     setPublicProfile({
+      teamRole: badgeRole || null,
       id: data.id,
       // 公开资料视图不会暴露邮箱；仅登录用户自己的 profiles 查询可能包含邮箱。
       email: email ? ((data as any).email || '') : '',
@@ -1717,6 +1720,7 @@ export default function Home() {
             </button>
           ))}
           {user && (isAdmin || !!teamRole) && <button onClick={() => setActiveTab('team-chat')} style={{ background: 'none', border: 'none', color: activeTab === 'team-chat' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'team-chat' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'team-chat' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Team Chat</button>}
+          {user && (isAdmin || !!teamRole) && <button onClick={() => setActiveTab('team-dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'team-dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'team-dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'team-dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Team Dashboard</button>}
           {user && !isAdmin && (
             <button onClick={() => setActiveTab('dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>
               Dashboard
@@ -1931,6 +1935,10 @@ export default function Home() {
               {!user && <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: 0 }}>Please sign in to submit feedback or a rating.</p>}
             </form>
           </div>
+        )}
+
+        {activeTab === 'team-dashboard' && (
+          <TeamDashboard teamRole={teamRole} isAdmin={isAdmin} isDarkMode={isDarkMode} />
         )}
 
         {activeTab === 'team-chat' && (
