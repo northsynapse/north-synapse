@@ -83,6 +83,12 @@ export default function TeamChat({ user, nickname, username, avatarUrl, teamRole
     else { setNoticeTitle(''); setNoticeBody(''); setShowNoticeForm(false); await load(); }
   }
 
+  async function deleteNotice(item: TeamNotice) {
+    if (!window.confirm('Delete this team announcement?')) return;
+    const { error: deleteError } = await supabase.from('team_chat_announcements').delete().eq('id', item.id);
+    if (deleteError) setError(deleteError.message); else await load();
+  }
+
   async function togglePin(item: TeamNotice) {
     const { error: updateError } = await supabase.from('team_chat_announcements').update({ is_pinned: !item.is_pinned }).eq('id', item.id);
     if (updateError) setError(updateError.message); else await load();
@@ -105,7 +111,7 @@ export default function TeamChat({ user, nickname, username, avatarUrl, teamRole
     <section style={{ display: 'grid', gap: 10 }}>
       <h2 style={{ margin: 0, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8 }}><Pin size={17}/> Pinned announcements</h2>
       {notices.length === 0 ? <p style={{ color: theme.muted }}>No team announcements yet.</p> : notices.map(n => <article key={n.id} style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 15 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><strong>{n.title}</strong><button onClick={() => void togglePin(n)} title={n.is_pinned ? 'Unpin announcement' : 'Pin announcement'} style={{ background: 'transparent', border: 0, color: theme.muted, cursor: 'pointer' }}><Pin size={16}/></button></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><strong>{n.title}</strong><div style={{ display: 'flex', gap: 8 }}><button onClick={() => void togglePin(n)} title={n.is_pinned ? 'Unpin announcement' : 'Pin announcement'} style={{ background: 'transparent', border: 0, color: theme.muted, cursor: 'pointer' }}><Pin size={16}/></button>{(isAdmin || teamRole === 'core_team') && <button onClick={() => void deleteNotice(n)} title="Delete announcement" style={{ background: 'transparent', border: 0, color: '#EF4444', cursor: 'pointer', fontSize: 12 }}>Delete</button>}</div></div>
         <p style={{ whiteSpace: 'pre-wrap', margin: '9px 0' }}>{n.content}</p><small style={{ color: theme.muted }}>Posted by {n.display_name} · {new Date(n.created_at).toLocaleString()}</small>
       </article>)}
     </section>
