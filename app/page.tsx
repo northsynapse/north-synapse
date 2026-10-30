@@ -2344,7 +2344,7 @@ export default function Home() {
                 </select>
               </div>
 
-              {teamRole && (
+              {(teamRole || isAdmin) && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 12, border: `1px solid ${theme.border}`, borderRadius: 9 }}>
                   <div><strong style={{ fontSize: 14 }}>Public team badge</strong><p style={{ color: theme.textMuted, fontSize: 12, margin: '4px 0 0' }}>Your team permissions remain active when the badge is hidden.</p></div>
                   <button type="button" onClick={() => void updateOwnTeamBadgeVisibility(!teamBadgeVisible)} style={{ border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, borderRadius: 8, padding: '8px 10px', cursor: 'pointer' }}>{teamBadgeVisible ? 'Visible' : 'Hidden'}</button>
