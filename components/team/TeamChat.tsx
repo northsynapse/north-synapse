@@ -70,6 +70,11 @@ export default function TeamChat({ user, nickname, username, avatarUrl, teamRole
     setSending(false);
   }
 
+  async function deleteMessage(messageId: string) {
+    const { error: deleteError } = await supabase.from('team_chat_messages').update({ deleted_at: new Date().toISOString() }).eq('id', messageId);
+    if (deleteError) setError(deleteError.message); else await load();
+  }
+
   async function publishNotice(event: React.FormEvent) {
     event.preventDefault();
     if (!noticeTitle.trim() || !noticeBody.trim() || !user?.id) return;
@@ -111,7 +116,7 @@ export default function TeamChat({ user, nickname, username, avatarUrl, teamRole
           {m.avatar_url ? <img src={m.avatar_url} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover' }}/> : <div style={{ width: 38, height: 38, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{m.display_name.slice(0,1).toUpperCase()}</div>}
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}><strong>{m.display_name}</strong>{m.role && <span style={{ fontSize: 11, borderRadius: 20, padding: '3px 8px', background: m.role === 'Administrator' ? 'rgba(239,68,68,.13)' : 'rgba(139,92,246,.14)', color: m.role === 'Administrator' ? '#EF4444' : '#A78BFA' }}>{m.role}</span>}<small style={{ color: theme.muted }}>{new Date(m.created_at).toLocaleString()}</small></div>
-            <div style={{ marginTop: 5, display: 'inline-block', maxWidth: '100%', background: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '4px 12px 12px 12px', padding: '10px 12px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.content}</div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}><div style={{ marginTop: 5, display: 'inline-block', maxWidth: '100%', background: theme.bg, border: `1px solid ${theme.border}`, borderRadius: '4px 12px 12px 12px', padding: '10px 12px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.content}</div>{(m.user_id === user.id || isAdmin || teamRole === 'core_team') && <button onClick={() => void deleteMessage(m.id)} style={{ marginTop: 8, border: 0, background: 'transparent', color: '#EF4444', fontSize: 11, cursor: 'pointer' }}>Delete</button>}</div>
           </div>
         </div>)}
         <div ref={bottomRef}/>
