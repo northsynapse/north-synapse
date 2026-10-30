@@ -65,7 +65,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="mt-6 space-y-4">
           <div>
-            <label htmlFor="email" className="mb-2 block font-semibold">
+            <label htmlFor="email" className="mb-2 block font-bold">
               Email
             </label>
             <input
@@ -84,7 +84,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="mb-2 block font-semibold">
+            <label htmlFor="password" className="mb-2 block font-bold">
               Password
             </label>
             <input
@@ -98,12 +98,21 @@ export default function LoginPage() {
               placeholder="Enter your password"
             />
             <div className="mt-2 flex justify-end">
-              <Link
+              <a
                 href="/forgot-password"
-                style={{ color: "#A78BFA", fontSize: "0.875rem", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: "4px", display: "inline-block" }}
+                aria-label="Forgot password? Reset your password"
+                style={{
+                  color: "#A78BFA",
+                  fontSize: "0.875rem",
+                  fontWeight: 750,
+                  textDecoration: "underline",
+                  textUnderlineOffset: "4px",
+                  display: "inline-block",
+                  padding: "4px 0",
+                }}
               >
                 Forgot password?
-              </Link>
+              </a>
             </div>
           </div>
 
@@ -116,7 +125,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-[var(--primary)] px-4 py-2.5 font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            className="w-full rounded-xl bg-[var(--primary)] px-4 py-2.5 font-extrabold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
