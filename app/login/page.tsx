@@ -55,7 +55,7 @@ export default function LoginPage() {
           ← North Synapse
         </Link>
 
-        <h1 className="mt-6 text-2xl font-extrabold">
+        <h1 className="mt-6 text-2xl font-black">
           Welcome back
         </h1>
 
@@ -84,7 +84,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="mb-2 block font-bold">
+            <label htmlFor="password" className="mb-2 block font-extrabold">
               Password
             </label>
             <input
@@ -97,23 +97,7 @@ export default function LoginPage() {
               className="w-full rounded-xl border border-[var(--border)] bg-transparent px-4 py-2.5 outline-none focus:border-[var(--primary)]"
               placeholder="Enter your password"
             />
-            <div className="mt-2 flex justify-end">
-              <a
-                href="/forgot-password"
-                aria-label="Forgot password? Reset your password"
-                style={{
-                  color: "#A78BFA",
-                  fontSize: "0.875rem",
-                  fontWeight: 800,
-                  textDecoration: "underline",
-                  textUnderlineOffset: "4px",
-                  display: "inline-block",
-                  padding: "4px 0",
-                }}
-              >
-                Forgot password?
-              </a>
-            </div>
+
           </div>
 
           {error && (
@@ -130,6 +114,23 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
+
+        <div style={{ marginTop: "14px", textAlign: "center" }}>
+          <a
+            href="/forgot-password"
+            style={{
+              color: "#C4B5FD",
+              fontSize: "0.9rem",
+              fontWeight: 900,
+              textDecoration: "underline",
+              textUnderlineOffset: "4px",
+              display: "inline-block",
+              padding: "6px 10px",
+            }}
+          >
+            Forgot password?
+          </a>
+        </div>
 
         <p className="mt-6 text-center text-sm text-[var(--muted)]">
           Don&apos;t have an account?{" "}
