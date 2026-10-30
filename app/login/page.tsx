@@ -84,9 +84,17 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="mb-2 block font-medium">
-              Password
-            </label>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <label htmlFor="password" className="block font-medium">
+                Password
+              </label>
+              <Link
+                href="/forgot-password"
+                className="shrink-0 text-sm font-semibold text-[#A78BFA] underline decoration-[#A78BFA]/60 underline-offset-4 transition-colors hover:text-white"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <input
               id="password"
               type="password"
@@ -97,15 +105,6 @@ export default function LoginPage() {
               className="w-full rounded-xl border border-[var(--border)] bg-transparent px-4 py-3 outline-none focus:border-[var(--primary)]"
               placeholder="Enter your password"
             />
-          </div>
-
-          <div className="flex justify-end -mt-2">
-            <Link
-              href="/forgot-password"
-              className="text-sm font-semibold text-[var(--primary)] underline underline-offset-4 hover:opacity-80"
-            >
-              Forgot password?
-            </Link>
           </div>
 
           {error && (
