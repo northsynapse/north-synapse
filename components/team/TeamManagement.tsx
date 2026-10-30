@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { ShieldCheck, UserPlus, RefreshCw, Trash2, Eye, EyeOff, Search } from 'lucide-react';
+import { UserPlus, RefreshCw, Trash2, Eye, EyeOff, Search } from 'lucide-react';
 
 type Props = { isDarkMode: boolean; isAdmin: boolean };
 type Member = { user_id: string; email: string; username: string; nickname: string; created_at: string; team_role: string | null; badge_visible?: boolean };
