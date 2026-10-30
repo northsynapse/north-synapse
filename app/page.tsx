@@ -91,7 +91,7 @@ export default function Home() {
   /* ==========================================================================
      1. 全局状态 (GLOBAL STATES)
      ========================================================================== */
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeTab, setActiveTab] = useState<NavTab>('resources');
 
   // 用户与弹窗状态
@@ -1596,12 +1596,12 @@ export default function Home() {
      4. 主题样式与计算
      ========================================================================== */
   const theme = {
-    bg: isDarkMode ? '#0E1117' : '#F8FAFC',
-    cardBg: isDarkMode ? '#161B22' : '#FFFFFF',
-    border: isDarkMode ? '#21262D' : '#E2E8F0',
-    textMain: isDarkMode ? '#F0F6FC' : '#0F172A',
-    textMuted: isDarkMode ? '#8B949E' : '#64748B',
-    accent: '#8B5CF6',
+    bg: isDarkMode ? '#171521' : '#F7F6FB',
+    cardBg: isDarkMode ? '#211E2D' : '#FFFFFF',
+    border: isDarkMode ? '#383344' : '#E8E5F0',
+    textMain: isDarkMode ? '#F1EEF8' : '#242238',
+    textMuted: isDarkMode ? '#AAA4B8' : '#77748B',
+    accent: '#8050E8',
   };
 
   const subjectsList = ['Mathematics', 'Science', 'English & ESL', 'French', 'History & Social Sciences', 'Geography', 'Business & Economics', 'Art & Music', 'Computer Science & Tech'];
@@ -1725,7 +1725,7 @@ export default function Home() {
   };
 
   return (
-    <div style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+    <div className="ns-app-shell" style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
       {/* 顶部 Header */}
       <header className="ns-site-header" style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1793,7 +1793,7 @@ export default function Home() {
       </header>
 
       {/* 主界面区域 */}
-      <main style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
+      <main className="ns-main-content" style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
         
         {/* 公告轮播栏 */}
         <div className="ns-notice-banner" style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', border: `1px solid ${theme.accent}`, borderRadius: '12px', padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
@@ -2467,6 +2467,84 @@ export default function Home() {
       )}
 
       <style>{`
+      <style>{`
+        /* 中文注释：桌面端采用固定侧边导航，保留原有导航项目和点击行为。 */
+        .ns-app-shell { min-height: 100vh; }
+        .ns-site-header {
+          position: fixed !important; inset: 0 auto 0 0 !important;
+          width: 252px !important; height: 100vh !important; min-height: 100vh !important;
+          padding: 26px 18px 20px !important; box-sizing: border-box !important;
+          background: ${theme.cardBg} !important; border-right: 1px solid ${theme.border} !important;
+          border-bottom: 0 !important; display: flex !important; flex-direction: column !important;
+          align-items: stretch !important; justify-content: flex-start !important; gap: 28px !important;
+          z-index: 1000 !important;
+        }
+        .ns-site-header > div:first-child {
+          flex: 0 0 auto !important; min-height: 48px; gap: 10px !important;
+          font-size: 1.18rem !important; color: ${theme.textMain} !important;
+        }
+        .ns-site-header > div:first-child svg {
+          width: 38px !important; height: 38px !important; padding: 7px !important;
+          background: #8050E8 !important; border-radius: 12px !important;
+        }
+        .ns-site-header > div:first-child svg path,
+        .ns-site-header > div:first-child svg circle { stroke: #FFFFFF !important; fill: none; }
+        .ns-site-header > div:first-child svg circle { fill: #FFFFFF !important; }
+        .ns-main-nav {
+          display: flex !important; flex-direction: column !important; align-items: stretch !important;
+          gap: 5px !important; width: 100% !important; overflow: visible !important;
+        }
+        .ns-main-nav button {
+          min-height: 42px !important; padding: 0 13px !important; text-align: left !important;
+          border: 0 !important; border-radius: 10px !important; border-bottom: 0 !important;
+          color: ${theme.textMuted} !important; font-size: .9rem !important; font-weight: 550 !important;
+          transition: background .16s ease, color .16s ease !important;
+        }
+        .ns-main-nav button[style*="color: ${theme.accent}"] {
+          background: rgba(128,80,232,.11) !important; color: #8050E8 !important; font-weight: 700 !important;
+        }
+        .ns-header-actions {
+          margin-top: auto !important; padding-top: 16px !important; border-top: 1px solid ${theme.border} !important;
+          display: flex !important; flex-direction: column !important; align-items: stretch !important;
+          gap: 12px !important; width: 100% !important;
+        }
+        .ns-header-actions > div { flex-wrap: wrap !important; gap: 9px !important; }
+        .ns-theme-toggle { width: 100% !important; text-align: left !important; }
+        .ns-main-content {
+          width: auto !important; max-width: none !important; min-width: 0 !important;
+          margin: 0 0 0 252px !important; padding: 34px clamp(22px, 3.5vw, 58px) 56px !important;
+        }
+        .ns-app-shell button { transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease; }
+        .ns-app-shell button:focus-visible, .ns-app-shell input:focus-visible,
+        .ns-app-shell textarea:focus-visible, .ns-app-shell select:focus-visible {
+          outline: 2px solid #8050E8 !important; outline-offset: 2px !important;
+        }
+        .ns-app-shell a { text-underline-offset: 3px; }
+        @media (max-width: 760px) {
+          .ns-site-header {
+            position: relative !important; inset: auto !important; width: 100% !important;
+            height: auto !important; min-height: 0 !important; padding: 12px 15px 10px !important;
+            border-right: 0 !important; border-bottom: 1px solid ${theme.border} !important;
+            gap: 10px !important; flex-direction: row !important; flex-wrap: wrap !important;
+          }
+          .ns-site-header > div:first-child { flex: 1 1 180px !important; font-size: 1.02rem !important; }
+          .ns-main-nav {
+            order: 3 !important; flex: 1 1 100% !important; flex-direction: row !important;
+            width: 100% !important; gap: 5px !important; overflow-x: auto !important;
+            white-space: nowrap !important; padding: 3px 0 5px !important;
+            scrollbar-width: none !important;
+          }
+          .ns-main-nav::-webkit-scrollbar { display: none !important; }
+          .ns-main-nav button { flex: 0 0 auto !important; min-height: 38px !important; padding: 0 11px !important; }
+          .ns-header-actions {
+            order: 2 !important; flex: 0 1 auto !important; width: auto !important;
+            margin: 0 !important; padding: 0 !important; border: 0 !important;
+            flex-direction: row !important; align-items: center !important; gap: 7px !important;
+          }
+          .ns-header-actions > div { flex-wrap: nowrap !important; }
+          .ns-theme-toggle { width: auto !important; padding: 8px 10px !important; }
+          .ns-main-content { margin: 0 !important; width: 100% !important; padding: 18px 14px 36px !important; }
+        }
         @media (max-width: 640px) {
           /* 在窄屏设备上保持公告标题清晰可读。 */
           .ns-notice-banner {
