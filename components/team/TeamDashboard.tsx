@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { BarChart3, Flag, Headset, Users, ClipboardList, RefreshCw } from 'lucide-react';
+import { Flag, Headset, Users, ClipboardList, RefreshCw } from 'lucide-react';
 
 type Props = { teamRole: string | null; isAdmin: boolean; isDarkMode: boolean };
 export default function TeamDashboard({ teamRole, isAdmin, isDarkMode }: Props) {
