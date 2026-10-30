@@ -290,15 +290,35 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   async function announceAdminEntry(roomId: string, roomName: string) {
     if (!isAdmin) return;
     const channel = supabase.channel(`study-room-${roomId}-announcements`);
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        void channel.send({
+    try {
+      // 等待房间成员有时间完成订阅，再重复发送以降低刚加入时丢失提醒的概率。
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error('Announcement channel subscription timed out')), 10000);
+        channel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            window.clearTimeout(timeout);
+            resolve();
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            window.clearTimeout(timeout);
+            reject(new Error(`Announcement channel status: ${status}`));
+          }
+        });
+      });
+      await new Promise(resolve => window.setTimeout(resolve, 1500));
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const result = await channel.send({
           type: 'broadcast',
           event: 'admin_entered',
           payload: { adminName: displayName, roomName }
-        }).finally(() => { void supabase.removeChannel(channel); });
+        });
+        if (result !== 'ok') console.error('管理员进入提醒发送失败：', result);
+        if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 700));
       }
-    });
+    } catch (error) {
+      console.error('发送管理员进入提醒失败：', error);
+    } finally {
+      void supabase.removeChannel(channel);
+    }
   }
 
   async function joinRoom(room: Room, code?: string) {
