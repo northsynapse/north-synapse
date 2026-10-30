@@ -4,11 +4,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { Pin, Send, Users, Megaphone } from 'lucide-react';
 
-type Props = { user: any; nickname: string; username: string; avatarUrl: string; teamRole: string | null; isAdmin: boolean; isDarkMode: boolean };
+type Props = { user: any; nickname: string; username: string; teamRole: string | null; isAdmin: boolean; isDarkMode: boolean };
 type ChatMessage = { id: string; user_id: string; content: string; created_at: string; display_name: string; avatar_url: string; role: string };
 type TeamNotice = { id: string; title: string; content: string; author_id: string; created_at: string; is_pinned: boolean; display_name: string };
 
-export default function TeamChat({ user, nickname, username, avatarUrl, teamRole, isAdmin, isDarkMode }: Props) {
+export default function TeamChat({ user, nickname, username, teamRole, isAdmin, isDarkMode }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [notices, setNotices] = useState<TeamNotice[]>([]);
   const [draft, setDraft] = useState('');
