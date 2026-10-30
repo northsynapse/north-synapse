@@ -44,16 +44,16 @@ export default function TeamDashboard({ teamRole, isAdmin, isDarkMode }: Props) 
 
   async function updateReport(id:string,status:string){
     const {error:e}=await supabase.from('content_reports').update({status,assigned_to:(await supabase.auth.getUser()).data.user?.id,updated_at:new Date().toISOString()}).eq('id',id);
-    if(e)setError(e.message);else await load();
+    if(e)setError(e.message);else { await supabase.rpc('record_team_activity',{p_action:'report_'+status.toLowerCase(),p_target_user_id:null,p_details:{report_id:id}}); await load(); }
   }
   async function replyTicket(ticket:any){
     const reply=(replyDrafts[ticket.id]||'').trim();if(!reply)return;
     const {error:e}=await supabase.from('support_tickets').update({staff_reply:reply,status:'In Progress',handled_by:(await supabase.auth.getUser()).data.user?.id,updated_at:new Date().toISOString()}).eq('id',ticket.id);
-    if(e)setError(e.message);else{setReplyDrafts(p=>({...p,[ticket.id]:''}));await load();}
+    if(e)setError(e.message);else{await supabase.rpc('record_team_activity',{p_action:'support_reply',p_target_user_id:ticket.user_id,p_details:{ticket_id:ticket.id}});setReplyDrafts(p=>({...p,[ticket.id]:''}));await load();}
   }
   async function closeTicket(ticket:any){
     const {error:e}=await supabase.from('support_tickets').update({status:'Resolved',handled_by:(await supabase.auth.getUser()).data.user?.id,updated_at:new Date().toISOString()}).eq('id',ticket.id);
-    if(e)setError(e.message);else await load();
+    if(e)setError(e.message);else {await supabase.rpc('record_team_activity',{p_action:'support_resolved',p_target_user_id:ticket.user_id,p_details:{ticket_id:ticket.id}});await load();}
   }
   if(!canOpen)return null;
   const cards=[['Registered users',metrics?.registered_users],['Online now',metrics?.online_users],['Pending reports',metrics?.pending_reports],['Open support tickets',metrics?.open_support_tickets]];
