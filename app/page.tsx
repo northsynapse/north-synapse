@@ -104,6 +104,9 @@ export default function Home() {
   const [adminRatings, setAdminRatings] = useState<any[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [supportSubject, setSupportSubject] = useState('');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [supportSubmitting, setSupportSubmitting] = useState(false);
   const [siteRating, setSiteRating] = useState(0);
   const [ratingComment, setRatingComment] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -1044,6 +1047,25 @@ export default function Home() {
     alert('Thank you! Your feedback has been submitted.');
   }
 
+  async function handleSubmitSupportTicket(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user?.id) { setShowAuthModal(true); return; }
+    setSupportSubmitting(true);
+    const { error } = await supabase.from('support_tickets').insert({ user_id: user.id, subject: supportSubject.trim(), message: supportMessage.trim() });
+    if (error) alert('Your support request could not be submitted. Please try again.');
+    else { setSupportSubject(''); setSupportMessage(''); alert('Your support request has been submitted.'); }
+    setSupportSubmitting(false);
+  }
+
+  async function handleReportContent(targetType: 'resource' | 'discussion', targetId: string) {
+    if (!user?.id) { setShowAuthModal(true); return; }
+    const reason = window.prompt('Please briefly explain why this content should be reviewed:');
+    if (!reason?.trim()) return;
+    const { error } = await supabase.from('content_reports').insert({ reporter_id: user.id, target_type: targetType, target_id: targetId, reason: reason.trim() });
+    if (error) alert('The report could not be submitted. Please try again.');
+    else alert('Thank you. Your report has been submitted for review.');
+  }
+
   async function handleUpdateFeedbackStatus(id: string, status: 'Pending' | 'Reviewed' | 'Resolved') {
     const { error } = await supabase.from('site_feedback').update({ status }).eq('id', id);
     if (error) { console.error('Unable to update feedback:', error.message); alert('Could not update feedback status.'); return; }
@@ -1898,6 +1920,7 @@ export default function Home() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.8rem', marginBottom: '0.5rem' }}>
                     <strong style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{disc.title}</strong>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', flexShrink: 0 }}>
+                      {!isAdmin && user?.id && <button type="button" onClick={(e) => { e.stopPropagation(); void handleReportContent('discussion', disc.id); }} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>Report</button>}
                       {(isAdmin || user?.email?.toLowerCase() === disc.authorEmail?.toLowerCase()) && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteDiscussion(disc.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
                       <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{disc.repliesCount} Replies</span>
                       {!isAdmin && <button type="button" onClick={(e) => handleBookmarkDiscussion(disc.id, e)} aria-label={disc.bookmarkedByMe ? 'Remove saved discussion' : 'Save discussion'} style={{ border: `1px solid ${theme.border}`, borderRadius: '7px', padding: '0.35rem 0.55rem', background: disc.bookmarkedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: disc.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', whiteSpace: 'nowrap' }}>
@@ -1941,6 +1964,12 @@ export default function Home() {
               <div><label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.4rem' }}>Details</label><textarea required maxLength={5000} rows={4} placeholder="Describe your suggestion or issue..." value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} /></div>
               <button disabled={feedbackSubmitting} type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.8rem 2rem', borderRadius: '8px', fontWeight: 'bold', cursor: feedbackSubmitting ? 'wait' : 'pointer', opacity: feedbackSubmitting ? 0.7 : 1, alignSelf: 'flex-start' }}>{feedbackSubmitting ? 'Submitting…' : 'Submit Feedback'}</button>
               {!user && <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: 0 }}>Please sign in to submit feedback or a rating.</p>}
+            </form>
+            <form onSubmit={handleSubmitSupportTicket} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: 'clamp(1rem, 4vw, 2rem)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div><h2 style={{ margin: 0 }}>Contact the Team</h2><p style={{ color: theme.textMuted, margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Send a private support request. The team can reply and track its status.</p></div>
+              <input required maxLength={180} value={supportSubject} onChange={e => setSupportSubject(e.target.value)} placeholder="Subject" style={{ width: '100%', padding: '0.7rem', borderRadius: 6, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}/>
+              <textarea required maxLength={8000} rows={4} value={supportMessage} onChange={e => setSupportMessage(e.target.value)} placeholder="How can we help?" style={{ width: '100%', padding: '0.7rem', borderRadius: 6, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}/>
+              <button disabled={supportSubmitting} style={{ background: theme.accent, color: '#fff', border: 0, padding: '0.75rem 1.2rem', borderRadius: 8, fontWeight: 700, alignSelf: 'flex-start' }}>{supportSubmitting ? 'Sending…' : 'Send Support Request'}</button>
             </form>
           </div>
         )}
