@@ -1776,8 +1776,9 @@ export default function Home() {
 
           {user ? (
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <span onClick={() => setActiveTab(isAdmin ? 'admin' : 'dashboard')} style={{ fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', color: theme.accent }}>
+              <span onClick={() => setActiveTab(isAdmin ? 'admin' : 'dashboard')} style={{ fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', color: theme.accent, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 {nickname || 'User'}
+                {teamBadgeVisible && (isAdmin || teamRole) && <span style={{ fontSize: 10, borderRadius: 20, padding: '3px 7px', background: isAdmin ? 'rgba(239,68,68,.13)' : 'rgba(139,92,246,.14)', color: isAdmin ? '#EF4444' : '#A78BFA' }}>{isAdmin ? 'Administrator' : teamRole === 'core_team' ? 'Core Team' : 'Community Team'}</span>}
               </span>
               <button onClick={handleSignOut} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>
                 Sign Out
