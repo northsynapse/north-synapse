@@ -3,8 +3,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import StudyRooms from '@/components/study-rooms/StudyRooms';
+import TeamChat from '@/components/team/TeamChat';
+import TeamManagement from '@/components/team/TeamManagement';
 
-type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard' | 'admin';
+type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard' | 'admin' | 'team-chat';
 
 interface CommentItem {
   id: string;
@@ -93,6 +95,8 @@ export default function Home() {
   // 用户与弹窗状态
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [teamRole, setTeamRole] = useState<string | null>(null);
+  const [teamNotification, setTeamNotification] = useState<any>(null);
   const [adminMetrics, setAdminMetrics] = useState<any>(null);
   const [adminFeedback, setAdminFeedback] = useState<any[]>([]);
   const [adminRatings, setAdminRatings] = useState<any[]>([]);
@@ -348,6 +352,54 @@ export default function Home() {
     });
     return () => { active = false; };
   }, [user?.id]);
+
+  // 团队身份由受保护的数据库表决定，实时更新权限状态。
+  useEffect(() => {
+    const userId = user?.id;
+    setTeamRole(null);
+    if (!userId) return;
+    let active = true;
+    const loadRole = async () => {
+      const { data, error } = await supabase.from('team_members').select('role').eq('user_id', userId).maybeSingle();
+      if (!active) return;
+      if (error) { console.error('Unable to load team role:', error.message); return; }
+      setTeamRole(data?.role || null);
+    };
+    void loadRole();
+    const channel = supabase.channel(`team-role-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members', filter: `user_id=eq.${userId}` }, () => void loadRole())
+      .subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }, [user?.id]);
+
+  // 团队通知持久化保存；用户确认后才标记已读，离线加入者下次登录也会看到。
+  useEffect(() => {
+    const userId = user?.id;
+    setTeamNotification(null);
+    if (!userId) return;
+    let active = true;
+    const loadPending = async () => {
+      const { data, error } = await supabase.from('team_notifications').select('*').eq('user_id', userId).is('read_at', null).order('created_at', { ascending: true }).limit(1).maybeSingle();
+      if (!active) return;
+      if (error) { console.error('Unable to load team notifications:', error.message); return; }
+      if (data) setTeamNotification(data);
+    };
+    void loadPending();
+    const channel = supabase.channel(`team-notifications-${userId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_notifications', filter: `user_id=eq.${userId}` }, (payload) => {
+        if (active) setTeamNotification(payload.new);
+      }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }, [user?.id]);
+
+  async function acknowledgeTeamNotification() {
+    if (!teamNotification?.id) return;
+    const { error } = await supabase.from('team_notifications').update({ read_at: new Date().toISOString() }).eq('id', teamNotification.id);
+    if (error) { console.error('Unable to acknowledge team notification:', error.message); return; }
+    setTeamNotification(null);
+    const { data } = await supabase.from('team_notifications').select('*').eq('user_id', user.id).is('read_at', null).order('created_at', { ascending: true }).limit(1).maybeSingle();
+    if (data) setTeamNotification(data);
+  }
 
   // 登录后从 profiles 表恢复个人资料；不再把 Auth metadata 当作个人资料主数据源。
   useEffect(() => {
@@ -1664,6 +1716,7 @@ export default function Home() {
               {tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounge' : tab}
             </button>
           ))}
+          {user && (isAdmin || !!teamRole) && <button onClick={() => setActiveTab('team-chat')} style={{ background: 'none', border: 'none', color: activeTab === 'team-chat' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'team-chat' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'team-chat' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Team Chat</button>}
           {user && !isAdmin && (
             <button onClick={() => setActiveTab('dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>
               Dashboard
@@ -1880,6 +1933,10 @@ export default function Home() {
           </div>
         )}
 
+        {activeTab === 'team-chat' && (
+          <TeamChat user={user} nickname={nickname} username={username} avatarUrl={avatarUrl} teamRole={teamRole} isAdmin={isAdmin} isDarkMode={isDarkMode} />
+        )}
+
         {/* 管理员控制台 */}
         {activeTab === 'admin' && (
           !isAdmin ? <div style={{ padding: '2rem', border: `1px solid ${theme.border}`, borderRadius: '14px', background: theme.cardBg }}><h1>Administrator access required</h1><p style={{ color: theme.textMuted }}>Your account does not have permission to open this dashboard.</p><button type="button" onClick={() => setActiveTab('resources')} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1rem', cursor: 'pointer' }}>Return to Resource Hub</button></div> : (
@@ -1894,6 +1951,7 @@ export default function Home() {
                 </div>
                 <button type="button" onClick={() => setShowEditProfileModal(true)} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1rem', cursor: 'pointer', fontWeight: 700 }}>Edit Profile</button>
               </section>
+              <TeamManagement isDarkMode={isDarkMode} isAdmin={isAdmin} />
               {adminLoading && !adminMetrics ? <p style={{ color: theme.textMuted }}>Loading dashboard data…</p> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.9rem' }}>{[
                 { label: 'Registered accounts', value: adminMetrics?.registered_users ?? '—', note: 'All registered accounts' },
                 { label: 'Online now', value: adminMetrics?.online_users ?? '—', note: 'Active in the last 2 minutes' },
@@ -2125,6 +2183,22 @@ export default function Home() {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {teamNotification && (
+        <div role="dialog" aria-modal="true" aria-labelledby="team-notification-title" style={{ position: 'fixed', inset: 0, zIndex: 1000002, background: 'rgba(0,0,0,.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ width: '100%', maxWidth: 520, maxHeight: '85vh', overflowY: 'auto', background: theme.cardBg, color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: 18, padding: 24, boxShadow: '0 24px 80px rgba(0,0,0,.35)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: theme.accent, fontWeight: 800, fontSize: 12, letterSpacing: 1.5 }}>NORTH SYNAPSE · TEAM UPDATE</div>
+            <h2 id="team-notification-title" style={{ margin: '12px 0 8px', fontSize: 23 }}>{teamNotification.title}</h2>
+            <p style={{ color: theme.textMuted, lineHeight: 1.6 }}>{teamNotification.message}</p>
+            {Array.isArray(teamNotification.permissions) && teamNotification.permissions.length > 0 && <div style={{ margin: '18px 0', padding: 15, borderRadius: 12, background: theme.bg, border: `1px solid ${theme.border}` }}>
+              <strong style={{ display: 'block', marginBottom: 10 }}>Your team permissions</strong>
+              {teamNotification.permissions.map((permission: string) => <div key={permission} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', margin: '8px 0', fontSize: 14 }}><span style={{ color: '#10B981' }}>✓</span><span>{permission}</span></div>)}
+            </div>}
+            <p style={{ color: theme.textMuted, fontSize: 12 }}>Team identity changes take effect immediately. Your public team badge can be hidden in profile settings, but your actual permissions remain unchanged.</p>
+            <button type="button" onClick={() => void acknowledgeTeamNotification()} style={{ width: '100%', marginTop: 12, background: theme.accent, color: '#fff', border: 0, borderRadius: 9, padding: 12, fontWeight: 750, cursor: 'pointer' }}>Got it</button>
           </div>
         </div>
       )}
