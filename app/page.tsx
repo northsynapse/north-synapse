@@ -1744,6 +1744,7 @@ export default function Home() {
           {((isAdmin ? ['resources', 'lounges', 'announcements', 'discussions'] : ['resources', 'lounges', 'announcements', 'discussions', 'feedback']) as NavTab[]).map((tab) => (
             <button
               key={tab}
+              className={activeTab === tab ? "ns-nav-active" : ""}
               onClick={() => setActiveTab(tab)}
               style={{
                 background: 'none',
@@ -1759,14 +1760,14 @@ export default function Home() {
               {tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounge' : tab}
             </button>
           ))}
-          {user && (isAdmin || !!teamRole) && <button onClick={() => setActiveTab('team-chat')} style={{ background: 'none', border: 'none', color: activeTab === 'team-chat' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'team-chat' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'team-chat' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Team Chat</button>}
-          {user && (isAdmin || !!teamRole) && <button onClick={() => setActiveTab('team-dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'team-dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'team-dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'team-dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Team Dashboard</button>}
+          {user && (isAdmin || !!teamRole) && <button className={activeTab === 'team-chat' ? "ns-nav-active" : ""} onClick={() => setActiveTab('team-chat')} style={{ background: 'none', border: 'none', color: activeTab === 'team-chat' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'team-chat' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'team-chat' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Team Chat</button>}
+          {user && (isAdmin || !!teamRole) && <button className={activeTab === 'team-dashboard' ? "ns-nav-active" : ""} onClick={() => setActiveTab('team-dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'team-dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'team-dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'team-dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Team Dashboard</button>}
           {user && !isAdmin && (
-            <button onClick={() => setActiveTab('dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>
+            <button className={activeTab === 'dashboard' ? "ns-nav-active" : ""} onClick={() => setActiveTab('dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>
               Dashboard
             </button>
           )}
-          {isAdmin && <button onClick={() => setActiveTab('admin')} style={{ background: 'none', border: 'none', color: activeTab === 'admin' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'admin' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'admin' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Admin</button>}
+          {isAdmin && <button className={activeTab === 'admin' ? "ns-nav-active" : ""} onClick={() => setActiveTab('admin')} style={{ background: 'none', border: 'none', color: activeTab === 'admin' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'admin' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'admin' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Admin</button>}
         </nav>
 
         <div className="ns-header-actions" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -2500,7 +2501,7 @@ export default function Home() {
           color: ${theme.textMuted} !important; font-size: .9rem !important; font-weight: 550 !important;
           transition: background .16s ease, color .16s ease !important;
         }
-        .ns-main-nav button[style*="color: ${theme.accent}"] {
+        .ns-main-nav button.ns-nav-active {
           background: rgba(128,80,232,.11) !important; color: #8050E8 !important; font-weight: 700 !important;
         }
         .ns-header-actions {
