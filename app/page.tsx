@@ -97,6 +97,7 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [teamRole, setTeamRole] = useState<string | null>(null);
+  const [teamBadgeVisible, setTeamBadgeVisible] = useState(true);
   const [teamNotification, setTeamNotification] = useState<any>(null);
   const [adminMetrics, setAdminMetrics] = useState<any>(null);
   const [adminFeedback, setAdminFeedback] = useState<any[]>([]);
@@ -361,10 +362,11 @@ export default function Home() {
     if (!userId) return;
     let active = true;
     const loadRole = async () => {
-      const { data, error } = await supabase.from('team_members').select('role').eq('user_id', userId).maybeSingle();
+      const { data, error } = await supabase.from('team_members').select('role,badge_visible').eq('user_id', userId).maybeSingle();
       if (!active) return;
       if (error) { console.error('Unable to load team role:', error.message); return; }
       setTeamRole(data?.role || null);
+      setTeamBadgeVisible(data?.badge_visible ?? true);
     };
     void loadRole();
     const channel = supabase.channel(`team-role-${userId}`)
@@ -392,6 +394,12 @@ export default function Home() {
       }).subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
   }, [user?.id]);
+
+  async function updateOwnTeamBadgeVisibility(visible: boolean) {
+    const { error } = await supabase.rpc('set_own_team_badge_visibility', { p_visible: visible });
+    if (error) { alert('Could not update team badge visibility.'); return; }
+    setTeamBadgeVisible(visible);
+  }
 
   async function acknowledgeTeamNotification() {
     if (!teamNotification?.id) return;
@@ -2307,6 +2315,13 @@ export default function Home() {
                 </select>
               </div>
 
+              {teamRole && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 12, border: `1px solid ${theme.border}`, borderRadius: 9 }}>
+                  <div><strong style={{ fontSize: 14 }}>Public team badge</strong><p style={{ color: theme.textMuted, fontSize: 12, margin: '4px 0 0' }}>Your team permissions remain active when the badge is hidden.</p></div>
+                  <button type="button" onClick={() => void updateOwnTeamBadgeVisibility(!teamBadgeVisible)} style={{ border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, borderRadius: 8, padding: '8px 10px', cursor: 'pointer' }}>{teamBadgeVisible ? 'Visible' : 'Hidden'}</button>
+                </div>
+              )}
+
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio (optional)</label>
                 <textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
@@ -2395,7 +2410,7 @@ export default function Home() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h2 style={{ margin: 0 }}>Student Profile</h2><button type="button" onClick={() => setPublicProfile(null)} aria-label="Close profile" style={{ border: 0, background: 'transparent', color: theme.textMain, fontSize: '1.25rem', cursor: 'pointer' }}>✕</button></div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '1.2rem 0' }}>
               {publicProfile.avatarUrl ? <img src={publicProfile.avatarUrl} alt="Profile avatar" style={{ width: 76, height: 76, objectFit: 'cover', borderRadius: '50%' }} /> : <div style={{ width: 76, height: 76, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, fontSize: '1.7rem' }}>👤</div>}
-              <div><h3 style={{ margin: 0 }}>{publicProfile.nickname || publicProfile.username || 'Student'}</h3><p style={{ color: theme.textMuted, margin: '0.25rem 0' }}>@{publicProfile.username || 'student'}</p></div>
+              <div><h3 style={{ margin: 0 }}>{publicProfile.nickname || publicProfile.username || 'Student'}</h3><p style={{ color: theme.textMuted, margin: '0.25rem 0' }}>@{publicProfile.username || 'student'}</p>{publicProfile.teamRole && <span style={{ display: 'inline-block', marginTop: 4, padding: '3px 9px', borderRadius: 20, background: publicProfile.teamRole === 'core_team' ? 'rgba(139,92,246,.15)' : 'rgba(16,185,129,.14)', color: publicProfile.teamRole === 'core_team' ? '#A78BFA' : '#10B981', fontSize: 11, fontWeight: 750 }}>{publicProfile.teamRole === 'core_team' ? 'Core Team' : 'Community Team'}</span>}</div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.7rem' }}>
               <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Grade</small><div>{publicProfile.grade || 'Not specified'}</div></div>
