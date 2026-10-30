@@ -410,10 +410,15 @@ export default function Home() {
     if (!teamNotification?.id) return;
     const { error } = await supabase.from('team_notifications').update({ read_at: new Date().toISOString() }).eq('id', teamNotification.id);
     if (error) { console.error('Unable to acknowledge team notification:', error.message); return; }
+    if (teamNotification.event_type === 'removed') setTeamRole(null);
     setTeamNotification(null);
     const { data } = await supabase.from('team_notifications').select('*').eq('user_id', user.id).is('read_at', null).order('created_at', { ascending: true }).limit(1).maybeSingle();
     if (data) setTeamNotification(data);
   }
+
+  useEffect(() => {
+    if (user?.id && !isAdmin && !teamRole && (activeTab === 'team-chat' || activeTab === 'team-dashboard')) setActiveTab('resources');
+  }, [user?.id, isAdmin, teamRole, activeTab]);
 
   // 登录后从 profiles 表恢复个人资料；不再把 Auth metadata 当作个人资料主数据源。
   useEffect(() => {
