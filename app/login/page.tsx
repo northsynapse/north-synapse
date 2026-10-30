@@ -21,8 +21,16 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError("Please enter a valid email address, such as name@gmail.com.");
+      setLoading(false);
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: normalizedEmail,
       password,
     });
 
@@ -38,7 +46,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6 font-medium">
+    <main className="flex min-h-screen items-center justify-center p-6">
       <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 shadow-card">
         <Link
           href="/"
@@ -47,7 +55,7 @@ export default function LoginPage() {
           ← North Synapse
         </Link>
 
-        <h1 className="mt-8 text-3xl font-bold">
+        <h1 className="mt-8 text-3xl font-semibold">
           Welcome back
         </h1>
 
@@ -57,12 +65,15 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="mt-8 space-y-5">
           <div>
-            <label htmlFor="email" className="mb-2 block font-semibold">
+            <label htmlFor="email" className="mb-2 block font-medium">
               Email
             </label>
             <input
               id="email"
-              type="email"
+              type="text"
+              inputMode="email"
+              autoCapitalize="none"
+              spellCheck={false}
               autoComplete="email"
               required
               value={email}
@@ -73,7 +84,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="mb-2 block font-semibold">
+            <label htmlFor="password" className="mb-2 block font-medium">
               Password
             </label>
             <input
@@ -97,7 +108,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-[var(--primary)] px-4 py-3 font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            className="w-full rounded-xl bg-[var(--primary)] px-4 py-3 font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
@@ -107,7 +118,7 @@ export default function LoginPage() {
           Don&apos;t have an account?{" "}
           <Link
             href="/register"
-            className="font-semibold text-[var(--primary)] hover:underline"
+            className="font-medium text-[var(--primary)] hover:underline"
           >
             Create account
           </Link>
