@@ -41,8 +41,10 @@ export default function TeamChat({ user, nickname, username, avatarUrl, teamRole
     (people || []).forEach((p: any) => { map[p.id] = p; });
     const roleMap: Record<string, string> = {};
     (team || []).forEach((t: any) => { roleMap[t.user_id] = t.role; });
+    const adminChecks = await Promise.all(ids.map(async (id) => ({ id, result: await supabase.rpc('is_platform_admin', { p_user_id: id }) })));
+    adminChecks.forEach(({ id, result }) => { if (result.data === true) roleMap[id] = 'administrator'; });
     setProfiles(map);
-    setMessages(rows.map((m: any) => ({ ...m, display_name: map[m.user_id]?.nickname || map[m.user_id]?.username || 'Team member', avatar_url: map[m.user_id]?.avatar_path || '', role: m.user_id === user.id && isAdmin ? 'Administrator' : roleMap[m.user_id] === 'core_team' ? 'Core Team' : roleMap[m.user_id] === 'community_team' ? 'Community Team' : '' })));
+    setMessages(rows.map((m: any) => ({ ...m, display_name: map[m.user_id]?.nickname || map[m.user_id]?.username || 'Team member', avatar_url: map[m.user_id]?.avatar_path || '', role: roleMap[m.user_id] === 'administrator' ? 'Administrator' : roleMap[m.user_id] === 'core_team' ? 'Core Team' : roleMap[m.user_id] === 'community_team' ? 'Community Team' : '' })));
     setNotices(noticeRows.map((n: any) => ({ ...n, display_name: map[n.author_id]?.nickname || map[n.author_id]?.username || 'Team member' })));
     setLoading(false);
   }, [allowed, user?.id, isAdmin]);
