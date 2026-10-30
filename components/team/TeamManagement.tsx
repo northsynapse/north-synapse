@@ -38,6 +38,8 @@ export default function TeamManagement({ isDarkMode, isAdmin }: Props) {
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => { if (!error && !success) return; const timer = window.setTimeout(() => { setError(''); setSuccess(''); }, 4000); return () => window.clearTimeout(timer); }, [error, success]);
+
   async function manage(action: 'add' | 'update' | 'remove', targetEmail: string, targetRole?: string) {
     setSaving(true); setError(''); setSuccess('');
     const { error: actionError } = await supabase.rpc('admin_manage_team_member', { p_email: targetEmail, p_action: action, p_role: targetRole || null });
