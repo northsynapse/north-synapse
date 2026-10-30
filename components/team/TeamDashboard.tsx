@@ -34,15 +34,16 @@ export default function TeamDashboard({ teamRole, isAdmin, isDarkMode }: Props) 
       const discussionIds=reportRows.filter((x:any)=>x.target_type==='discussion').map((x:any)=>x.target_id);
       const replyIds=reportRows.filter((x:any)=>x.target_type==='reply').map((x:any)=>x.target_id);
       const [resourceRows,discussionRows,replyRows]=await Promise.all([
-        resourceIds.length?supabase.from('resources').select('id,title,description,content').in('id',resourceIds):Promise.resolve({data:[]}),
-        discussionIds.length?supabase.from('discussions').select('id,title,content').in('id',discussionIds):Promise.resolve({data:[]}),
-        replyIds.length?supabase.from('discussion_replies').select('id,content').in('id',replyIds):Promise.resolve({data:[]})
+        resourceIds.length?supabase.from('resources').select('id,title,description,content,moderation_hidden').in('id',resourceIds):Promise.resolve({data:[]}),
+        discussionIds.length?supabase.from('discussions').select('id,title,content,moderation_hidden').in('id',discussionIds):Promise.resolve({data:[]}),
+        replyIds.length?supabase.from('discussion_replies').select('id,content,moderation_hidden').in('id',replyIds):Promise.resolve({data:[]})
       ]);
       const previews:Record<string,string>={};
-      (resourceRows.data||[]).forEach((x:any)=>previews[x.id]=x.title+' — '+(x.description||x.content||''));
-      (discussionRows.data||[]).forEach((x:any)=>previews[x.id]=x.title+' — '+x.content);
-      (replyRows.data||[]).forEach((x:any)=>previews[x.id]=x.content);
-      setReports(reportRows.map((x:any)=>({...x,target_preview:previews[x.target_id]||'Content is unavailable or has already been removed.'})));
+      const hiddenMap:Record<string,boolean>={};
+      (resourceRows.data||[]).forEach((x:any)=>{previews[x.id]=x.title+' — '+(x.description||x.content||'');hiddenMap[x.id]=x.moderation_hidden;});
+      (discussionRows.data||[]).forEach((x:any)=>{previews[x.id]=x.title+' — '+x.content;hiddenMap[x.id]=x.moderation_hidden;});
+      (replyRows.data||[]).forEach((x:any)=>{previews[x.id]=x.content;hiddenMap[x.id]=x.moderation_hidden;});
+      setReports(reportRows.map((x:any)=>({...x,target_preview:previews[x.target_id]||'Content is unavailable or has already been removed.',target_hidden:hiddenMap[x.target_id]||false})));
     }
     if(t.error)setError(t.error.message);else setTickets(t.data||[]);
     if(isCore){
@@ -57,6 +58,10 @@ export default function TeamDashboard({ teamRole, isAdmin, isDarkMode }: Props) 
   },[canOpen,isAdmin,teamRole,search,isCore]);
   useEffect(()=>{void load();},[load]);
 
+  async function toggleReportedContent(report:any){
+    const {error:e}=await supabase.rpc('moderate_hide_content',{p_target_type:report.target_type,p_target_id:report.target_id,p_hidden:!report.target_hidden});
+    if(e)setError(e.message);else{await supabase.rpc('record_team_activity',{p_action:report.target_hidden?'report_content_restored':'report_content_hidden',p_target_user_id:null,p_details:{report_id:report.id,target_id:report.target_id}});await load();}
+  }
   async function updateReport(id:string,status:string){
     const {error:e}=await supabase.from('content_reports').update({status,assigned_to:(await supabase.auth.getUser()).data.user?.id,updated_at:new Date().toISOString()}).eq('id',id);
     if(e)setError(e.message);else { await supabase.rpc('record_team_activity',{p_action:'report_'+status.toLowerCase(),p_target_user_id:null,p_details:{report_id:id}}); await load(); }
@@ -81,7 +86,7 @@ export default function TeamDashboard({ teamRole, isAdmin, isDarkMode }: Props) 
       {reports.length===0?<p style={{color:theme.muted}}>No reports have been submitted.</p>:reports.map(r=><article key={r.id} style={{borderTop:`1px solid ${theme.border}`,paddingTop:12,display:'grid',gap:7}}>
         <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><strong>{r.target_type} · {r.reason.slice(0,150)}</strong><span style={{fontSize:12,color:theme.muted}}>{new Date(r.created_at).toLocaleString()}</span></div>
         <p style={{margin:0,fontSize:13,whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{r.target_preview}</p><small style={{color:theme.muted}}>Report ID: {r.id} · Target: {r.target_id} · Reporter: {r.reporter_id}</small>
-        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><strong style={{fontSize:12}}>{r.status}</strong>{['Pending','Reviewing','Resolved','Dismissed'].filter(s=>s!==r.status).map(s=><button key={s} onClick={()=>void updateReport(r.id,s)} style={{border:`1px solid ${theme.border}`,borderRadius:7,padding:'6px 9px',background:theme.bg,color:theme.text,fontSize:12}}>{s}</button>)}</div>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><strong style={{fontSize:12}}>{r.status}</strong><button onClick={()=>void toggleReportedContent(r)} style={{border:'1px solid rgba(239,68,68,.45)',borderRadius:7,padding:'6px 9px',background:'transparent',color:r.target_hidden?'#10B981':'#EF4444',fontSize:12}}>{r.target_hidden?'Restore content':'Hide content'}</button>{['Pending','Reviewing','Resolved','Dismissed'].filter(s=>s!==r.status).map(s=><button key={s} onClick={()=>void updateReport(r.id,s)} style={{border:`1px solid ${theme.border}`,borderRadius:7,padding:'6px 9px',background:theme.bg,color:theme.text,fontSize:12}}>{s}</button>)}</div>
       </article>)}
     </section>
     <section style={{border:`1px solid ${theme.border}`,borderRadius:13,background:theme.card,padding:16,display:'grid',gap:12}}>
