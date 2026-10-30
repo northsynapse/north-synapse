@@ -8,6 +8,9 @@ const config: Config = {
     "./lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   darkMode: "class",
+  corePlugins: {
+    preflight: false,
+  },
   theme: {
     extend: {
       colors: {
