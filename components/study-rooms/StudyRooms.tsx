@@ -54,6 +54,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   const [kickNotice, setKickNotice] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminEntryNotice, setAdminEntryNotice] = useState('');
+  const [roomNotification, setRoomNotification] = useState<{ id: string; event_type: string; actor_name: string; room_name: string } | null>(null);
   const [handoffUserId, setHandoffUserId] = useState('');
   const [showHandoff, setShowHandoff] = useState(false);
   const [privateRoomCode, setPrivateRoomCode] = useState('');
@@ -201,30 +202,38 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   useEffect(() => {
     if (!user?.id) return;
     let active = true;
-    const loadPendingKickNotice = async () => {
-      const { data, error } = await supabase
-        .from('study_room_kick_events')
-        .select('id,room_id,created_at,reason')
-        .eq('user_id', user.id)
-        .is('acknowledged_at', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) {
-        console.error('读取自习室踢出通知失败：', error.message);
-        return;
+    const loadPendingNotifications = async () => {
+      const { data, error } = await supabase.from('study_room_notifications')
+        .select('id,event_type,actor_name,room_name')
+        .eq('user_id', user.id).is('acknowledged_at', null)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (error) { console.error('读取自习室通知失败：', error.message); return; }
+      if (active && data) {
+        setRoomNotification(data);
+        if (data.event_type === 'admin_entered') {
+          setAdminEntryNotice(`${data.actor_name} (North Synapse administrator) has entered “${data.room_name}”. The administrator can view this room's chat for moderation and safety purposes.`);
+        } else {
+          setKickNotice(`${data.actor_name} ended “${data.room_name}”. You have been returned to the room directory.`);
+        }
       }
-      if (active && data) setKickNotice((data.reason || '').trim() ? `The room host removed you from this study room. Reason: ${data.reason}` : 'The room host removed you from this study room. This was a host action, not a system error.');
     };
+    const loadPendingKickNotice = async () => {
+      const { data, error } = await supabase.from('study_room_kick_events')
+        .select('id,room_id,created_at,reason').eq('user_id', user.id)
+        .is('acknowledged_at', null).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (error) { console.error('读取自习室踢出通知失败：', error.message); return; }
+      if (active && data) setKickNotice((data.reason || '').trim()
+        ? `The room host removed you from this study room. Reason: ${data.reason}`
+        : 'The room host removed you from this study room. This was a host action, not a system error.');
+    };
+    void loadPendingNotifications();
     void loadPendingKickNotice();
-    const channel = supabase.channel(`study-room-kick-events-${user.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'study_room_kick_events', filter: `user_id=eq.${user.id}` }, () => {
-        void loadPendingKickNotice();
-      }).subscribe();
-    return () => {
-      active = false;
-      void supabase.removeChannel(channel);
-    };
+    const timer = window.setInterval(() => { void loadPendingNotifications(); void loadPendingKickNotice(); }, 3000);
+    const channel = supabase.channel(`study-room-user-notifications-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'study_room_notifications', filter: `user_id=eq.${user.id}` }, () => { void loadPendingNotifications(); })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'study_room_kick_events', filter: `user_id=eq.${user.id}` }, () => { void loadPendingKickNotice(); })
+      .subscribe();
+    return () => { active = false; window.clearInterval(timer); void supabase.removeChannel(channel); };
   }, [user?.id]);
 
   useEffect(() => {
@@ -287,38 +296,12 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     return visible;
   }, [rooms, search, sortBy, gradeFilter, subjectFilter]);
 
-  async function announceAdminEntry(roomId: string, roomName: string) {
+  async function announceAdminEntry(roomId: string, _roomName: string) {
     if (!isAdmin) return;
-    const channel = supabase.channel(`study-room-${roomId}-announcements`);
-    try {
-      // 等待房间成员有时间完成订阅，再重复发送以降低刚加入时丢失提醒的概率。
-      await new Promise<void>((resolve, reject) => {
-        const timeout = window.setTimeout(() => reject(new Error('Announcement channel subscription timed out')), 10000);
-        channel.subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            window.clearTimeout(timeout);
-            resolve();
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            window.clearTimeout(timeout);
-            reject(new Error(`Announcement channel status: ${status}`));
-          }
-        });
-      });
-      await new Promise(resolve => window.setTimeout(resolve, 1500));
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        const result = await channel.send({
-          type: 'broadcast',
-          event: 'admin_entered',
-          payload: { adminName: displayName, roomName }
-        });
-        if (result !== 'ok') console.error('管理员进入提醒发送失败：', result);
-        if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 700));
-      }
-    } catch (error) {
-      console.error('发送管理员进入提醒失败：', error);
-    } finally {
-      void supabase.removeChannel(channel);
-    }
+    const { error } = await supabase.rpc('notify_admin_entered_study_room', {
+      p_room_id: roomId, p_admin_name: displayName
+    });
+    if (error) console.error('保存管理员进入通知失败：', error.message);
   }
 
   async function joinRoom(room: Room, code?: string) {
@@ -415,7 +398,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
   }
 
   async function endRoom() {
-    if (!joinedRoom || !isOwner || isSystemLobby || loading) return;
+    if (!joinedRoom || (!isOwner && !isAdmin) || isSystemLobby || loading) return;
     if (!window.confirm('End this study room for everyone? This cannot be undone.')) return;
     setLoading(true);
     const { error } = await supabase.rpc('end_study_room_v2', { p_room_id: joinedRoom.id });
@@ -423,10 +406,16 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
     if (error) { setNotice('Could not end room: ' + error.message); return; }
     setJoinedRoom(null); setMembers([]); setMessages([]); setTimerRunning(false);
     previousOwnerId.current = null;
-    setKickNotice('This study room has ended. You have been returned to the room directory.'); await loadRooms();
+    if (!isAdmin) setKickNotice('You ended this study room.');
+    await loadRooms();
   }
 
   async function dismissKickNotice() {
+    if (roomNotification?.id) {
+      await supabase.from('study_room_notifications').update({ acknowledged_at: new Date().toISOString() }).eq('id', roomNotification.id);
+      setRoomNotification(null); setAdminEntryNotice(''); setKickNotice('');
+      return;
+    }
     if (user?.id) {
       const { data } = await supabase
         .from('study_room_kick_events')
@@ -526,7 +515,7 @@ export default function StudyRooms({ user, username, nickname, avatarUrl, isDark
           <button type="button" title="Toggle chat panel" onClick={() => setShowChatPanel(v => !v)} style={{ ...buttonStyle, padding: '.45rem .6rem', background: showChatPanel ? theme.accent : 'transparent', color: showChatPanel ? '#fff' : theme.text, border: '1px solid ' + theme.border }}><MessageCircle size={14} style={{ verticalAlign: 'middle', marginRight: 4 }}/>Chat</button>
           <button type="button" onClick={onToggleTheme} style={{ ...buttonStyle, padding: '.45rem .6rem', background: 'transparent', color: theme.text, border: '1px solid ' + theme.border }}>{isDarkMode ? 'Light' : 'Dark'}</button>
           <button type="button" onClick={onShowTerms} style={{ ...buttonStyle, padding: '.45rem .6rem', background: 'transparent', color: theme.text, border: '1px solid ' + theme.border }}>User notice</button>
-          {isOwner && !isSystemLobby && <button type="button" onClick={() => void endRoom()} style={{ ...buttonStyle, padding: '.45rem .6rem', background: theme.danger }} disabled={loading}>End</button>}
+          {(isOwner || isAdmin) && !isSystemLobby && <button type="button" onClick={() => void endRoom()} style={{ ...buttonStyle, padding: '.45rem .6rem', background: theme.danger }} disabled={loading}>End</button>}
           <button type="button" onClick={() => void handleLeave()} style={{ ...buttonStyle, padding: '.45rem .6rem', background: 'transparent', color: theme.text, border: '1px solid ' + theme.border }} disabled={loading}><LogOut size={14} style={{ verticalAlign: 'middle', marginRight: 4 }}/>Leave</button>
         </div>
       </section>
