@@ -6,7 +6,7 @@ import { Pin, Send, Users, Megaphone } from 'lucide-react';
 
 type Props = { user: any; nickname: string; username: string; teamRole: string | null; isAdmin: boolean; isDarkMode: boolean };
 type ChatMessage = { id: string; user_id: string; content: string; created_at: string; display_name: string; avatar_url: string; role: string };
-type TeamNotice = { id: string; title: string; content: string; author_id: string; created_at: string; is_pinned: boolean; display_name: string };
+type TeamNotice = { id: string; title: string; content: string; author_id: string; created_at: string; is_pinned: boolean; display_name: string; avatar_url: string; role: string };
 
 export default function TeamChat({ user, nickname, username, teamRole, isAdmin, isDarkMode }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -43,7 +43,7 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
     const adminChecks = await Promise.all(ids.map(async (id) => ({ id, result: await supabase.rpc('is_platform_admin', { p_user_id: id }) })));
     adminChecks.forEach(({ id, result }) => { if (result.data === true) roleMap[id] = 'administrator'; });
     setMessages(rows.map((m: any) => ({ ...m, display_name: map[m.user_id]?.nickname || map[m.user_id]?.username || 'Team member', avatar_url: map[m.user_id]?.avatar_path || '', role: roleMap[m.user_id] === 'administrator' ? 'Administrator' : roleMap[m.user_id] === 'core_team' ? 'Core Team' : roleMap[m.user_id] === 'community_team' ? 'Community Team' : '' })));
-    setNotices(noticeRows.map((n: any) => ({ ...n, display_name: map[n.author_id]?.nickname || map[n.author_id]?.username || 'Team member' })));
+    setNotices(noticeRows.map((n: any) => ({ ...n, display_name: map[n.author_id]?.nickname || map[n.author_id]?.username || 'Team member', avatar_url: map[n.author_id]?.avatar_path || '', role: roleMap[n.author_id] === 'administrator' ? 'Administrator' : roleMap[n.author_id] === 'core_team' ? 'Core Team' : roleMap[n.author_id] === 'community_team' ? 'Community Team' : '' })));
     setLoading(false);
   }, [allowed, user?.id, isAdmin]);
 
@@ -112,7 +112,7 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
       <h2 style={{ margin: 0, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8 }}><Pin size={17}/> Pinned announcements</h2>
       {notices.length === 0 ? <p style={{ color: theme.muted }}>No team announcements yet.</p> : notices.map(n => <article key={n.id} style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 15 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><strong>{n.title}</strong><div style={{ display: 'flex', gap: 8 }}><button onClick={() => void togglePin(n)} title={n.is_pinned ? 'Unpin announcement' : 'Pin announcement'} style={{ background: 'transparent', border: 0, color: theme.muted, cursor: 'pointer' }}><Pin size={16}/></button>{(isAdmin || teamRole === 'core_team') && <button onClick={() => void deleteNotice(n)} title="Delete announcement" style={{ background: 'transparent', border: 0, color: '#EF4444', cursor: 'pointer', fontSize: 12 }}>Delete</button>}</div></div>
-        <p style={{ whiteSpace: 'pre-wrap', margin: '9px 0' }}>{n.content}</p><small style={{ color: theme.muted }}>Posted by {n.display_name} · {new Date(n.created_at).toLocaleString()}</small>
+        <p style={{ whiteSpace: 'pre-wrap', margin: '9px 0' }}>{n.content}</p><div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>{n.avatar_url ? <img src={n.avatar_url} alt="" style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }}/> : <span style={{ width: 22, height: 22, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontSize: 10 }}>{n.display_name.slice(0,1).toUpperCase()}</span>}<small style={{ color: theme.muted }}>{n.display_name}</small>{n.role && <span style={{ fontSize: 10, borderRadius: 20, padding: '2px 7px', background: n.role === 'Administrator' ? 'rgba(239,68,68,.13)' : 'rgba(139,92,246,.14)', color: n.role === 'Administrator' ? '#EF4444' : '#A78BFA' }}>{n.role}</span>}<small style={{ color: theme.muted }}>· {new Date(n.created_at).toLocaleString()}</small></div>
       </article>)}
     </section>
     <section style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 14, overflow: 'hidden' }}>
