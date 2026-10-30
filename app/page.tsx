@@ -2468,7 +2468,6 @@ export default function Home() {
       )}
 
       <style>{`
-      <style>{`
         /* 中文注释：桌面端采用固定侧边导航，保留原有导航项目和点击行为。 */
         .ns-app-shell { min-height: 100vh; }
         .ns-site-header {
