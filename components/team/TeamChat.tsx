@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Pin, Send, Users, Megaphone, MoreHorizontal } from 'lucide-react';
+import { Pin, Send, Users, Megaphone } from 'lucide-react';
 
 type Props = { user: any; nickname: string; username: string; avatarUrl: string; teamRole: string | null; isAdmin: boolean; isDarkMode: boolean };
 type ChatMessage = { id: string; user_id: string; content: string; created_at: string; display_name: string; avatar_url: string; role: string };
