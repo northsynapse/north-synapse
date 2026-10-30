@@ -11,7 +11,6 @@ type TeamNotice = { id: string; title: string; content: string; author_id: strin
 export default function TeamChat({ user, nickname, username, avatarUrl, teamRole, isAdmin, isDarkMode }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [notices, setNotices] = useState<TeamNotice[]>([]);
-  const [profiles, setProfiles] = useState<Record<string, any>>({});
   const [draft, setDraft] = useState('');
   const [noticeTitle, setNoticeTitle] = useState('');
   const [noticeBody, setNoticeBody] = useState('');
@@ -43,7 +42,6 @@ export default function TeamChat({ user, nickname, username, avatarUrl, teamRole
     (team || []).forEach((t: any) => { roleMap[t.user_id] = t.role; });
     const adminChecks = await Promise.all(ids.map(async (id) => ({ id, result: await supabase.rpc('is_platform_admin', { p_user_id: id }) })));
     adminChecks.forEach(({ id, result }) => { if (result.data === true) roleMap[id] = 'administrator'; });
-    setProfiles(map);
     setMessages(rows.map((m: any) => ({ ...m, display_name: map[m.user_id]?.nickname || map[m.user_id]?.username || 'Team member', avatar_url: map[m.user_id]?.avatar_path || '', role: roleMap[m.user_id] === 'administrator' ? 'Administrator' : roleMap[m.user_id] === 'core_team' ? 'Core Team' : roleMap[m.user_id] === 'community_team' ? 'Community Team' : '' })));
     setNotices(noticeRows.map((n: any) => ({ ...n, display_name: map[n.author_id]?.nickname || map[n.author_id]?.username || 'Team member' })));
     setLoading(false);
