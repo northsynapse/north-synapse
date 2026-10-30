@@ -28,7 +28,22 @@ export default function TeamDashboard({ teamRole, isAdmin, isDarkMode }: Props) 
       supabase.from('support_tickets').select('id,user_id,subject,message,status,staff_reply,created_at,updated_at').order('created_at',{ascending:false}).limit(100)
     ]);
     if(m.error)setError(m.error.message);else setMetrics(m.data);
-    if(r.error && !isAdmin && !teamRole)setError(r.error.message);else setReports(r.data||[]);
+    if(r.error)setError(r.error.message);else {
+      const reportRows=r.data||[];
+      const resourceIds=reportRows.filter((x:any)=>x.target_type==='resource').map((x:any)=>x.target_id);
+      const discussionIds=reportRows.filter((x:any)=>x.target_type==='discussion').map((x:any)=>x.target_id);
+      const replyIds=reportRows.filter((x:any)=>x.target_type==='reply').map((x:any)=>x.target_id);
+      const [resourceRows,discussionRows,replyRows]=await Promise.all([
+        resourceIds.length?supabase.from('resources').select('id,title,description,content').in('id',resourceIds):Promise.resolve({data:[]}),
+        discussionIds.length?supabase.from('discussions').select('id,title,content').in('id',discussionIds):Promise.resolve({data:[]}),
+        replyIds.length?supabase.from('discussion_replies').select('id,content').in('id',replyIds):Promise.resolve({data:[]})
+      ]);
+      const previews:Record<string,string>={};
+      (resourceRows.data||[]).forEach((x:any)=>previews[x.id]=x.title+' — '+(x.description||x.content||''));
+      (discussionRows.data||[]).forEach((x:any)=>previews[x.id]=x.title+' — '+x.content);
+      (replyRows.data||[]).forEach((x:any)=>previews[x.id]=x.content);
+      setReports(reportRows.map((x:any)=>({...x,target_preview:previews[x.target_id]||'Content is unavailable or has already been removed.'})));
+    }
     if(t.error)setError(t.error.message);else setTickets(t.data||[]);
     if(isCore){
       const [u,a]=await Promise.all([
@@ -65,7 +80,7 @@ export default function TeamDashboard({ teamRole, isAdmin, isDarkMode }: Props) 
       <h2 style={{margin:0,fontSize:19,display:'flex',gap:8,alignItems:'center'}}><Flag size={18}/> Report queue</h2>
       {reports.length===0?<p style={{color:theme.muted}}>No reports have been submitted.</p>:reports.map(r=><article key={r.id} style={{borderTop:`1px solid ${theme.border}`,paddingTop:12,display:'grid',gap:7}}>
         <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><strong>{r.target_type} · {r.reason.slice(0,150)}</strong><span style={{fontSize:12,color:theme.muted}}>{new Date(r.created_at).toLocaleString()}</span></div>
-        <small style={{color:theme.muted}}>Report ID: {r.id} · Target: {r.target_id} · Reporter: {r.reporter_id}</small>
+        <p style={{margin:0,fontSize:13,whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{r.target_preview}</p><small style={{color:theme.muted}}>Report ID: {r.id} · Target: {r.target_id} · Reporter: {r.reporter_id}</small>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><strong style={{fontSize:12}}>{r.status}</strong>{['Pending','Reviewing','Resolved','Dismissed'].filter(s=>s!==r.status).map(s=><button key={s} onClick={()=>void updateReport(r.id,s)} style={{border:`1px solid ${theme.border}`,borderRadius:7,padding:'6px 9px',background:theme.bg,color:theme.text,fontSize:12}}>{s}</button>)}</div>
       </article>)}
     </section>
