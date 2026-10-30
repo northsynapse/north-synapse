@@ -394,8 +394,11 @@ export default function Home() {
     };
     void loadPending();
     const channel = supabase.channel(`team-notifications-${userId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_notifications', filter: `user_id=eq.${userId}` }, (payload) => {
-        if (active) setTeamNotification(payload.new);
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_notifications', filter: `user_id=eq.${userId}` }, async (payload) => {
+        if (!active) return;
+        setTeamNotification(payload.new);
+        const { data: membership } = await supabase.from('team_members').select('role').eq('user_id', userId).maybeSingle();
+        if (active) setTeamRole(membership?.role || null);
       }).subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
   }, [user?.id]);
