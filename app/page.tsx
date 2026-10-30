@@ -1876,6 +1876,7 @@ export default function Home() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                      {!isAdmin && user?.id && <button type="button" onClick={(e) => { e.stopPropagation(); void handleReportContent('resource', res.id); }} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>Report</button>}
                       {(isAdmin || user?.email?.toLowerCase() === res.authorEmail?.toLowerCase()) && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteResource(res.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
                       {isAdmin ? <span style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Likes ({res.likes})</span> : <button onClick={(e) => handleLikeResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>Like ({res.likes})</button>}
                       {isAdmin ? <span style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Saves ({res.bookmarks})</span> : <button onClick={(e) => handleBookmarkResource(res.id, e)} style={{ background: 'none', border: 'none', color: res.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer' }}>Save ({res.bookmarks})</button>}
