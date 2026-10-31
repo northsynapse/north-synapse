@@ -1610,10 +1610,10 @@ export default function Home() {
   const gradesList = ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'AP Courses', 'Academic Competitions'];
   // 中文注释：统一标签颜色体系，年级使用紫色，AP 与竞赛共用琥珀色，文理分别使用蓝绿与陶土色。
   const tagColors = {
-    level: '#8050E8',
-    advanced: '#B7791F',
-    stem: '#3986A8',
-    humanities: '#B87558',
+    level: '#8274A8',
+    advanced: '#B39563',
+    stem: '#7294A5',
+    humanities: '#879B83',
   };
   const getTagColor = (tag: string) => {
     if (/^Grade (9|10|11|12)$/.test(tag)) return tagColors.level;
@@ -1747,16 +1747,16 @@ export default function Home() {
       <header className="ns-site-header" style={{ background: theme.cardBg, borderColor: theme.border }}>
         <div className="ns-brand" onClick={() => setActiveTab('resources')}>
           <svg className="ns-brand-mark" viewBox="0 0 64 64" fill="none" aria-label="North Synapse dotted S logo">
-            <path d="M47 12 C47 4 18 4 18 19 C18 32 46 30 46 45 C46 60 17 59 17 49" stroke="#8B5CF6" strokeWidth="5.8" strokeLinecap="round" strokeDasharray="0.1 4.35"/>
-            <path d="M47 12 C47 4 18 4 18 19 C18 32 46 30 46 45 C46 60 17 59 17 49" stroke="#A78BFA" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="0.1 4.35" opacity=".7"/>
-            <circle cx="47" cy="12" r="2.4" fill="#A78BFA"/>
-            <circle cx="18" cy="19" r="2.4" fill="#A78BFA"/>
-            <circle cx="46" cy="45" r="2.4" fill="#A78BFA"/>
-            <circle cx="17" cy="49" r="2.4" fill="#A78BFA"/>
-            <circle cx="53" cy="7" r="1.1" fill="#8B5CF6" opacity=".8"/>
-            <circle cx="12" cy="25" r="1.1" fill="#8B5CF6" opacity=".8"/>
-            <circle cx="52" cy="51" r="1.1" fill="#8B5CF6" opacity=".8"/>
-            <circle cx="11" cy="45" r="1.1" fill="#8B5CF6" opacity=".8"/>
+            <path d="M47 12 C47 4 18 4 18 19 C18 32 46 30 46 45 C46 60 17 59 17 49" stroke="#8D7EB4" strokeWidth="5.8" strokeLinecap="round" strokeDasharray="0.1 4.35"/>
+            <path d="M47 12 C47 4 18 4 18 19 C18 32 46 30 46 45 C46 60 17 59 17 49" stroke="#B4A7D0" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="0.1 4.35" opacity=".7"/>
+            <circle cx="47" cy="12" r="2.4" fill="#B4A7D0"/>
+            <circle cx="18" cy="19" r="2.4" fill="#B4A7D0"/>
+            <circle cx="46" cy="45" r="2.4" fill="#B4A7D0"/>
+            <circle cx="17" cy="49" r="2.4" fill="#B4A7D0"/>
+            <circle cx="53" cy="7" r="1.1" fill="#8D7EB4" opacity=".8"/>
+            <circle cx="12" cy="25" r="1.1" fill="#8D7EB4" opacity=".8"/>
+            <circle cx="52" cy="51" r="1.1" fill="#8D7EB4" opacity=".8"/>
+            <circle cx="11" cy="45" r="1.1" fill="#8D7EB4" opacity=".8"/>
           </svg><span>North Synapse</span>{isAdmin && <span className="ns-admin-label">ADMIN</span>}
         </div>
         <nav className="ns-main-nav">
