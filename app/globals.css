@@ -80,33 +80,7 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 }
 
 
-/* 中文注释：用小圆点和短线为主要区块标题增加克制的品牌识别。 */
-.ns-main-content h2 {
-  position: relative;
-}
-.ns-main-content h2::before {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin: 0 10px 3px 0;
-  border-radius: 50%;
-  background: #9B83D8;
-  box-shadow: 9px 0 0 rgba(123, 82, 229, .28);
-}
-.ns-main-content h2::after {
-  content: "";
-  display: block;
-  width: 34px;
-  height: 2px;
-  margin-top: 8px;
-  border-radius: 2px;
-  background: rgba(123, 82, 229, .58);
-}
-.ns-brand-mark {
-  overflow: visible;
-  filter: drop-shadow(0 0 5px rgba(123, 82, 229, .14));
-}
-.ns-brand:hover .ns-brand-mark {
-  filter: drop-shadow(0 0 8px rgba(123, 82, 229, .3));
-}
+/* 中文注释：移除标题和品牌文字旁的点线装饰，保持版面简洁。 */
+.ns-main-content h2::before,
+.ns-main-content h2::after { content: none !important; display: none !important; }
+.ns-brand-mark { display: none !important; }
