@@ -1751,10 +1751,6 @@ export default function Home() {
               stroke="#7B52E5" strokeWidth="6.8" strokeLinecap="round" strokeDasharray="0.12 2.8"/>
             <path d="M47 12 C47 4 18 4 18 19 C18 32 46 30 46 45 C46 60 17 59 17 49"
               stroke="#B9A4D8" strokeWidth="2.1" strokeLinecap="round" strokeDasharray="0.12 2.8" strokeDashoffset="1.35" opacity=".72"/>
-            <circle cx="47" cy="12" r="2.8" fill="#A88AF0"/>
-            <circle cx="18" cy="19" r="2.8" fill="#A88AF0"/>
-            <circle cx="46" cy="45" r="2.8" fill="#A88AF0"/>
-            <circle cx="17" cy="49" r="2.8" fill="#A88AF0"/>
           </svg><span>North Synapse</span>{isAdmin && <span className="ns-admin-label">ADMIN</span>}
         </div>
         <nav className="ns-main-nav">
