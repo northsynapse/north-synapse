@@ -30,10 +30,15 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   transform: translateY(-2px);
 }
 .ns-notice-banner {
-  border-color: rgba(128, 80, 232, .22) !important;
-  background: linear-gradient(105deg, rgba(128, 80, 232, .075), rgba(73, 176, 166, .11)) !important;
+  border-color: rgba(128, 80, 232, .28) !important;
+  background: rgba(128, 80, 232, .055) !important;
   box-shadow: 0 5px 18px rgba(49, 35, 88, .035);
 }
+
+/* 中文注释：保留控件自身的点击区域，避免布局层意外覆盖交互。 */
+.ns-site-header, .ns-site-header * { pointer-events: auto; }
+.ns-main-content { position: relative; z-index: 1; }
+.ns-app-shell button, .ns-app-shell a, .ns-app-shell input, .ns-app-shell select, .ns-app-shell textarea { pointer-events: auto; }
 .ns-site-header { box-shadow: 5px 0 24px rgba(49, 35, 88, .025); }
 .ns-main-content h1 { letter-spacing: -.035em; line-height: 1.16; }
 .ns-main-content h2, .ns-main-content h3 { letter-spacing: -.018em; }
