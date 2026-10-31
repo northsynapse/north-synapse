@@ -101,7 +101,7 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   height: 2px;
   margin-top: 8px;
   border-radius: 2px;
-  background: linear-gradient(90deg, rgba(139, 92, 246, .75), rgba(139, 92, 246, 0));
+  background: rgba(139, 92, 246, .58);
 }
 .ns-brand-mark {
   overflow: visible;
