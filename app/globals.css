@@ -66,12 +66,12 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: #8050E8;
+  background: #8274A8;
 }
 .ns-main-content button:focus-visible,
 .ns-site-header button:focus-visible,
 .ns-main-content a:focus-visible {
-  outline: 2px solid rgba(128, 80, 232, .72);
+  outline: 2px solid rgba(130, 116, 168, .72);
   outline-offset: 3px;
 }
 .ns-main-content [role="dialog"],
@@ -91,8 +91,8 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   height: 6px;
   margin: 0 10px 3px 0;
   border-radius: 50%;
-  background: #8B5CF6;
-  box-shadow: 9px 0 0 rgba(139, 92, 246, .28);
+  background: #8D7EB4;
+  box-shadow: 9px 0 0 rgba(141, 126, 180, .28);
 }
 .ns-main-content h2::after {
   content: "";
@@ -101,12 +101,12 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   height: 2px;
   margin-top: 8px;
   border-radius: 2px;
-  background: rgba(139, 92, 246, .58);
+  background: rgba(141, 126, 180, .58);
 }
 .ns-brand-mark {
   overflow: visible;
-  filter: drop-shadow(0 0 5px rgba(139, 92, 246, .14));
+  filter: drop-shadow(0 0 5px rgba(141, 126, 180, .14));
 }
 .ns-brand:hover .ns-brand-mark {
-  filter: drop-shadow(0 0 8px rgba(139, 92, 246, .3));
+  filter: drop-shadow(0 0 8px rgba(141, 126, 180, .3));
 }
