@@ -1597,11 +1597,11 @@ export default function Home() {
      4. 主题样式与计算
      ========================================================================== */
   const theme = {
-    bg: isDarkMode ? '#171521' : '#F7F6FB',
-    cardBg: isDarkMode ? '#211E2D' : '#FFFFFF',
-    border: isDarkMode ? '#383344' : '#E8E5F0',
-    textMain: isDarkMode ? '#F1EEF8' : '#242238',
-    textMuted: isDarkMode ? '#AAA4B8' : '#77748B',
+    bg: isDarkMode ? '#101010' : '#FAFAFA',
+    cardBg: isDarkMode ? '#191919' : '#FFFFFF',
+    border: isDarkMode ? '#303030' : '#EAEAEA',
+    textMain: isDarkMode ? '#F5F5F5' : '#202020',
+    textMuted: isDarkMode ? '#A3A3A3' : '#737373',
     accent: '#8050E8',
   };
 
@@ -1728,69 +1728,34 @@ export default function Home() {
   return (
     <div className="ns-app-shell" style={{ backgroundColor: theme.bg, color: theme.textMain, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
-      {/* 顶部 Header */}
-      <header className="ns-site-header" style={{ borderBottom: `1px solid ${theme.border}`, padding: '1.2rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div onClick={() => setActiveTab('resources')} style={{ fontSize: '1.4rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer' }}>
-          <svg width="34" height="38" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M 75,20 C 75,10 25,10 25,35 C 25,60 75,60 75,85 C 75,100 25,100 25,90" stroke="#A78BFA" strokeWidth="6" strokeLinecap="round" fill="none" />
-            <circle cx="75" cy="20" r="4.5" fill="#A78BFA" />
-            <circle cx="25" cy="35" r="4.5" fill="#A78BFA" />
-            <circle cx="75" cy="85" r="4.5" fill="#A78BFA" />
-          </svg>
-          <span>North Synapse</span>
-          {isAdmin && <span style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>ADMIN</span>}
+      {/* 侧边导航：桌面端固定显示，移动端自动切换为顶部导航 */}
+      <header className="ns-site-header" style={{ background: theme.cardBg, borderColor: theme.border }}>
+        <div className="ns-brand" onClick={() => setActiveTab('resources')}>
+          <svg className="ns-brand-mark" viewBox="0 0 64 64" fill="none" aria-label="North Synapse logo">
+            <path d="M45 12 C45 5 19 5 19 19 C19 31 45 31 45 44 C45 57 19 57 19 50" stroke="#8050E8" strokeWidth="3.2" strokeLinecap="round" strokeDasharray="1 5"/>
+            <path d="M45 12 C45 5 19 5 19 19 C19 31 45 31 45 44 C45 57 19 57 19 50" stroke="#8050E8" strokeWidth="1.5" strokeLinecap="round" opacity=".55"/>
+            <circle cx="45" cy="12" r="3.2" fill="#8050E8"/><circle cx="19" cy="19" r="3.2" fill="#8050E8"/><circle cx="45" cy="44" r="3.2" fill="#8050E8"/><circle cx="19" cy="50" r="3.2" fill="#8050E8"/>
+          </svg><span>North Synapse</span>{isAdmin && <span className="ns-admin-label">ADMIN</span>}
         </div>
-
-        <nav className="ns-main-nav" style={{ display: 'flex', gap: '1.6rem' }}>
-          {((isAdmin ? ['resources', 'lounges', 'announcements', 'discussions'] : ['resources', 'lounges', 'announcements', 'discussions', 'feedback']) as NavTab[]).map((tab) => (
-            <button
-              key={tab}
-              className={activeTab === tab ? "ns-nav-active" : ""}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: activeTab === tab ? theme.accent : theme.textMuted,
-                fontWeight: activeTab === tab ? '700' : '500',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                borderBottom: activeTab === tab ? `2px solid ${theme.accent}` : '2px solid transparent',
-                textTransform: 'capitalize'
-              }}
-            >
-              {tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounge' : tab}
-            </button>
-          ))}
-          {user && (isAdmin || !!teamRole) && <button className={activeTab === 'team-chat' ? "ns-nav-active" : ""} onClick={() => setActiveTab('team-chat')} style={{ background: 'none', border: 'none', color: activeTab === 'team-chat' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'team-chat' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'team-chat' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Team Chat</button>}
-          {user && (isAdmin || !!teamRole) && <button className={activeTab === 'team-dashboard' ? "ns-nav-active" : ""} onClick={() => setActiveTab('team-dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'team-dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'team-dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'team-dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Team Dashboard</button>}
-          {user && !isAdmin && (
-            <button className={activeTab === 'dashboard' ? "ns-nav-active" : ""} onClick={() => setActiveTab('dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'dashboard' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'dashboard' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'dashboard' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>
-              Dashboard
-            </button>
-          )}
-          {isAdmin && <button className={activeTab === 'admin' ? "ns-nav-active" : ""} onClick={() => setActiveTab('admin')} style={{ background: 'none', border: 'none', color: activeTab === 'admin' ? theme.accent : theme.textMuted, fontWeight: activeTab === 'admin' ? '700' : '500', cursor: 'pointer', fontSize: '0.95rem', borderBottom: activeTab === 'admin' ? `2px solid ${theme.accent}` : '2px solid transparent' }}>Admin</button>}
+        <nav className="ns-main-nav">
+          {((isAdmin ? ['resources','lounges','announcements','discussions'] : ['resources','lounges','announcements','discussions','feedback']) as NavTab[]).map((tab) => {
+            const Icon = tab === 'resources' ? BookOpen : tab === 'lounges' ? Coffee : tab === 'announcements' ? Megaphone : tab === 'discussions' ? MessagesSquares : MessageSquareText;
+            const label = tab === 'resources' ? 'Resource Hub' : tab === 'lounges' ? 'Study Lounge' : tab.charAt(0).toUpperCase()+tab.slice(1);
+            return <button key={tab} className={activeTab===tab?'ns-nav-active':''} onClick={()=>setActiveTab(tab)}><Icon size={18} strokeWidth={1.8}/><span>{label}</span></button>;
+          })}
+          {user&&(isAdmin||!!teamRole)&&<button className={activeTab==='team-chat'?'ns-nav-active':''} onClick={()=>setActiveTab('team-chat')}><Users size={18}/><span>Team Chat</span></button>}
+          {user&&(isAdmin||!!teamRole)&&<button className={activeTab==='team-dashboard'?'ns-nav-active':''} onClick={()=>setActiveTab('team-dashboard')}><LayoutDashboard size={18}/><span>Team Dashboard</span></button>}
+          {user&&!isAdmin&&<button className={activeTab==='dashboard'?'ns-nav-active':''} onClick={()=>setActiveTab('dashboard')}><UserRound size={18}/><span>Dashboard</span></button>}
+          {isAdmin&&<button className={activeTab==='admin'?'ns-nav-active':''} onClick={()=>setActiveTab('admin')}><Shield size={18}/><span>Admin</span></button>}
         </nav>
-
-        <div className="ns-header-actions" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button className="ns-theme-toggle" onClick={() => setIsDarkMode(!isDarkMode)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem' }}>
-            {isDarkMode ? 'Light Mode' : 'Dark Mode'}
-          </button>
-
-          {user ? (
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <span onClick={() => setActiveTab(isAdmin ? 'admin' : 'dashboard')} style={{ fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', color: theme.accent, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                {nickname || 'User'}
-                {teamBadgeVisible && (isAdmin || teamRole) && <span style={{ fontSize: 10, borderRadius: 20, padding: '3px 7px', background: isAdmin ? 'rgba(239,68,68,.13)' : 'rgba(139,92,246,.14)', color: isAdmin ? '#EF4444' : '#A78BFA' }}>{isAdmin ? 'Administrator' : teamRole === 'core_team' ? 'Core Team' : 'Community Team'}</span>}
-              </span>
-              <button onClick={handleSignOut} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMuted, cursor: 'pointer', fontSize: '0.85rem' }}>
-                Sign Out
-              </button>
-            </div>
-          ) : (
-            <button onClick={() => setShowAuthModal(true)} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem 1.4rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}>
-              Sign In
-            </button>
-          )}
+        <div className="ns-sidebar-bottom">
+          <button className="ns-theme-toggle" onClick={()=>setIsDarkMode(!isDarkMode)} aria-label={isDarkMode?'Switch to light mode':'Switch to dark mode'}>{isDarkMode?<Sun size={18}/>:<Moon size={18}/>}<span>{isDarkMode?'Light mode':'Dark mode'}</span></button>
+          {user?<div className="ns-user-profile">
+            <button className="ns-user-profile-main" onClick={()=>setActiveTab(isAdmin?'admin':'dashboard')}>
+              {avatarUrl?<img src={avatarUrl} alt="Profile avatar"/>:<span className="ns-avatar-fallback">{(nickname||username||'U').slice(0,1).toUpperCase()}</span>}
+              <span className="ns-user-copy"><strong>{nickname||'User'}</strong><small>{isAdmin?'Administrator':teamRole==='core_team'?'Core Team':teamRole==='community_team'?'Community Team':username?'@'+username:'Student account'}</small></span>
+            </button><button className="ns-signout" onClick={handleSignOut} aria-label="Sign out" title="Sign out"><LogOut size={17}/></button>
+          </div>:<button className="ns-signin" onClick={()=>setShowAuthModal(true)}>Sign in</button>}
         </div>
       </header>
 
@@ -2124,452 +2089,38 @@ export default function Home() {
       </div>
 
       {/* 常驻的用户须知入口：登录前后都能打开 */}
-      <style>{`@media (max-width: 640px) { .ns-terms-float { display: none !important; } }`}</style>
-
-      <footer style={{ maxWidth: '1080px', margin: '0 auto', padding: '1rem 1rem 2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', color: theme.textMuted, fontSize: '0.85rem' }}>
-        <span>North Synapse · Student Learning Community</span>
-        <button type="button" onClick={() => setShowTermsModal(true)} style={{ background: 'transparent', border: `1px solid ${theme.border}`, color: theme.textMain, padding: '0.55rem 0.85rem', borderRadius: '8px', cursor: 'pointer', minHeight: '40px' }}>Terms of Service & User Notice</button>
-      </footer>
-
-      {showTermsModal && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.78)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000000, padding: '1rem' }}>
-          <div style={{ backgroundColor: theme.cardBg, color: theme.textMain, width: '100%', maxWidth: '620px', maxHeight: '90dvh', overflowY: 'auto', borderRadius: '14px', border: `1px solid ${theme.border}`, padding: 'clamp(1rem, 4vw, 1.75rem)', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-              <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Terms of Service & User Notice</h2>
-              <button type="button" onClick={() => setShowTermsModal(false)} aria-label="Close user notice" style={{ background: 'transparent', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem', padding: '0.4rem' }}>✕</button>
-            </div>
-            <p style={{ color: theme.textMuted, fontSize: '0.9rem', lineHeight: 1.6 }}>North Synapse is a student learning-community prototype. Please read these guidelines before using the platform.</p>
-            <ol style={{ paddingLeft: '1.3rem', lineHeight: 1.7, display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-              <li><strong>Academic purpose:</strong> Share learning notes, resources, and constructive academic discussion.</li>
-              <li><strong>Respect others:</strong> Do not harass, threaten, discriminate against, impersonate, or reveal another person’s private information.</li>
-              <li><strong>Share responsibly:</strong> Only upload content you created or have permission to share. Respect copyright and school rules.</li>
-              <li><strong>Appropriate content:</strong> Do not post illegal, dangerous, hateful, sexually explicit, or otherwise inappropriate material.</li>
-              <li><strong>Privacy:</strong> Never publish passwords, home addresses, phone numbers, student numbers, or other sensitive information.</li>
-              <li><strong>Accuracy and attribution:</strong> Credit original authors and do not present someone else’s work as your own.</li>
-              <li><strong>Prototype limitation:</strong> This version stores account and profile data in this browser. It is not a production-grade secure account system; avoid entering confidential information.</li>
-            </ol>
-            <button type="button" onClick={() => setShowTermsModal(false)} style={{ width: '100%', marginTop: '1rem', backgroundColor: theme.accent, color: '#fff', border: 'none', padding: '0.75rem', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', minHeight: '44px' }}>I Understand</button>
-          </div>
-        </div>
-      )}
-
-      {/* 预览与学术引用弹窗 */}
-      {previewResource && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999, padding: '0.6rem', boxSizing: 'border-box' }}>
-          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '100%', maxWidth: '960px', height: '90dvh', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ padding: '1.2rem 2rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2>{previewResource.title}</h2>
-              <button onClick={() => setPreviewResource(null)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.4rem' }}>X</button>
-            </div>
-
-            <div className="ns-resource-preview-body" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-              <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', borderRight: `1px solid ${theme.border}` }}>
-                <div style={{ fontSize: '0.95rem', lineHeight: '1.7', overflowWrap: 'anywhere', marginBottom: '1.25rem' }} dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewResource.content || '') }} />
-                {!!previewResource.attachments?.length && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', marginBottom: '1.5rem' }}><h3 style={{ margin: 0 }}>Attachments & links</h3>{previewResource.attachments.map((file, index) => {
-                  const isPdf = file.type === 'application/pdf' || /\.pdf(?:$|\?)/i.test(file.url);
-                  const driveMatch = file.url.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
-                  const docsMatch = file.url.match(/docs\.google\.com\/(document|spreadsheets|presentation)\/d\/([^/]+)/i);
-                  const embedUrl = driveMatch ? `https://drive.google.com/file/d/${driveMatch[1]}/preview` : docsMatch ? `https://docs.google.com/${docsMatch[1]}/d/${docsMatch[2]}/preview` : file.url;
-                  const canEmbed = (file.url.startsWith('data:') && isPdf) || /^https?:\/\//i.test(file.url);
-                  return <div key={`${file.name}-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-                    <a href={file.url} target="_blank" rel="noreferrer" download={file.url.startsWith('data:') ? file.name : undefined} style={{ color: theme.accent, overflowWrap: 'anywhere' }}>📎 {file.name} · Open in new tab</a>
-                    {file.type.startsWith('image/') && file.url && <img src={file.url} alt={file.name} style={{ maxWidth: '100%', maxHeight: 420, objectFit: 'contain', borderRadius: 8 }} />}
-                    {canEmbed && ((isPdf && file.url.startsWith('data:')) || /^https?:\/\//i.test(file.url)) && <iframe title={`Preview: ${file.name}`} src={embedUrl} loading="lazy" style={{ width: '100%', height: '520px', border: `1px solid ${theme.border}`, borderRadius: '8px', background: '#fff' }} sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />}
-                    {!canEmbed && <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>This file can be opened in a new tab.</p>}
-                  </div>;
-                })}</div>}
-
-
-              </div>
-
-              <div className="ns-resource-comments" style={{ width: '360px', backgroundColor: theme.bg, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Comments ({previewResource.comments.length})</h3>
-                <form onSubmit={handleAddComment} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  <textarea rows={3} placeholder="Write a comment..." value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box' }} />
-                  <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end' }}>Post Comment</button>
-                </form>
-
-                {previewResource.comments.map((c) => (
-                  <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      {c.authorEmail ? <button type="button" onClick={() => openPublicProfile(c.authorName, c.authorEmail)} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{c.authorName}</button> : <span>{c.authorName}</span>}
-                      <span style={{ color: theme.textMuted, fontSize: '0.72rem' }}>{c.date}</span>
-                    </div>
-                    <p style={{ fontSize: '0.85rem', marginTop: '0.3rem' }}>{c.text}</p>
-                    {(isAdmin || user?.email?.toLowerCase() === c.authorEmail?.toLowerCase()) && <button type="button" onClick={() => handleDeleteResourceComment(previewResource.id, c.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
-                    {!isAdmin && <button type="button" onClick={() => handleLikeResourceComment(previewResource.id, c.id)} aria-label={c.likedByMe ? 'Unlike comment' : 'Like comment'} style={{ marginTop: '0.25rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: c.likedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: c.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>
-                      {c.likedByMe ? '♥ Liked' : '♡ Like'} · {c.likes || 0}
-                    </button>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 讨论回复弹窗 */}
-      {selectedDiscussion && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '680px', maxHeight: '80vh', border: `1px solid ${theme.border}`, padding: '2rem', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold' }}>{selectedDiscussion.title}</h2>
-              <button onClick={() => setSelectedDiscussion(null)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
-            </div>
-
-            <p style={{ fontSize: '0.95rem', marginBottom: '1.5rem', whiteSpace: 'pre-wrap' }}>{selectedDiscussion.content}</p>
-
-            <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: '1rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>Replies ({selectedDiscussion.repliesCount})</h3>
-
-              {!isAdmin && <form onSubmit={handleAddDiscussionReply} style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.5rem' }}>
-                <input type="text" placeholder="Write a reply..." value={newReplyText} onChange={(e) => setNewReplyText(e.target.value)} style={{ flex: 1, padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
-                <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Reply</button>
-              </form>}
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                {selectedDiscussion.replies.map(r => (
-                  <div key={r.id} style={{ backgroundColor: theme.bg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      {r.authorEmail ? <button type="button" onClick={() => openPublicProfile(r.authorName, r.authorEmail)} style={{ fontSize: '0.85rem', color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{r.authorName}</button> : <span style={{ fontSize: '0.85rem' }}>{r.authorName}</span>}
-                      <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{r.date}</span>
-                    </div>
-                    <p style={{ fontSize: '0.85rem' }}>{r.text}</p>
-                    {(isAdmin || user?.email?.toLowerCase() === r.authorEmail?.toLowerCase()) && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, r.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
-                    {!isAdmin && <button type="button" onClick={() => handleLikeDiscussionReply(selectedDiscussion.id, r.id)} aria-label={r.likedByMe ? 'Unlike reply' : 'Like reply'} style={{ marginTop: '0.25rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: r.likedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: r.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>
-                      {r.likedByMe ? '♥ Liked' : '♡ Like'} · {r.likes || 0}
-                    </button>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {teamNotification && (
-        <div role="dialog" aria-modal="true" aria-labelledby="team-notification-title" style={{ position: 'fixed', inset: 0, zIndex: 1000002, background: 'rgba(0,0,0,.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ width: '100%', maxWidth: 520, maxHeight: '85vh', overflowY: 'auto', background: theme.cardBg, color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: 18, padding: 24, boxShadow: '0 24px 80px rgba(0,0,0,.35)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: theme.accent, fontWeight: 800, fontSize: 12, letterSpacing: 1.5 }}>NORTH SYNAPSE · TEAM UPDATE</div>
-            <h2 id="team-notification-title" style={{ margin: '12px 0 8px', fontSize: 23 }}>{teamNotification.title}</h2>
-            <p style={{ color: theme.textMuted, lineHeight: 1.6 }}>{teamNotification.message}</p>
-            {Array.isArray(teamNotification.permissions) && teamNotification.permissions.length > 0 && <div style={{ margin: '18px 0', padding: 15, borderRadius: 12, background: theme.bg, border: `1px solid ${theme.border}` }}>
-              <strong style={{ display: 'block', marginBottom: 10 }}>Your team permissions</strong>
-              {teamNotification.permissions.map((permission: string) => <div key={permission} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', margin: '8px 0', fontSize: 14 }}><span style={{ color: '#10B981' }}>✓</span><span>{permission}</span></div>)}
-            </div>}
-            <p style={{ color: theme.textMuted, fontSize: 12 }}>Team identity changes take effect immediately. Your public team badge can be hidden in profile settings, but your actual permissions remain unchanged.</p>
-            <button type="button" onClick={() => void acknowledgeTeamNotification()} style={{ width: '100%', marginTop: 12, background: theme.accent, color: '#fff', border: 0, borderRadius: 9, padding: 12, fontWeight: 750, cursor: 'pointer' }}>Got it</button>
-          </div>
-        </div>
-      )}
-
-      {/* 登录/注册弹窗 */}
-      {showAuthModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2>{isSignUp ? 'Sign Up' : 'Sign In'}</h2>
-              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
-            </div>
-
-            <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Email</label>
-                <input type="email" required placeholder="student@tdsb.ca" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Password</label>
-                <input type="password" required placeholder="••••••••" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              {isSignUp && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.8rem', color: theme.textMuted }}>
-                    <input type="checkbox" required checked={isStudentConfirmed} onChange={(e) => setIsStudentConfirmed(e.target.checked)} /> Confirm Student/Alumni
-                  </label>
-                  <label style={{ fontSize: '0.8rem', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                    <input type="checkbox" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} /> I agree to the Terms of Service. <button type="button" onClick={() => setShowTermsModal(true)} style={{ color: theme.accent, border: 0, background: 'transparent', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>What does this mean?</button>
-                  </label>
-                </div>
-              )}
-
-              <button type="submit" disabled={loading} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
-              </button>
-            </form>
-
-            <p onClick={() => setIsSignUp(!isSignUp)} style={{ color: theme.accent, marginTop: '1rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}>
-              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* 编辑资料与注销弹窗 */}
-      {showEditProfileModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-              <h2>Edit Profile</h2>
-              <button onClick={() => setShowEditProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
-            </div>
-
-            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <input type="file" ref={fileInputRef} accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
-                <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '0.5rem 1rem', borderRadius: '6px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer' }}>
-                  {avatarUrl ? 'Change Avatar' : 'Upload Avatar'}
-                </button>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username</label>
-                <input type="text" required minLength={USERNAME_MIN} maxLength={USERNAME_MAX} value={username} onChange={(e) => setUsername(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-          <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: '0.3rem 0 0' }}>3–30 characters. Letters, numbers, spaces, and common symbols are allowed.</p>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
-                <input type="text" required minLength={NICKNAME_MIN} maxLength={NICKNAME_MAX} value={nickname} onChange={(e) => setNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-          <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: '0.3rem 0 0' }}>2–24 characters. Nicknames do not have to be unique.</p>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade (optional)</label>
-                <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
-                  <option value="">Prefer not to specify</option>
-                  <option value="Grade 9">Grade 9</option>
-                  <option value="Grade 10">Grade 10</option>
-                  <option value="Grade 11">Grade 11</option>
-                  <option value="Grade 12">Grade 12</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (optional)</label>
-                <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
-                  <option value="">Prefer not to specify</option>
-                  <option value="Female">Female</option>
-                  <option value="Male">Male</option>
-                  <option value="Non-binary">Non-binary</option>
-                  <option value="Prefer not to say">Prefer not to say</option>
-                  <option value="Self-describe">Self-describe</option>
-                </select>
-              </div>
-
-              {(teamRole || isAdmin) && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 12, border: `1px solid ${theme.border}`, borderRadius: 9 }}>
-                  <div><strong style={{ fontSize: 14 }}>Public team badge</strong><p style={{ color: theme.textMuted, fontSize: 12, margin: '4px 0 0' }}>Your team permissions remain active when the badge is hidden.</p></div>
-                  <button type="button" onClick={() => void updateOwnTeamBadgeVisibility(!teamBadgeVisible)} style={{ border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, borderRadius: 8, padding: '8px 10px', cursor: 'pointer' }}>{teamBadgeVisible ? 'Visible' : 'Hidden'}</button>
-                </div>
-              )}
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio (optional)</label>
-                <textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-                <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  Save Profile
-                </button>
-                <button type="button" onClick={handleDeleteAccount} style={{ backgroundColor: 'transparent', border: '1px solid #EF4444', color: '#EF4444', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                  Delete Account
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 发布资源弹窗 */}
-      {showCreateResourceModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: 'clamp(1rem, 4vw, 2rem)', borderRadius: '12px', width: '100%', maxWidth: '540px', maxHeight: '92dvh', overflowY: 'auto', boxSizing: 'border-box', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-              <h2>Share Resource Note</h2>
-              <button onClick={() => setShowCreateResourceModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
-            </div>
-
-            <form onSubmit={handleCreateResourceSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <input type="text" required placeholder="Title" value={newResTitle} onChange={(e) => setNewResTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 700 }}>Note content</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', padding: '0.55rem', border: `1px solid ${theme.border}`, borderBottom: 0, borderRadius: '8px 8px 0 0', background: theme.bg }}>
-                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { richEditorRef.current?.focus(); document.execCommand('bold'); }} style={{ padding: '0.4rem 0.65rem', fontWeight: 800, borderRadius: 5, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>B</button>
-                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { richEditorRef.current?.focus(); document.execCommand('italic'); }} style={{ padding: '0.4rem 0.65rem', fontStyle: 'italic', borderRadius: 5, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>I</button>
-                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { richEditorRef.current?.focus(); document.execCommand('underline'); }} style={{ padding: '0.4rem 0.65rem', textDecoration: 'underline', borderRadius: 5, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>U</button>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', color: theme.textMain }}>Text colour <input aria-label="Text colour" type="color" defaultValue="#8B5CF6" onChange={(e) => { richEditorRef.current?.focus(); document.execCommand('foreColor', false, e.target.value); }} style={{ width: 32, height: 30, padding: 0, border: 0, background: 'transparent' }} /></label>
-                </div>
-                <div ref={richEditorRef} contentEditable suppressContentEditableWarning onInput={(e) => { const html = sanitizeRichHtml(e.currentTarget.innerHTML); setRichContentHtml(html); setNewResContent(e.currentTarget.innerText); }} data-placeholder="Write your notes here…" style={{ minHeight: 150, maxHeight: 360, overflowY: 'auto', padding: '0.8rem', border: `1px solid ${theme.border}`, borderRadius: '0 0 8px 8px', outline: 'none', color: theme.textMain, background: theme.bg, overflowWrap: 'anywhere' }} />
-                <p style={{ fontSize: '0.75rem', color: theme.textMuted, margin: '0.4rem 0 0' }}>Select text to apply colour, bold, italic or underline. Rich formatting is saved with the note.</p>
-              </div>
-              <div style={{ border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <strong>Tags (optional)</strong>
-                <span style={{ fontSize: '0.78rem', color: theme.textMuted }}>Choose one or more grade levels and subjects, just like the Resource Hub filters.</span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
-                  {resourceTagOptions.map(tag => <button key={tag} type="button" onClick={() => setSelectedResourceTags(previous => previous.includes(tag) ? previous.filter(item => item !== tag) : [...previous, tag])} style={{ padding: '0.4rem 0.65rem', borderRadius: 18, border: `1px solid ${selectedResourceTags.includes(tag) ? theme.accent : theme.border}`, background: selectedResourceTags.includes(tag) ? theme.accent : theme.bg, color: selectedResourceTags.includes(tag) ? '#FFF' : theme.textMain, cursor: 'pointer', fontSize: '0.82rem' }}>{tag}</button>)}
-                </div>
-              </div>
-              <div style={{ border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <strong>Attachments (optional)</strong>
-                <input ref={resourceFilesRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleResourceFileSelection} style={{ display: 'none' }} />
-                <button type="button" onClick={() => resourceFilesRef.current?.click()} style={{ alignSelf: 'flex-start', padding: '0.55rem 0.9rem', borderRadius: 7, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, cursor: 'pointer' }}>Choose files</button>
-                {resourceAttachments.length > 0 && <ul style={{ margin: 0, paddingLeft: '1.2rem', color: theme.textMuted, fontSize: '0.82rem' }}>{resourceAttachments.map((file, index) => <li key={`${file.name}-${index}`}>{file.name}</li>)}</ul>}
-                <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: 0 }}>Images, PDF, Word and PowerPoint files up to 20 MB each can be attached directly. For larger files, use a share link.</p>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}><input type="url" value={driveResourceUrl} onChange={(e) => setDriveResourceUrl(e.target.value)} placeholder="Google Drive / Docs / Slides share URL" style={{ flex: '1 1 220px', minWidth: 0, padding: '0.65rem', borderRadius: 6, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} /><button type="button" onClick={addDriveLink} style={{ padding: '0.65rem 0.9rem', borderRadius: 6, border: 0, background: theme.accent, color: '#fff', cursor: 'pointer' }}>Add link</button></div>
-                {resourceAttachments.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}><span style={{ flex: 1, overflowWrap: 'anywhere', fontSize: '0.85rem' }}>📎 {file.name}</span><button type="button" onClick={() => setResourceAttachments((previous) => previous.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer' }}>Remove</button></div>)}
-              </div>
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Publish Note</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 发起讨论弹窗 */}
-      {showCreateDiscussionModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-              <h2>Start Discussion</h2>
-              <button onClick={() => setShowCreateDiscussionModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
-            </div>
-
-            <form onSubmit={handleCreateDiscussionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <input type="text" required placeholder="Topic Title" value={newDiscTitle} onChange={(e) => setNewDiscTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              <textarea required rows={4} placeholder="Content" value={newDiscContent} onChange={(e) => setNewDiscContent(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Post Topic</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-
-      {/* 公开个人主页：只显示用户公开资料，不显示邮箱 */}
-      {publicProfile && (
-        <div onClick={() => setPublicProfile(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000002, padding: '1rem' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, maxHeight: '85dvh', overflowY: 'auto', background: theme.cardBg, color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: 16, padding: 'clamp(1rem, 4vw, 1.6rem)', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h2 style={{ margin: 0 }}>Student Profile</h2><button type="button" onClick={() => setPublicProfile(null)} aria-label="Close profile" style={{ border: 0, background: 'transparent', color: theme.textMain, fontSize: '1.25rem', cursor: 'pointer' }}>✕</button></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '1.2rem 0' }}>
-              {publicProfile.avatarUrl ? <img src={publicProfile.avatarUrl} alt="Profile avatar" style={{ width: 76, height: 76, objectFit: 'cover', borderRadius: '50%' }} /> : <div style={{ width: 76, height: 76, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, fontSize: '1.7rem' }}>👤</div>}
-              <div><h3 style={{ margin: 0 }}>{publicProfile.nickname || publicProfile.username || 'Student'}</h3><p style={{ color: theme.textMuted, margin: '0.25rem 0' }}>@{publicProfile.username || 'student'}</p>{publicProfile.teamRole && <span style={{ display: 'inline-block', marginTop: 4, padding: '3px 9px', borderRadius: 20, background: publicProfile.teamRole === 'core_team' ? 'rgba(139,92,246,.15)' : 'rgba(16,185,129,.14)', color: publicProfile.teamRole === 'core_team' ? '#A78BFA' : '#10B981', fontSize: 11, fontWeight: 750 }}>{publicProfile.teamRole === 'core_team' ? 'Core Team' : 'Community Team'}</span>}</div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.7rem' }}>
-              <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Grade</small><div>{publicProfile.grade || 'Not specified'}</div></div>
-              <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Gender</small><div>{publicProfile.gender && publicProfile.gender !== 'Prefer not to say' ? publicProfile.gender : 'Not specified'}</div></div>
-              <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Joined</small><div>{publicProfile.createdAt || 'Not available'}</div></div>
-              <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Platform time</small><div>{Math.floor((Number(publicProfile.totalStudySeconds) || 0) / 3600)}h {Math.floor(((Number(publicProfile.totalStudySeconds) || 0) % 3600) / 60)}m</div></div>
-            </div>
-            <div style={{ marginTop: '1rem' }}><strong>About</strong><p style={{ color: theme.textMuted, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{publicProfile.bio || 'This student has not added a bio yet.'}</p></div>
-            <p style={{ color: theme.textMuted, fontSize: '0.75rem' }}>Email addresses are private and are not shown on public profiles.</p>
-          </div>
-        </div>
-      )}
-
       <style>{`
-        /* 中文注释：桌面端采用固定侧边导航，保留原有导航项目和点击行为。 */
-        .ns-app-shell { min-height: 100vh; }
-        .ns-site-header {
-          position: fixed !important; inset: 0 auto 0 0 !important;
-          width: 252px !important; height: 100vh !important; min-height: 100vh !important;
-          padding: 26px 18px 20px !important; box-sizing: border-box !important;
-          background: ${theme.cardBg} !important; border-right: 1px solid ${theme.border} !important;
-          border-bottom: 0 !important; display: flex !important; flex-direction: column !important;
-          align-items: stretch !important; justify-content: flex-start !important; gap: 28px !important;
-          z-index: 1000 !important;
-        }
-        .ns-site-header > div:first-child {
-          flex: 0 0 auto !important; min-height: 48px; gap: 10px !important;
-          font-size: 1.18rem !important; color: ${theme.textMain} !important;
-        }
-        .ns-site-header > div:first-child svg {
-          width: 38px !important; height: 38px !important; padding: 7px !important;
-          background: #8050E8 !important; border-radius: 12px !important;
-        }
-        .ns-site-header > div:first-child svg path,
-        .ns-site-header > div:first-child svg circle { stroke: #FFFFFF !important; fill: none; }
-        .ns-site-header > div:first-child svg circle { fill: #FFFFFF !important; }
-        .ns-main-nav {
-          display: flex !important; flex-direction: column !important; align-items: stretch !important;
-          gap: 5px !important; width: 100% !important; overflow: visible !important;
-        }
-        .ns-main-nav button {
-          min-height: 42px !important; padding: 0 13px !important; text-align: left !important;
-          border: 0 !important; border-radius: 10px !important; border-bottom: 0 !important;
-          color: ${theme.textMuted} !important; font-size: .9rem !important; font-weight: 550 !important;
-          transition: background .16s ease, color .16s ease !important;
-        }
-        .ns-main-nav button.ns-nav-active {
-          background: rgba(128,80,232,.11) !important; color: #8050E8 !important; font-weight: 700 !important;
-        }
-        .ns-header-actions {
-          margin-top: auto !important; padding-top: 16px !important; border-top: 1px solid ${theme.border} !important;
-          display: flex !important; flex-direction: column !important; align-items: stretch !important;
-          gap: 12px !important; width: 100% !important;
-        }
-        .ns-header-actions > div { flex-wrap: wrap !important; gap: 9px !important; }
-        .ns-theme-toggle { width: 100% !important; text-align: left !important; }
-        .ns-main-content {
-          width: auto !important; max-width: none !important; min-width: 0 !important;
-          margin: 0 0 0 252px !important; padding: 34px clamp(22px, 3.5vw, 58px) 56px !important;
-        }
-        .ns-app-shell button { transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease; }
-        .ns-app-shell button:focus-visible, .ns-app-shell input:focus-visible,
-        .ns-app-shell textarea:focus-visible, .ns-app-shell select:focus-visible {
-          outline: 2px solid #8050E8 !important; outline-offset: 2px !important;
-        }
-        .ns-app-shell a { text-underline-offset: 3px; }
-        /* 中文注释：用柔和的紫色选中态与低饱和辅助色建立清晰的导航层级。 */
-        .ns-main-nav button { position: relative !important; }
-        .ns-main-nav button:not(.ns-nav-active):hover {
-          background: rgba(128,80,232,.055) !important;
-          color: ${theme.textMain} !important;
-        }
-        .ns-main-nav button.ns-nav-active::before {
-          content: ""; position: absolute; left: 0; top: 9px; bottom: 9px;
-          width: 3px; border-radius: 0 4px 4px 0; background: #8050E8;
-        }
-        .ns-theme-toggle:hover {
-          border-color: rgba(128,80,232,.38) !important;
-          background: rgba(128,80,232,.06) !important;
-        }
-        .ns-header-actions > div > button:hover {
-          border-color: rgba(128,80,232,.35) !important;
-          color: #8050E8 !important;
-        }
-        .ns-main-content > div:first-child { position: relative; }
-        .ns-main-content > div:first-child > div:first-child h1 {
-          letter-spacing: -.04em; line-height: 1.12;
-        }
-        .ns-main-content > div:first-child > div:first-child span {
-          letter-spacing: .025em;
-        }
-        @media (max-width: 760px) {
-          .ns-site-header {
-            position: relative !important; inset: auto !important; width: 100% !important;
-            height: auto !important; min-height: 0 !important; padding: 12px 15px 10px !important;
-            border-right: 0 !important; border-bottom: 1px solid ${theme.border} !important;
-            gap: 10px !important; flex-direction: row !important; flex-wrap: wrap !important;
-          }
-          .ns-site-header > div:first-child { flex: 1 1 180px !important; font-size: 1.02rem !important; }
-          .ns-main-nav {
-            order: 3 !important; flex: 1 1 100% !important; flex-direction: row !important;
-            width: 100% !important; gap: 5px !important; overflow-x: auto !important;
-            white-space: nowrap !important; padding: 3px 0 5px !important;
-            scrollbar-width: none !important;
-          }
-          .ns-main-nav::-webkit-scrollbar { display: none !important; }
-          .ns-main-nav button { flex: 0 0 auto !important; min-height: 38px !important; padding: 0 11px !important; }
-          .ns-header-actions {
-            order: 2 !important; flex: 0 1 auto !important; width: auto !important;
-            margin: 0 !important; padding: 0 !important; border: 0 !important;
-            flex-direction: row !important; align-items: center !important; gap: 7px !important;
-          }
-          .ns-header-actions > div { flex-wrap: nowrap !important; }
-          .ns-theme-toggle { width: auto !important; padding: 8px 10px !important; }
-          .ns-main-content { margin: 0 !important; width: 100% !important; padding: 18px 14px 36px !important; }
+        .ns-app-shell{min-height:100vh}
+        .ns-site-header{position:fixed!important;inset:0 auto 0 0!important;width:258px!important;height:100vh!important;min-height:100vh!important;box-sizing:border-box!important;padding:26px 18px 18px!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:30px!important;border-right:1px solid ${theme.border}!important;border-bottom:0!important;z-index:1000!important;box-shadow:4px 0 24px rgba(0,0,0,.025)}
+        .ns-brand{display:flex;align-items:center;gap:11px;padding:0 8px;min-height:48px;cursor:pointer;font-size:1.12rem;font-weight:800;letter-spacing:-.04em;color:${theme.textMain}}
+        .ns-brand-mark{width:40px;height:40px;flex-shrink:0}.ns-admin-label{font-size:.58rem;padding:3px 6px;border-radius:5px;background:rgba(128,80,232,.12);color:#8050E8}
+        .ns-main-nav{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:5px!important;width:100%!important;overflow:visible!important}
+        .ns-main-nav button{display:flex!important;align-items:center!important;gap:13px!important;min-height:45px!important;width:100%!important;padding:0 13px!important;border:0!important;border-radius:10px!important;background:transparent!important;color:${theme.textMuted}!important;font-size:.9rem!important;font-weight:550!important;text-align:left!important;cursor:pointer}
+        .ns-main-nav button svg{flex-shrink:0}.ns-main-nav button.ns-nav-active{background:rgba(128,80,232,.10)!important;color:#8050E8!important;font-weight:700!important}
+        .ns-main-nav button:not(.ns-nav-active):hover{background:#F3F3F3!important;color:${theme.textMain}!important}
+        .ns-sidebar-bottom{margin-top:auto;padding-top:15px;border-top:1px solid ${theme.border};display:flex;flex-direction:column;gap:13px}
+        .ns-theme-toggle{display:flex!important;align-items:center;gap:11px;width:100%;padding:10px 12px!important;border:0!important;border-radius:9px!important;background:transparent!important;color:${theme.textMuted}!important;text-align:left;cursor:pointer;font-size:.86rem}
+        .ns-theme-toggle:hover{background:#F3F3F3!important;color:${theme.textMain}!important}
+        .ns-user-profile{display:flex;align-items:center;gap:6px;padding:8px 5px 2px;border-top:1px solid ${theme.border}}
+        .ns-user-profile-main{display:flex;align-items:center;gap:10px;min-width:0;flex:1;border:0;background:transparent;text-align:left;cursor:pointer;padding:5px;color:${theme.textMain}}
+        .ns-user-profile-main img,.ns-avatar-fallback{width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0}
+        .ns-avatar-fallback{display:grid;place-items:center;background:rgba(128,80,232,.12);color:#8050E8;font-weight:750}
+        .ns-user-copy{display:flex;flex-direction:column;min-width:0;gap:3px}.ns-user-copy strong{font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .ns-user-copy small{color:${theme.textMuted};font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .ns-signout{border:0;background:transparent;color:${theme.textMuted};padding:8px;border-radius:8px;cursor:pointer}
+        .ns-signin{border:0;background:#8050E8;color:white;padding:11px;border-radius:9px;font-weight:700;cursor:pointer}
+        .ns-main-content{width:auto!important;max-width:none!important;min-width:0!important;margin:0 0 0 258px!important;padding:34px clamp(22px,3.5vw,58px) 56px!important}
+        .ns-app-shell button{transition:background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .16s ease}
+        .ns-app-shell button:focus-visible,.ns-app-shell input:focus-visible,.ns-app-shell textarea:focus-visible,.ns-app-shell select:focus-visible{outline:2px solid #8050E8!important;outline-offset:2px!important}
+        @media(max-width:760px){
+          .ns-site-header{position:relative!important;inset:auto!important;width:100%!important;height:auto!important;min-height:0!important;padding:12px 15px 10px!important;border-right:0!important;border-bottom:1px solid ${theme.border}!important;gap:10px!important;flex-direction:row!important;flex-wrap:wrap!important}
+          .ns-brand{flex:1 1 180px;font-size:1rem}.ns-brand-mark{width:32px;height:32px}
+          .ns-main-nav{order:3;flex:1 1 100%;flex-direction:row!important;overflow-x:auto!important;white-space:nowrap;gap:4px!important;padding:3px 0 5px;scrollbar-width:none}
+          .ns-main-nav::-webkit-scrollbar{display:none}.ns-main-nav button{width:auto!important;flex:0 0 auto;min-height:38px!important;padding:0 10px!important;gap:7px!important;font-size:.8rem!important}
+          .ns-sidebar-bottom{order:2;margin:0;padding:0;border:0;flex-direction:row;align-items:center}
+          .ns-theme-toggle{width:auto;padding:8px!important}.ns-theme-toggle span{display:none}
+          .ns-user-profile{border:0;padding:0}.ns-user-profile-main{padding:0}.ns-user-copy,.ns-signout{display:none}
+          .ns-main-content{margin:0!important;width:100%!important;padding:18px 14px 36px!important}
         }
         @media (max-width: 640px) {
           /* 在窄屏设备上保持公告标题清晰可读。 */
