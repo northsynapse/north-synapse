@@ -2113,7 +2113,7 @@ export default function Home() {
               <li><strong>Appropriate content:</strong> Do not post illegal, dangerous, hateful, sexually explicit, or otherwise inappropriate material.</li>
               <li><strong>Privacy:</strong> Never publish passwords, home addresses, phone numbers, student numbers, or other sensitive information.</li>
               <li><strong>Accuracy and attribution:</strong> Credit original authors and do not present someone else’s work as your own.</li>
-              <li><strong>Prototype limitation:</strong> This version stores account and profile data in this browser. It is not a production-grade secure account system; avoid entering confidential information.</li>
+              <li><strong>Prototype limitation:</strong> North Synapse is still evolving. Features and availability may change as the platform is improved.</li>
             </ol>
             <button type="button" onClick={() => setShowTermsModal(false)} style={{ width: '100%', marginTop: '1rem', backgroundColor: theme.accent, color: '#fff', border: 'none', padding: '0.75rem', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', minHeight: '44px' }}>I Understand</button>
           </div>
