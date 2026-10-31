@@ -1746,12 +1746,7 @@ export default function Home() {
       {/* 侧边导航：桌面端固定显示，移动端自动切换为顶部导航 */}
       <header className="ns-site-header" style={{ background: theme.cardBg, borderColor: theme.border }}>
         <div className="ns-brand" onClick={() => setActiveTab('resources')}>
-          <svg className="ns-brand-mark" viewBox="0 0 64 64" fill="none" aria-label="North Synapse dotted S logo">
-            <path d="M47 12 C47 4 18 4 18 19 C18 32 46 30 46 45 C46 60 17 59 17 49"
-              stroke="#7B52E5" strokeWidth="6.8" strokeLinecap="round" strokeDasharray="0.12 2.8"/>
-            <path d="M47 12 C47 4 18 4 18 19 C18 32 46 30 46 45 C46 60 17 59 17 49"
-              stroke="#B9A4D8" strokeWidth="2.1" strokeLinecap="round" strokeDasharray="0.12 2.8" strokeDashoffset="1.35" opacity=".72"/>
-          </svg><span>North Synapse</span>{isAdmin && <span className="ns-admin-label">ADMIN</span>}
+          <span>North Synapse</span>{isAdmin && <span className="ns-admin-label">ADMIN</span>}
         </div>
         <nav className="ns-main-nav">
           {((isAdmin ? ['resources','lounges','announcements','discussions'] : ['resources','lounges','announcements','discussions','feedback']) as NavTab[]).map((tab) => {
