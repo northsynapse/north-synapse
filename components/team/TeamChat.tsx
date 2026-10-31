@@ -20,7 +20,7 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   const theme = { bg: isDarkMode ? '#0E1117' : '#F8FAFC', card: isDarkMode ? '#161B22' : '#FFFFFF', border: isDarkMode ? '#30363D' : '#E2E8F0', text: isDarkMode ? '#F0F6FC' : '#0F172A', muted: isDarkMode ? '#8B949E' : '#64748B', accent: '#7B52E5' };
   const allowed = !!user && (!!teamRole || isAdmin);
   const myName = nickname || username || user?.email?.split('@')[0] || 'Team member';
@@ -74,7 +74,7 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
     return () => { void supabase.removeChannel(channel); };
   }, [load, allowed]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length]);
+  useEffect(() => { const chat = chatScrollRef.current; if (chat) chat.scrollTop = chat.scrollHeight; }, [messages, loading]);
 
   async function sendMessage(event: React.FormEvent) {
     event.preventDefault();
@@ -150,7 +150,7 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
     </section>
     <section style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 14, overflow: 'hidden' }}>
       <div style={{ padding: '14px 16px', borderBottom: `1px solid ${theme.border}`, fontWeight: 750 }}>Group chat</div>
-      <div style={{ padding: 22, minHeight: 420, maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div ref={chatScrollRef} style={{ padding: 22, minHeight: 420, maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {loading ? <p style={{ color: theme.muted }}>Loading messages…</p> : messages.length === 0 ? <p style={{ color: theme.muted, textAlign: 'center', margin: 'auto' }}>No messages yet. Start the conversation.</p> : messages.map(m => { const own = m.user_id === user.id; const canDelete = isAdmin || (own && Date.now() - new Date(m.created_at).getTime() <= 5 * 60 * 1000); const messageDate = new Date(m.created_at); const now = new Date(); const isToday = messageDate.getFullYear() === now.getFullYear() && messageDate.getMonth() === now.getMonth() && messageDate.getDate() === now.getDate(); const messageTime = messageDate.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: false }); const timeLabel = isToday ? messageTime : `${messageDate.getMonth() + 1}/${messageDate.getDate()} ${messageTime}`; return <div key={m.id} style={{ width: '100%', display: 'flex', justifyContent: own ? 'flex-end' : 'flex-start', gap: 10, alignItems: 'flex-start' }}>
           <div style={{ order: own ? 0 : 1, minWidth: 0, width: 'min(66.666%, 680px)', display: 'flex', flexDirection: 'column', alignItems: own ? 'flex-end' : 'flex-start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: own ? 'flex-end' : 'flex-start', gap: 2, maxWidth: '100%', width: '100%' }}>
