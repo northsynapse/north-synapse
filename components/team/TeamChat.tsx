@@ -160,7 +160,7 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
     </section>
     <section style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 14, overflow: 'hidden' }}>
       <div style={{ padding: '14px 16px', borderBottom: `1px solid ${theme.border}`, fontWeight: 750 }}>Group chat</div>
-      <div ref={chatScrollRef} style={{ padding: 22, minHeight: 420, maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div ref={chatScrollRef} style={{ padding: 22, minHeight: 420, maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
         {loading ? <p style={{ color: theme.muted }}>Loading messages…</p> : messages.length === 0 ? <p style={{ color: theme.muted, textAlign: 'center', margin: 'auto' }}>No messages yet. Start the conversation.</p> : messages.map(m => {
           const own = m.user_id === user.id;
           const canDelete = isAdmin || (own && Date.now() - new Date(m.created_at).getTime() <= 5 * 60 * 1000);
