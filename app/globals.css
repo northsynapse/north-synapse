@@ -13,7 +13,7 @@ input, select, textarea {
 }
 input:focus, select:focus, textarea:focus {
   border-color: #A58AEF !important;
-  box-shadow: 0 0 0 3px rgba(154, 136, 200, .12);
+  box-shadow: 0 0 0 3px rgba(118, 85, 143, .12);
 }
 button:not(:disabled) { transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
 button:not(:disabled):active { transform: translateY(1px); }
@@ -66,12 +66,12 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: #9A88C8;
+  background: #76558F;
 }
 .ns-main-content button:focus-visible,
 .ns-site-header button:focus-visible,
 .ns-main-content a:focus-visible {
-  outline: 2px solid rgba(154, 136, 200, .76);
+  outline: 2px solid rgba(118, 85, 143, .82);
   outline-offset: 3px;
 }
 .ns-main-content [role="dialog"],
