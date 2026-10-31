@@ -1603,14 +1603,14 @@ export default function Home() {
     border: isDarkMode ? '#303746' : '#EAEAEA',
     textMain: isDarkMode ? '#E9EAF0' : '#202020',
     textMuted: isDarkMode ? '#A6ADBA' : '#737373',
-    accent: '#805CB8',
+    accent: '#7B52E5',
   };
 
   const subjectsList = ['Mathematics', 'Science', 'English & ESL', 'French', 'History & Social Sciences', 'Geography', 'Business & Economics', 'Art & Music', 'Computer Science & Tech'];
   const gradesList = ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'AP Courses', 'Academic Competitions'];
   // 中文注释：统一标签颜色体系，年级使用紫色，AP 与竞赛共用琥珀色，文理分别使用蓝绿与陶土色。
   const tagColors = {
-    level: '#805CB8',
+    level: '#7B52E5',
     advanced: '#D0AA70',
     stem: '#83B0C4',
     humanities: '#9BB894',
@@ -1748,13 +1748,13 @@ export default function Home() {
         <div className="ns-brand" onClick={() => setActiveTab('resources')}>
           <svg className="ns-brand-mark" viewBox="0 0 64 64" fill="none" aria-label="North Synapse dotted S logo">
             <path d="M47 12 C47 4 18 4 18 19 C18 32 46 30 46 45 C46 60 17 59 17 49"
-              stroke="#805CB8" strokeWidth="6.8" strokeLinecap="round" strokeDasharray="0.12 2.8"/>
+              stroke="#7B52E5" strokeWidth="6.8" strokeLinecap="round" strokeDasharray="0.12 2.8"/>
             <path d="M47 12 C47 4 18 4 18 19 C18 32 46 30 46 45 C46 60 17 59 17 49"
               stroke="#B9A4D8" strokeWidth="2.1" strokeLinecap="round" strokeDasharray="0.12 2.8" strokeDashoffset="1.35" opacity=".72"/>
-            <circle cx="47" cy="12" r="2.8" fill="#9A7CC6"/>
-            <circle cx="18" cy="19" r="2.8" fill="#9A7CC6"/>
-            <circle cx="46" cy="45" r="2.8" fill="#9A7CC6"/>
-            <circle cx="17" cy="49" r="2.8" fill="#9A7CC6"/>
+            <circle cx="47" cy="12" r="2.8" fill="#A88AF0"/>
+            <circle cx="18" cy="19" r="2.8" fill="#A88AF0"/>
+            <circle cx="46" cy="45" r="2.8" fill="#A88AF0"/>
+            <circle cx="17" cy="49" r="2.8" fill="#A88AF0"/>
           </svg><span>North Synapse</span>{isAdmin && <span className="ns-admin-label">ADMIN</span>}
         </div>
         <nav className="ns-main-nav">
@@ -2435,10 +2435,10 @@ export default function Home() {
         .ns-app-shell{min-height:100vh}
          .ns-site-header{pointer-events:auto!important;position:fixed!important;inset:0 auto 0 0!important;width:258px!important;height:100vh!important;min-height:100vh!important;box-sizing:border-box!important;padding:26px 18px 18px!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:30px!important;border-right:1px solid ${theme.border}!important;border-bottom:0!important;z-index:1000!important;box-shadow:4px 0 24px rgba(0,0,0,.025)}
         .ns-brand{display:flex;align-items:center;gap:11px;padding:0 8px;min-height:48px;cursor:pointer;font-size:1.12rem;font-weight:800;letter-spacing:-.04em;color:${theme.textMain}}
-        .ns-brand-mark{width:40px;height:40px;flex-shrink:0}.ns-admin-label{font-size:.58rem;padding:3px 6px;border-radius:5px;background:rgba(118,85,143,.14);color:#805CB8}
+        .ns-brand-mark{width:40px;height:40px;flex-shrink:0}.ns-admin-label{font-size:.58rem;padding:3px 6px;border-radius:5px;background:rgba(123,82,229,.14);color:#7B52E5}
         .ns-main-nav{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:5px!important;width:100%!important;overflow:visible!important}
         .ns-main-nav button{display:flex!important;align-items:center!important;gap:13px!important;min-height:45px!important;width:100%!important;padding:0 13px!important;border:0!important;border-radius:10px!important;background:transparent!important;color:${theme.textMuted}!important;font-size:.9rem!important;font-weight:550!important;text-align:left!important;cursor:pointer;pointer-events:auto!important;position:relative;z-index:2}
-        .ns-main-nav button svg{flex-shrink:0}.ns-main-nav button.ns-nav-active{background:rgba(118,85,143,.12)!important;color:#805CB8!important;font-weight:700!important}
+        .ns-main-nav button svg{flex-shrink:0}.ns-main-nav button.ns-nav-active{background:rgba(123,82,229,.12)!important;color:#7B52E5!important;font-weight:700!important}
         .ns-main-nav button:not(.ns-nav-active):hover{background:${isDarkMode ? '#262626' : '#F3F3F3'}!important;color:${theme.textMain}!important}
         .ns-sidebar-bottom{margin-top:auto;padding-top:15px;border-top:1px solid ${theme.border};display:flex;flex-direction:column;gap:13px}
         .ns-theme-toggle{display:flex!important;align-items:center;gap:11px;width:100%;padding:10px 12px!important;border:0!important;border-radius:9px!important;background:transparent!important;color:${theme.textMuted}!important;text-align:left;cursor:pointer;font-size:.86rem}
@@ -2446,14 +2446,14 @@ export default function Home() {
         .ns-user-profile{display:flex;align-items:center;gap:6px;padding:8px 5px 2px;border-top:1px solid ${theme.border}}
         .ns-user-profile-main{display:flex;align-items:center;gap:10px;min-width:0;flex:1;border:0;background:transparent;text-align:left;cursor:pointer;padding:5px;color:${theme.textMain}}
         .ns-user-profile-main img,.ns-avatar-fallback{width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0}
-        .ns-avatar-fallback{display:grid;place-items:center;background:rgba(118,85,143,.14);color:#805CB8;font-weight:750}
+        .ns-avatar-fallback{display:grid;place-items:center;background:rgba(123,82,229,.14);color:#7B52E5;font-weight:750}
         .ns-user-copy{display:flex;flex-direction:column;min-width:0;gap:3px}.ns-user-copy strong{font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .ns-user-copy small{color:${theme.textMuted};font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .ns-signout{border:0;background:transparent;color:${theme.textMuted};padding:8px;border-radius:8px;cursor:pointer}
-         .ns-signin{position:relative;z-index:3;pointer-events:auto;border:0;background:#805CB8;color:white;padding:11px;border-radius:9px;font-weight:700;cursor:pointer}
+         .ns-signin{position:relative;z-index:3;pointer-events:auto;border:0;background:#7B52E5;color:white;padding:11px;border-radius:9px;font-weight:700;cursor:pointer}
         .ns-main-content{position:relative!important;z-index:1!important;isolation:isolate;width:auto!important;max-width:none!important;min-width:0!important;margin:0 0 0 258px!important;padding:34px clamp(22px,3.5vw,58px) 56px!important;pointer-events:auto!important}
         .ns-app-shell button{transition:background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .16s ease}
-        .ns-app-shell button:focus-visible,.ns-app-shell input:focus-visible,.ns-app-shell textarea:focus-visible,.ns-app-shell select:focus-visible{outline:2px solid #805CB8!important;outline-offset:2px!important}
+        .ns-app-shell button:focus-visible,.ns-app-shell input:focus-visible,.ns-app-shell textarea:focus-visible,.ns-app-shell select:focus-visible{outline:2px solid #7B52E5!important;outline-offset:2px!important}
         @media(max-width:760px){
           .ns-site-header{position:relative!important;inset:auto!important;width:100%!important;height:auto!important;min-height:0!important;padding:12px 15px 10px!important;border-right:0!important;border-bottom:1px solid ${theme.border}!important;gap:10px!important;flex-direction:row!important;flex-wrap:wrap!important}
           .ns-brand{flex:1 1 180px;font-size:1rem}.ns-brand-mark{width:32px;height:32px}
