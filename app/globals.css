@@ -7,13 +7,13 @@ button { -webkit-tap-highlight-color: transparent; }
 img, svg { max-width: 100%; }
 
 /* 中文注释：统一基础控件质感，避免改变现有交互和组件结构。 */
-::selection { background: rgba(128, 80, 232, .2); color: inherit; }
+::selection { background: rgba(130, 116, 168, .2); color: inherit; }
 input, select, textarea {
   transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
 }
 input:focus, select:focus, textarea:focus {
   border-color: #A58AEF !important;
-  box-shadow: 0 0 0 3px rgba(128, 80, 232, .10);
+  box-shadow: 0 0 0 3px rgba(130, 116, 168, .10);
 }
 button:not(:disabled) { transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
 button:not(:disabled):active { transform: translateY(1px); }
@@ -25,13 +25,13 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
 .ns-main-content [style*="cursor: pointer"][style*="border-radius: 12px"]:hover {
-  border-color: rgba(128, 80, 232, .32) !important;
+  border-color: rgba(130, 116, 168, .32) !important;
   box-shadow: 0 12px 28px rgba(49, 35, 88, .085);
   transform: translateY(-2px);
 }
 .ns-notice-banner {
-  border-color: rgba(128, 80, 232, .28) !important;
-  background: rgba(128, 80, 232, .055) !important;
+  border-color: rgba(130, 116, 168, .28) !important;
+  background: rgba(130, 116, 168, .055) !important;
   box-shadow: 0 5px 18px rgba(49, 35, 88, .035);
 }
 
