@@ -31,7 +31,7 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 }
 .ns-notice-banner {
   border-color: rgba(128, 80, 232, .22) !important;
-  background: linear-gradient(105deg, rgba(128, 80, 232, .075), rgba(73, 176, 166, .055)) !important;
+  background: linear-gradient(105deg, rgba(128, 80, 232, .075), rgba(73, 176, 166, .11)) !important;
   box-shadow: 0 5px 18px rgba(49, 35, 88, .035);
 }
 .ns-site-header { box-shadow: 5px 0 24px rgba(49, 35, 88, .025); }
