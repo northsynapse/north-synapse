@@ -7,13 +7,13 @@ button { -webkit-tap-highlight-color: transparent; }
 img, svg { max-width: 100%; }
 
 /* 中文注释：统一基础控件质感，避免改变现有交互和组件结构。 */
-::selection { background: rgba(130, 116, 168, .2); color: inherit; }
+::selection { background: rgba(123, 82, 229, .2); color: inherit; }
 input, select, textarea {
   transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
 }
 input:focus, select:focus, textarea:focus {
   border-color: #A58AEF !important;
-  box-shadow: 0 0 0 3px rgba(118, 85, 143, .12);
+  box-shadow: 0 0 0 3px rgba(123, 82, 229, .12);
 }
 button:not(:disabled) { transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
 button:not(:disabled):active { transform: translateY(1px); }
@@ -25,12 +25,12 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
 .ns-main-content [style*="cursor: pointer"][style*="border-radius: 12px"]:hover {
-  border-color: rgba(130, 116, 168, .32) !important;
+  border-color: rgba(123, 82, 229, .32) !important;
   box-shadow: 0 12px 28px rgba(49, 35, 88, .085);
   transform: translateY(-2px);
 }
 .ns-notice-banner {
-  border-color: rgba(130, 116, 168, .28) !important;
+  border-color: rgba(123, 82, 229, .28) !important;
   background: rgba(154, 136, 200, .07) !important;
   box-shadow: 0 5px 18px rgba(49, 35, 88, .035);
 }
@@ -66,12 +66,12 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: #805CB8;
+  background: #7B52E5;
 }
 .ns-main-content button:focus-visible,
 .ns-site-header button:focus-visible,
 .ns-main-content a:focus-visible {
-  outline: 2px solid rgba(118, 85, 143, .82);
+  outline: 2px solid rgba(123, 82, 229, .82);
   outline-offset: 3px;
 }
 .ns-main-content [role="dialog"],
@@ -91,8 +91,8 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   height: 6px;
   margin: 0 10px 3px 0;
   border-radius: 50%;
-  background: #8D7EB4;
-  box-shadow: 9px 0 0 rgba(141, 126, 180, .28);
+  background: #9B83D8;
+  box-shadow: 9px 0 0 rgba(123, 82, 229, .28);
 }
 .ns-main-content h2::after {
   content: "";
@@ -101,12 +101,12 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   height: 2px;
   margin-top: 8px;
   border-radius: 2px;
-  background: rgba(141, 126, 180, .58);
+  background: rgba(123, 82, 229, .58);
 }
 .ns-brand-mark {
   overflow: visible;
-  filter: drop-shadow(0 0 5px rgba(141, 126, 180, .14));
+  filter: drop-shadow(0 0 5px rgba(123, 82, 229, .14));
 }
 .ns-brand:hover .ns-brand-mark {
-  filter: drop-shadow(0 0 8px rgba(141, 126, 180, .3));
+  filter: drop-shadow(0 0 8px rgba(123, 82, 229, .3));
 }
