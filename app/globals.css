@@ -54,3 +54,27 @@ button:disabled { cursor: not-allowed; opacity: .62; }
     transform: none !important;
   }
 }
+
+
+/* 中文注释：多色标签与轻量强调线，保留清晰层次，不依赖渐变背景。 */
+.ns-notice-banner {
+  position: relative;
+  overflow: hidden;
+}
+.ns-notice-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: #8050E8;
+}
+.ns-main-content button:focus-visible,
+.ns-site-header button:focus-visible,
+.ns-main-content a:focus-visible {
+  outline: 2px solid rgba(128, 80, 232, .72);
+  outline-offset: 3px;
+}
+.ns-main-content [role="dialog"],
+.ns-main-content [aria-modal="true"] {
+  pointer-events: auto;
+}
