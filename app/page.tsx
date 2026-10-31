@@ -2097,10 +2097,10 @@ export default function Home() {
         .ns-main-nav{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:5px!important;width:100%!important;overflow:visible!important}
         .ns-main-nav button{display:flex!important;align-items:center!important;gap:13px!important;min-height:45px!important;width:100%!important;padding:0 13px!important;border:0!important;border-radius:10px!important;background:transparent!important;color:${theme.textMuted}!important;font-size:.9rem!important;font-weight:550!important;text-align:left!important;cursor:pointer}
         .ns-main-nav button svg{flex-shrink:0}.ns-main-nav button.ns-nav-active{background:rgba(128,80,232,.10)!important;color:#8050E8!important;font-weight:700!important}
-        .ns-main-nav button:not(.ns-nav-active):hover{background:#F3F3F3!important;color:${theme.textMain}!important}
+        .ns-main-nav button:not(.ns-nav-active):hover{background:\${isDarkMode ? '#262626' : '#F3F3F3'}!important;color:${theme.textMain}!important}
         .ns-sidebar-bottom{margin-top:auto;padding-top:15px;border-top:1px solid ${theme.border};display:flex;flex-direction:column;gap:13px}
         .ns-theme-toggle{display:flex!important;align-items:center;gap:11px;width:100%;padding:10px 12px!important;border:0!important;border-radius:9px!important;background:transparent!important;color:${theme.textMuted}!important;text-align:left;cursor:pointer;font-size:.86rem}
-        .ns-theme-toggle:hover{background:#F3F3F3!important;color:${theme.textMain}!important}
+        .ns-theme-toggle:hover{background:\${isDarkMode ? '#262626' : '#F3F3F3'}!important;color:${theme.textMain}!important}
         .ns-user-profile{display:flex;align-items:center;gap:6px;padding:8px 5px 2px;border-top:1px solid ${theme.border}}
         .ns-user-profile-main{display:flex;align-items:center;gap:10px;min-width:0;flex:1;border:0;background:transparent;text-align:left;cursor:pointer;padding:5px;color:${theme.textMain}}
         .ns-user-profile-main img,.ns-avatar-fallback{width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0}
