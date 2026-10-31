@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - feat/social-interactions-profile-saves
+      - feat/study-rooms-lifecycle
 
 concurrency:
   group: study-rooms-pr-${{ github.event.pull_request.number || github.ref }}
