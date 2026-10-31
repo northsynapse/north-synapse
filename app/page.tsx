@@ -1603,7 +1603,7 @@ export default function Home() {
     border: isDarkMode ? '#303030' : '#EAEAEA',
     textMain: isDarkMode ? '#F5F5F5' : '#202020',
     textMuted: isDarkMode ? '#A3A3A3' : '#737373',
-    accent: '#8050E8',
+    accent: '#8274A8',
   };
 
   const subjectsList = ['Mathematics', 'Science', 'English & ESL', 'French', 'History & Social Sciences', 'Geography', 'Business & Economics', 'Art & Music', 'Computer Science & Tech'];
@@ -1785,7 +1785,7 @@ export default function Home() {
       <main className="ns-main-content" style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
         
         {/* 公告轮播栏 */}
-        <div className="ns-notice-banner" style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', border: `1px solid ${theme.accent}`, borderRadius: '12px', padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
+        <div className="ns-notice-banner" style={{ backgroundColor: 'rgba(130, 116, 168, 0.08)', border: `1px solid ${theme.accent}`, borderRadius: '12px', padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, overflow: 'hidden' }}>
             <span className="ns-notice-count" style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
               NOTICE ({currentBannerIndex + 1}/{announcements.length})
@@ -1811,7 +1811,7 @@ export default function Home() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '700', display: 'inline-block', marginBottom: '0.5rem' }}>
+                <span style={{ backgroundColor: 'rgba(130, 116, 168, 0.15)', color: theme.accent, padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '700', display: 'inline-block', marginBottom: '0.5rem' }}>
                   Academic Platform
                 </span>
                 <h1 style={{ fontSize: '2.2rem', fontWeight: '900' }}>North Synapse Resource Hub</h1>
@@ -2365,7 +2365,7 @@ export default function Home() {
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { richEditorRef.current?.focus(); document.execCommand('bold'); }} style={{ padding: '0.4rem 0.65rem', fontWeight: 800, borderRadius: 5, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>B</button>
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { richEditorRef.current?.focus(); document.execCommand('italic'); }} style={{ padding: '0.4rem 0.65rem', fontStyle: 'italic', borderRadius: 5, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>I</button>
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { richEditorRef.current?.focus(); document.execCommand('underline'); }} style={{ padding: '0.4rem 0.65rem', textDecoration: 'underline', borderRadius: 5, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>U</button>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', color: theme.textMain }}>Text colour <input aria-label="Text colour" type="color" defaultValue="#8B5CF6" onChange={(e) => { richEditorRef.current?.focus(); document.execCommand('foreColor', false, e.target.value); }} style={{ width: 32, height: 30, padding: 0, border: 0, background: 'transparent' }} /></label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', color: theme.textMain }}>Text colour <input aria-label="Text colour" type="color" defaultValue="#8D7EB4" onChange={(e) => { richEditorRef.current?.focus(); document.execCommand('foreColor', false, e.target.value); }} style={{ width: 32, height: 30, padding: 0, border: 0, background: 'transparent' }} /></label>
                 </div>
                 <div ref={richEditorRef} contentEditable suppressContentEditableWarning onInput={(e) => { const html = sanitizeRichHtml(e.currentTarget.innerHTML); setRichContentHtml(html); setNewResContent(e.currentTarget.innerText); }} data-placeholder="Write your notes here…" style={{ minHeight: 150, maxHeight: 360, overflowY: 'auto', padding: '0.8rem', border: `1px solid ${theme.border}`, borderRadius: '0 0 8px 8px', outline: 'none', color: theme.textMain, background: theme.bg, overflowWrap: 'anywhere' }} />
                 <p style={{ fontSize: '0.75rem', color: theme.textMuted, margin: '0.4rem 0 0' }}>Select text to apply colour, bold, italic or underline. Rich formatting is saved with the note.</p>
@@ -2437,10 +2437,10 @@ export default function Home() {
         .ns-app-shell{min-height:100vh}
          .ns-site-header{pointer-events:auto!important;position:fixed!important;inset:0 auto 0 0!important;width:258px!important;height:100vh!important;min-height:100vh!important;box-sizing:border-box!important;padding:26px 18px 18px!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:30px!important;border-right:1px solid ${theme.border}!important;border-bottom:0!important;z-index:1000!important;box-shadow:4px 0 24px rgba(0,0,0,.025)}
         .ns-brand{display:flex;align-items:center;gap:11px;padding:0 8px;min-height:48px;cursor:pointer;font-size:1.12rem;font-weight:800;letter-spacing:-.04em;color:${theme.textMain}}
-        .ns-brand-mark{width:40px;height:40px;flex-shrink:0}.ns-admin-label{font-size:.58rem;padding:3px 6px;border-radius:5px;background:rgba(128,80,232,.12);color:#8050E8}
+        .ns-brand-mark{width:40px;height:40px;flex-shrink:0}.ns-admin-label{font-size:.58rem;padding:3px 6px;border-radius:5px;background:rgba(130,116,168,.12);color:#8274A8}
         .ns-main-nav{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:5px!important;width:100%!important;overflow:visible!important}
         .ns-main-nav button{display:flex!important;align-items:center!important;gap:13px!important;min-height:45px!important;width:100%!important;padding:0 13px!important;border:0!important;border-radius:10px!important;background:transparent!important;color:${theme.textMuted}!important;font-size:.9rem!important;font-weight:550!important;text-align:left!important;cursor:pointer;pointer-events:auto!important;position:relative;z-index:2}
-        .ns-main-nav button svg{flex-shrink:0}.ns-main-nav button.ns-nav-active{background:rgba(128,80,232,.10)!important;color:#8050E8!important;font-weight:700!important}
+        .ns-main-nav button svg{flex-shrink:0}.ns-main-nav button.ns-nav-active{background:rgba(130,116,168,.10)!important;color:#8274A8!important;font-weight:700!important}
         .ns-main-nav button:not(.ns-nav-active):hover{background:${isDarkMode ? '#262626' : '#F3F3F3'}!important;color:${theme.textMain}!important}
         .ns-sidebar-bottom{margin-top:auto;padding-top:15px;border-top:1px solid ${theme.border};display:flex;flex-direction:column;gap:13px}
         .ns-theme-toggle{display:flex!important;align-items:center;gap:11px;width:100%;padding:10px 12px!important;border:0!important;border-radius:9px!important;background:transparent!important;color:${theme.textMuted}!important;text-align:left;cursor:pointer;font-size:.86rem}
@@ -2448,14 +2448,14 @@ export default function Home() {
         .ns-user-profile{display:flex;align-items:center;gap:6px;padding:8px 5px 2px;border-top:1px solid ${theme.border}}
         .ns-user-profile-main{display:flex;align-items:center;gap:10px;min-width:0;flex:1;border:0;background:transparent;text-align:left;cursor:pointer;padding:5px;color:${theme.textMain}}
         .ns-user-profile-main img,.ns-avatar-fallback{width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0}
-        .ns-avatar-fallback{display:grid;place-items:center;background:rgba(128,80,232,.12);color:#8050E8;font-weight:750}
+        .ns-avatar-fallback{display:grid;place-items:center;background:rgba(130,116,168,.12);color:#8274A8;font-weight:750}
         .ns-user-copy{display:flex;flex-direction:column;min-width:0;gap:3px}.ns-user-copy strong{font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .ns-user-copy small{color:${theme.textMuted};font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .ns-signout{border:0;background:transparent;color:${theme.textMuted};padding:8px;border-radius:8px;cursor:pointer}
-         .ns-signin{position:relative;z-index:3;pointer-events:auto;border:0;background:#8050E8;color:white;padding:11px;border-radius:9px;font-weight:700;cursor:pointer}
+         .ns-signin{position:relative;z-index:3;pointer-events:auto;border:0;background:#8274A8;color:white;padding:11px;border-radius:9px;font-weight:700;cursor:pointer}
         .ns-main-content{position:relative!important;z-index:1!important;isolation:isolate;width:auto!important;max-width:none!important;min-width:0!important;margin:0 0 0 258px!important;padding:34px clamp(22px,3.5vw,58px) 56px!important;pointer-events:auto!important}
         .ns-app-shell button{transition:background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .16s ease}
-        .ns-app-shell button:focus-visible,.ns-app-shell input:focus-visible,.ns-app-shell textarea:focus-visible,.ns-app-shell select:focus-visible{outline:2px solid #8050E8!important;outline-offset:2px!important}
+        .ns-app-shell button:focus-visible,.ns-app-shell input:focus-visible,.ns-app-shell textarea:focus-visible,.ns-app-shell select:focus-visible{outline:2px solid #8274A8!important;outline-offset:2px!important}
         @media(max-width:760px){
           .ns-site-header{position:relative!important;inset:auto!important;width:100%!important;height:auto!important;min-height:0!important;padding:12px 15px 10px!important;border-right:0!important;border-bottom:1px solid ${theme.border}!important;gap:10px!important;flex-direction:row!important;flex-wrap:wrap!important}
           .ns-brand{flex:1 1 180px;font-size:1rem}.ns-brand-mark{width:32px;height:32px}
