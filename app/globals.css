@@ -78,3 +78,35 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 .ns-main-content [aria-modal="true"] {
   pointer-events: auto;
 }
+
+
+/* 中文注释：用小圆点和短线为主要区块标题增加克制的品牌识别。 */
+.ns-main-content h2 {
+  position: relative;
+}
+.ns-main-content h2::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin: 0 10px 3px 0;
+  border-radius: 50%;
+  background: #8B5CF6;
+  box-shadow: 9px 0 0 rgba(139, 92, 246, .28);
+}
+.ns-main-content h2::after {
+  content: "";
+  display: block;
+  width: 34px;
+  height: 2px;
+  margin-top: 8px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(139, 92, 246, .75), rgba(139, 92, 246, 0));
+}
+.ns-brand-mark {
+  overflow: visible;
+  filter: drop-shadow(0 0 5px rgba(139, 92, 246, .14));
+}
+.ns-brand:hover .ns-brand-mark {
+  filter: drop-shadow(0 0 8px rgba(139, 92, 246, .3));
+}
