@@ -13,7 +13,7 @@ input, select, textarea {
 }
 input:focus, select:focus, textarea:focus {
   border-color: #A58AEF !important;
-  box-shadow: 0 0 0 3px rgba(130, 116, 168, .10);
+  box-shadow: 0 0 0 3px rgba(154, 136, 200, .12);
 }
 button:not(:disabled) { transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
 button:not(:disabled):active { transform: translateY(1px); }
@@ -31,7 +31,7 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 }
 .ns-notice-banner {
   border-color: rgba(130, 116, 168, .28) !important;
-  background: rgba(130, 116, 168, .055) !important;
+  background: rgba(154, 136, 200, .07) !important;
   box-shadow: 0 5px 18px rgba(49, 35, 88, .035);
 }
 
@@ -66,12 +66,12 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: #8274A8;
+  background: #9A88C8;
 }
 .ns-main-content button:focus-visible,
 .ns-site-header button:focus-visible,
 .ns-main-content a:focus-visible {
-  outline: 2px solid rgba(130, 116, 168, .72);
+  outline: 2px solid rgba(154, 136, 200, .76);
   outline-offset: 3px;
 }
 .ns-main-content [role="dialog"],
