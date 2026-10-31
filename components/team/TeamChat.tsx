@@ -161,19 +161,40 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
     <section style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 14, overflow: 'hidden' }}>
       <div style={{ padding: '14px 16px', borderBottom: `1px solid ${theme.border}`, fontWeight: 750 }}>Group chat</div>
       <div ref={chatScrollRef} style={{ padding: 22, minHeight: 420, maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {loading ? <p style={{ color: theme.muted }}>Loading messages…</p> : messages.length === 0 ? <p style={{ color: theme.muted, textAlign: 'center', margin: 'auto' }}>No messages yet. Start the conversation.</p> : messages.map(m => { const own = m.user_id === user.id; const canDelete = isAdmin || (own && Date.now() - new Date(m.created_at).getTime() <= 5 * 60 * 1000); const messageDate = new Date(m.created_at); const now = new Date(); const isToday = messageDate.getFullYear() === now.getFullYear() && messageDate.getMonth() === now.getMonth() && messageDate.getDate() === now.getDate(); const messageTime = messageDate.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: false }); const timeLabel = isToday ? messageTime : `${messageDate.getMonth() + 1}/${messageDate.getDate()} ${messageTime}`; return <div key={m.id} style={{ width: '100%', display: 'flex', justifyContent: own ? 'flex-end' : 'flex-start', gap: 10, alignItems: 'flex-start' }}>
-          <div style={{ order: own ? 0 : 1, minWidth: 0, width: 'min(66.666%, 680px)', display: 'flex', flexDirection: 'column', alignItems: own ? 'flex-end' : 'flex-start' }}>
+        {loading ? <p style={{ color: theme.muted }}>Loading messages…</p> : messages.length === 0 ? <p style={{ color: theme.muted, textAlign: 'center', margin: 'auto' }}>No messages yet. Start the conversation.</p> : messages.map(m => {
+          const own = m.user_id === user.id;
+          const canDelete = isAdmin || (own && Date.now() - new Date(m.created_at).getTime() <= 5 * 60 * 1000);
+          const messageDate = new Date(m.created_at);
+          const now = new Date();
+          const isToday = messageDate.getFullYear() === now.getFullYear() && messageDate.getMonth() === now.getMonth() && messageDate.getDate() === now.getDate();
+          const messageTime = messageDate.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: false });
+          const timeLabel = isToday ? messageTime : `${messageDate.getMonth() + 1}/${messageDate.getDate()} ${messageTime}`;
+          const avatar = m.avatar_url
+            ? <img src={m.avatar_url} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}/>
+            : <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{m.display_name.slice(0, 1).toUpperCase()}</div>;
+          const messageContent = <div style={{ minWidth: 0, width: 'min(66.666%, 680px)', display: 'flex', flexDirection: 'column', alignItems: own ? 'flex-end' : 'flex-start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: own ? 'flex-end' : 'flex-start', gap: 2, maxWidth: '100%', width: '100%' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: own ? 'flex-end' : 'flex-start', gap: 7, flexWrap: 'wrap', textAlign: own ? 'right' : 'left', width: '100%' }}>{own && m.role && <span style={{ fontSize: 11, borderRadius: 20, padding: '3px 8px', background: m.role === 'Administrator' ? 'rgba(239,68,68,.13)' : 'rgba(139,92,246,.14)', color: m.role === 'Administrator' ? '#EF4444' : '#A78BFA' }}>{m.role}</span>}<strong>{m.display_name}</strong>{!own && m.role && <span style={{ fontSize: 11, borderRadius: 20, padding: '3px 8px', background: m.role === 'Administrator' ? 'rgba(239,68,68,.13)' : 'rgba(139,92,246,.14)', color: m.role === 'Administrator' ? '#EF4444' : '#A78BFA' }}>{m.role}</span>}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: own ? 'flex-end' : 'flex-start', gap: 7, flexWrap: 'wrap', textAlign: own ? 'right' : 'left', width: '100%' }}>
+                {own && m.role && <span style={{ fontSize: 11, borderRadius: 20, padding: '3px 8px', background: m.role === 'Administrator' ? 'rgba(239,68,68,.13)' : 'rgba(139,92,246,.14)', color: m.role === 'Administrator' ? '#EF4444' : '#A78BFA' }}>{m.role}</span>}
+                <strong>{m.display_name}</strong>
+                {!own && m.role && <span style={{ fontSize: 11, borderRadius: 20, padding: '3px 8px', background: m.role === 'Administrator' ? 'rgba(239,68,68,.13)' : 'rgba(139,92,246,.14)', color: m.role === 'Administrator' ? '#EF4444' : '#A78BFA' }}>{m.role}</span>}
+              </div>
               <small style={{ color: theme.muted, textAlign: own ? 'right' : 'left', fontSize: 10, lineHeight: 1.3 }}>{timeLabel}</small>
             </div>
-            <div style={{ width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: own ? 'flex-end' : 'flex-start', gap: 8, flexWrap: 'wrap' }}><div style={{ marginTop: 5, display: 'inline-block', maxWidth: '100%', background: own ? 'rgba(123,82,229,.13)' : theme.bg, border: `1px solid ${theme.border}`, borderRadius: own ? '12px 4px 12px 12px' : '4px 12px 12px 12px', padding: '10px 12px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', textAlign: 'left' }}>
-              {m.content && <div>{m.content}</div>}
-              {m.attachment?.url && (m.attachment.type.startsWith('image/') ? <a href={m.attachment.url} target="_blank" rel="noreferrer"><img src={m.attachment.url} alt={m.attachment.name} style={{ display: 'block', maxWidth: 'min(100%, 360px)', maxHeight: 280, objectFit: 'contain', borderRadius: 8, marginTop: m.content ? 8 : 0 }}/></a> : <a href={m.attachment.url} target="_blank" rel="noreferrer" download={m.attachment.name} style={{ display: 'flex', alignItems: 'center', gap: 8, color: theme.accent, textDecoration: 'underline', overflowWrap: 'anywhere' }}><FileText size={18}/>{m.attachment.name} <small>({(m.attachment.size / 1024 / 1024).toFixed(1)} MB)</small></a>)}
-            </div>{canDelete && <button onClick={() => void deleteMessage(m.id)} style={{ marginTop: 8, border: 0, background: 'transparent', color: '#EF4444', fontSize: 11, cursor: 'pointer' }}>Delete</button>}</div>
-          {m.avatar_url ? <img src={m.avatar_url} alt="" style={{ order: own ? 1 : 0, width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}/> : <div style={{ order: own ? 1 : 0, width: 38, height: 38, flexShrink: 0, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{m.display_name.slice(0,1).toUpperCase()}</div>}
-          </div>
-        </div>; })}
+            <div style={{ width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: own ? 'flex-end' : 'flex-start', gap: 8 }}>
+              <div style={{ marginTop: 5, display: 'inline-block', maxWidth: '100%', background: own ? 'rgba(123,82,229,.13)' : theme.bg, border: `1px solid ${theme.border}`, borderRadius: own ? '12px 4px 12px 12px' : '4px 12px 12px 12px', padding: '10px 12px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', textAlign: 'left' }}>
+                {m.content && <div>{m.content}</div>}
+                {m.attachment?.url && (m.attachment.type.startsWith('image/') ? <a href={m.attachment.url} target="_blank" rel="noreferrer"><img src={m.attachment.url} alt={m.attachment.name} style={{ display: 'block', maxWidth: 'min(100%, 360px)', maxHeight: 280, objectFit: 'contain', borderRadius: 8, marginTop: m.content ? 8 : 0 }}/></a> : <a href={m.attachment.url} target="_blank" rel="noreferrer" download={m.attachment.name} style={{ display: 'flex', alignItems: 'center', gap: 8, color: theme.accent, textDecoration: 'underline', overflowWrap: 'anywhere' }}><FileText size={18}/>{m.attachment.name} <small>({(m.attachment.size / 1024 / 1024).toFixed(1)} MB)</small></a>)}
+              </div>
+              {canDelete && <button onClick={() => void deleteMessage(m.id)} style={{ marginTop: 8, border: 0, background: 'transparent', color: '#EF4444', fontSize: 11, cursor: 'pointer' }}>Delete</button>}
+            </div>
+          </div>;
+          return <div key={m.id} style={{ width: '100%', display: 'flex', flexWrap: 'nowrap', justifyContent: own ? 'flex-end' : 'flex-start', gap: 10, alignItems: 'flex-start' }}>
+            {!own && avatar}
+            {messageContent}
+            {own && avatar}
+          </div>;
+        })}
 </div>
       <form onSubmit={sendMessage} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: 12, borderTop: `1px solid ${theme.border}` }}>
         <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.zip" hidden onChange={e => setSelectedFile(e.target.files?.[0] || null)}/>
