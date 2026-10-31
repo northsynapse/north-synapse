@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { BookOpen, Coffee, Megaphone, MessagesSquare, MessageSquareText, LayoutDashboard, Shield, Users, Sun, Moon, LogOut, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import StudyRooms from '@/components/study-rooms/StudyRooms';
 import TeamChat from '@/components/team/TeamChat';
