@@ -2520,6 +2520,31 @@ export default function Home() {
           outline: 2px solid #8050E8 !important; outline-offset: 2px !important;
         }
         .ns-app-shell a { text-underline-offset: 3px; }
+        /* 中文注释：用柔和的紫色选中态与低饱和辅助色建立清晰的导航层级。 */
+        .ns-main-nav button { position: relative !important; }
+        .ns-main-nav button:not(.ns-nav-active):hover {
+          background: rgba(128,80,232,.055) !important;
+          color: ${theme.textMain} !important;
+        }
+        .ns-main-nav button.ns-nav-active::before {
+          content: ""; position: absolute; left: 0; top: 9px; bottom: 9px;
+          width: 3px; border-radius: 0 4px 4px 0; background: #8050E8;
+        }
+        .ns-theme-toggle:hover {
+          border-color: rgba(128,80,232,.38) !important;
+          background: rgba(128,80,232,.06) !important;
+        }
+        .ns-header-actions > div > button:hover {
+          border-color: rgba(128,80,232,.35) !important;
+          color: #8050E8 !important;
+        }
+        .ns-main-content > div:first-child { position: relative; }
+        .ns-main-content > div:first-child > div:first-child h1 {
+          letter-spacing: -.04em; line-height: 1.12;
+        }
+        .ns-main-content > div:first-child > div:first-child span {
+          letter-spacing: .025em;
+        }
         @media (max-width: 760px) {
           .ns-site-header {
             position: relative !important; inset: auto !important; width: 100% !important;
