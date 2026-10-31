@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { Pin, Send, Users, Megaphone, Paperclip, FileText, X } from 'lucide-react';
 
@@ -74,7 +74,17 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
     return () => { void supabase.removeChannel(channel); };
   }, [load, allowed]);
 
-  useEffect(() => { const chat = chatScrollRef.current; if (chat) chat.scrollTop = chat.scrollHeight; }, [messages, loading]);
+  useLayoutEffect(() => {
+    const chat = chatScrollRef.current;
+    if (!chat) return;
+
+    // 等待消息列表完成本次 DOM 更新后，再将聊天区域定位到最底部。
+    const frame = window.requestAnimationFrame(() => {
+      chat.scrollTop = chat.scrollHeight;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages, loading]);
 
   async function sendMessage(event: React.FormEvent) {
     event.preventDefault();
