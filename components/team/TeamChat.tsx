@@ -21,7 +21,7 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
-  const theme = { bg: isDarkMode ? '#0E1117' : '#F8FAFC', card: isDarkMode ? '#161B22' : '#FFFFFF', border: isDarkMode ? '#30363D' : '#E2E8F0', text: isDarkMode ? '#F0F6FC' : '#0F172A', muted: isDarkMode ? '#8B949E' : '#64748B', accent: '#8B5CF6' };
+  const theme = { bg: isDarkMode ? '#0E1117' : '#F8FAFC', card: isDarkMode ? '#161B22' : '#FFFFFF', border: isDarkMode ? '#30363D' : '#E2E8F0', text: isDarkMode ? '#F0F6FC' : '#0F172A', muted: isDarkMode ? '#8B949E' : '#64748B', accent: '#7B52E5' };
   const allowed = !!user && (!!teamRole || isAdmin);
   const myName = nickname || username || user?.email?.split('@')[0] || 'Team member';
 
@@ -80,6 +80,10 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
     event.preventDefault();
     const content = draft.trim();
     if ((!content && !selectedFile) || !user?.id || sending) return;
+    if (selectedFile && selectedFile.size > 15 * 1024 * 1024) {
+      setError('Files must be 15 MB or smaller.');
+      return;
+    }
     setSending(true);
     let messageContent = content;
     if (selectedFile) {
@@ -149,7 +153,7 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
       <div style={{ padding: 22, minHeight: 420, maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {loading ? <p style={{ color: theme.muted }}>Loading messages…</p> : messages.length === 0 ? <p style={{ color: theme.muted, textAlign: 'center', margin: 'auto' }}>No messages yet. Start the conversation.</p> : messages.map(m => { const own = m.user_id === user.id; const canDelete = isAdmin || (own && Date.now() - new Date(m.created_at).getTime() <= 5 * 60 * 1000); return <div key={m.id} style={{ width: '100%', display: 'flex', justifyContent: own ? 'flex-end' : 'flex-start', gap: 10, alignItems: 'flex-start', flexDirection: 'row' }}>
           {m.avatar_url ? <img src={m.avatar_url} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover' }}/> : <div style={{ width: 38, height: 38, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{m.display_name.slice(0,1).toUpperCase()}</div>}
-          <div style={{ minWidth: 0, width: 'min(82%, 680px)', display: 'flex', flexDirection: 'column', alignItems: own ? 'flex-end' : 'flex-start' }}>
+          <div style={{ minWidth: 0, width: 'min(calc(82% - 48px), 680px)', display: 'flex', flexDirection: 'column', alignItems: own ? 'flex-end' : 'flex-start' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}><strong>{m.display_name}</strong>{m.role && <span style={{ fontSize: 11, borderRadius: 20, padding: '3px 8px', background: m.role === 'Administrator' ? 'rgba(239,68,68,.13)' : 'rgba(139,92,246,.14)', color: m.role === 'Administrator' ? '#EF4444' : '#A78BFA' }}>{m.role}</span>}<small style={{ color: theme.muted }}>{new Date(m.created_at).toLocaleString()}</small></div>
             <div style={{ width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: own ? 'flex-end' : 'flex-start', gap: 8, flexWrap: 'wrap' }}><div style={{ marginTop: 5, display: 'inline-block', maxWidth: '100%', background: own ? 'rgba(123,82,229,.13)' : theme.bg, border: `1px solid ${theme.border}`, borderRadius: own ? '12px 4px 12px 12px' : '4px 12px 12px 12px', padding: '10px 12px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', textAlign: 'left' }}>
               {m.content && <div>{m.content}</div>}
