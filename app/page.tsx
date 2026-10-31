@@ -1608,8 +1608,20 @@ export default function Home() {
 
   const subjectsList = ['Mathematics', 'Science', 'English & ESL', 'French', 'History & Social Sciences', 'Geography', 'Business & Economics', 'Art & Music', 'Computer Science & Tech'];
   const gradesList = ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'AP Courses', 'Academic Competitions'];
-  // 中文注释：用低饱和度的多色标签区分筛选类别，避免所有标签只有一种强调色。
-  const tagColors = ['#5B8DEF', '#329B91', '#C18A3B', '#9474C8', '#C96F8B', '#69966D'];
+  // 中文注释：统一标签颜色体系，年级使用紫色，AP 与竞赛共用琥珀色，文理分别使用蓝绿与陶土色。
+  const tagColors = {
+    level: '#8050E8',
+    advanced: '#B7791F',
+    stem: '#3986A8',
+    humanities: '#B87558',
+  };
+  const getTagColor = (tag: string) => {
+    if (/^Grade (9|10|11|12)$/.test(tag)) return tagColors.level;
+    if (tag === 'AP Courses' || tag === 'Academic Competitions') return tagColors.advanced;
+    if (['Mathematics', 'Science', 'Computer Science & Tech'].includes(tag)) return tagColors.stem;
+    if (['English & ESL', 'French', 'History & Social Sciences', 'Geography', 'Business & Economics', 'Art & Music'].includes(tag)) return tagColors.humanities;
+    return tagColors.level;
+  };
 
   const filteredResources = resources.filter(res => {
     const resourceTags = res.tags || [];
@@ -1734,10 +1746,17 @@ export default function Home() {
       {/* 侧边导航：桌面端固定显示，移动端自动切换为顶部导航 */}
       <header className="ns-site-header" style={{ background: theme.cardBg, borderColor: theme.border }}>
         <div className="ns-brand" onClick={() => setActiveTab('resources')}>
-          <svg className="ns-brand-mark" viewBox="0 0 64 64" fill="none" aria-label="North Synapse logo">
-            <path d="M45 12 C45 5 19 5 19 19 C19 31 45 31 45 44 C45 57 19 57 19 50" stroke="#8050E8" strokeWidth="3.2" strokeLinecap="round" strokeDasharray="1 5"/>
-            <path d="M45 12 C45 5 19 5 19 19 C19 31 45 31 45 44 C45 57 19 57 19 50" stroke="#8050E8" strokeWidth="1.5" strokeLinecap="round" opacity=".55"/>
-            <circle cx="45" cy="12" r="3.2" fill="#8050E8"/><circle cx="19" cy="19" r="3.2" fill="#8050E8"/><circle cx="45" cy="44" r="3.2" fill="#8050E8"/><circle cx="19" cy="50" r="3.2" fill="#8050E8"/>
+          <svg className="ns-brand-mark" viewBox="0 0 64 64" fill="none" aria-label="North Synapse dotted S logo">
+            <path d="M47 12 C47 4 18 4 18 19 C18 32 46 30 46 45 C46 60 17 59 17 49" stroke="#8B5CF6" strokeWidth="5.8" strokeLinecap="round" strokeDasharray="0.1 4.35"/>
+            <path d="M47 12 C47 4 18 4 18 19 C18 32 46 30 46 45 C46 60 17 59 17 49" stroke="#A78BFA" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="0.1 4.35" opacity=".7"/>
+            <circle cx="47" cy="12" r="2.4" fill="#A78BFA"/>
+            <circle cx="18" cy="19" r="2.4" fill="#A78BFA"/>
+            <circle cx="46" cy="45" r="2.4" fill="#A78BFA"/>
+            <circle cx="17" cy="49" r="2.4" fill="#A78BFA"/>
+            <circle cx="53" cy="7" r="1.1" fill="#8B5CF6" opacity=".8"/>
+            <circle cx="12" cy="25" r="1.1" fill="#8B5CF6" opacity=".8"/>
+            <circle cx="52" cy="51" r="1.1" fill="#8B5CF6" opacity=".8"/>
+            <circle cx="11" cy="45" r="1.1" fill="#8B5CF6" opacity=".8"/>
           </svg><span>North Synapse</span>{isAdmin && <span className="ns-admin-label">ADMIN</span>}
         </div>
         <nav className="ns-main-nav">
@@ -1815,8 +1834,8 @@ export default function Home() {
               <div>
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>LEVEL &amp; TRACK:</span>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  {gradesList.map((grd, index) => {
-                    const tagColor = tagColors[index % tagColors.length];
+                  {gradesList.map((grd) => {
+                    const tagColor = getTagColor(grd);
                     return (
                     <button key={grd} onClick={() => setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, grd])} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedGrades.includes(grd) ? tagColor : `${tagColor}55`}`, backgroundColor: selectedGrades.includes(grd) ? tagColor : `${tagColor}12`, color: selectedGrades.includes(grd) ? '#FFF' : tagColor, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
                       {grd}
@@ -1829,8 +1848,8 @@ export default function Home() {
               <div>
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  {subjectsList.map((sub, index) => {
-                    const tagColor = tagColors[(index + 2) % tagColors.length];
+                  {subjectsList.map((sub) => {
+                    const tagColor = getTagColor(sub);
                     return (
                     <button key={sub} onClick={() => setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub])} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedSubjects.includes(sub) ? tagColor : `${tagColor}55`}`, backgroundColor: selectedSubjects.includes(sub) ? tagColor : `${tagColor}12`, color: selectedSubjects.includes(sub) ? '#FFF' : tagColor, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
                       {sub}
@@ -1852,7 +1871,7 @@ export default function Home() {
                 <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
                   <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '0.6rem' }}>{res.description}</p>
-              {!!res.tags?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '1rem' }}>{res.tags.map((tag, index) => { const tagColor = tagColors[index % tagColors.length]; return <span key={tag} style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', borderRadius: 5, background: `${tagColor}12`, color: tagColor, border: `1px solid ${tagColor}45` }}>{tag}</span>; })}</div>}
+              {!!res.tags?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '1rem' }}>{res.tags.map((tag) => { const tagColor = getTagColor(tag); return <span key={tag} style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', borderRadius: 5, background: `${tagColor}12`, color: tagColor, border: `1px solid ${tagColor}45` }}>{tag}</span>; })}</div>}
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${theme.border}`, paddingTop: '0.8rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
                       {res.authorAvatar ? <img src={res.authorAvatar} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 30, height: 30, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{(res.authorName || 'S').slice(0, 1).toUpperCase()}</div>}
