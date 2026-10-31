@@ -164,8 +164,7 @@ export default function TeamChat({ user, nickname, username, teamRole, isAdmin, 
           {m.avatar_url ? <img src={m.avatar_url} alt="" style={{ order: own ? 1 : 0, width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}/> : <div style={{ order: own ? 1 : 0, width: 38, height: 38, flexShrink: 0, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{m.display_name.slice(0,1).toUpperCase()}</div>}
           </div>
         </div>; })}
-        <div ref={bottomRef}/>
-      </div>
+</div>
       <form onSubmit={sendMessage} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: 12, borderTop: `1px solid ${theme.border}` }}>
         <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.zip" hidden onChange={e => setSelectedFile(e.target.files?.[0] || null)}/>
         <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Attach image or file" title="Attach image or file" style={{ border: `1px solid ${theme.border}`, borderRadius: '50%', width: 42, height: 42, flexShrink: 0, background: 'transparent', color: theme.muted, display: 'grid', placeItems: 'center' }}><Paperclip size={18}/></button>
