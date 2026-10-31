@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import Link from 'next/link';
 import { BookOpen, Coffee, Megaphone, MessagesSquare, MessageSquareText, LayoutDashboard, Shield, Users, Sun, Moon, LogOut, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import StudyRooms from '@/components/study-rooms/StudyRooms';
@@ -934,7 +935,7 @@ export default function Home() {
       setLoading(false);
       return;
     }
-    if (cleanPassword.length < 8) {
+    if (isSignUp && cleanPassword.length < 8) {
       alert('Password must be at least 8 characters long.');
       setLoading(false);
       return;
@@ -2249,9 +2250,10 @@ export default function Home() {
               </button>
             </form>
 
-            <p onClick={() => setIsSignUp(!isSignUp)} style={{ color: theme.accent, marginTop: '1rem', cursor: 'pointer', textAlign: 'center', fontSize: '0.85rem' }}>
+            <button type="button" disabled={loading} onClick={() => setIsSignUp(!isSignUp)} style={{ width: '100%', color: theme.accent, marginTop: '1rem', cursor: loading ? 'not-allowed' : 'pointer', textAlign: 'center', fontSize: '0.85rem', background: 'transparent', border: 0 }}>
               {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-            </p>
+            </button>
+            {!isSignUp && <p style={{ marginTop: '.65rem', textAlign: 'center', fontSize: '.82rem', color: theme.textMuted }}><Link href="/forgot-password" style={{ color: theme.accent, textDecoration: 'underline', textUnderlineOffset: 3 }}>Forgot your password?</Link></p>}
           </div>
         </div>
       )}
