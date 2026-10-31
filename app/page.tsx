@@ -216,7 +216,7 @@ export default function Home() {
         id: item.id,
         title: item.title,
         content: item.content,
-        authorName: item.author_name || 'North Synapse Official',
+        authorName: item.author_name || 'North Synapse',
         date: new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       })));
     };
@@ -1884,7 +1884,7 @@ export default function Home() {
         {activeTab === 'discussions' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Academic Peer Discussions</h1>
+              <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Discussions</h1>
               {!isAdmin && <button onClick={() => { if (!user) { alert('Please sign in first.'); setShowAuthModal(true); return; } setShowCreateDiscussionModal(true); }} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
                 + Start New Topic
               </button>}
@@ -1918,7 +1918,7 @@ export default function Home() {
         {/* ANNOUNCEMENTS 视图 */}
         {activeTab === 'announcements' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Official Announcements</h1>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Announcements</h1>
             {announcements.map((item) => (
               <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
@@ -2091,11 +2091,11 @@ export default function Home() {
       {/* 常驻的用户须知入口：登录前后都能打开 */}
       <style>{`
         .ns-app-shell{min-height:100vh}
-        .ns-site-header{position:fixed!important;inset:0 auto 0 0!important;width:258px!important;height:100vh!important;min-height:100vh!important;box-sizing:border-box!important;padding:26px 18px 18px!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:30px!important;border-right:1px solid ${theme.border}!important;border-bottom:0!important;z-index:1000!important;box-shadow:4px 0 24px rgba(0,0,0,.025)}
+         .ns-site-header{pointer-events:auto!important;position:fixed!important;inset:0 auto 0 0!important;width:258px!important;height:100vh!important;min-height:100vh!important;box-sizing:border-box!important;padding:26px 18px 18px!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:30px!important;border-right:1px solid ${theme.border}!important;border-bottom:0!important;z-index:1000!important;box-shadow:4px 0 24px rgba(0,0,0,.025)}
         .ns-brand{display:flex;align-items:center;gap:11px;padding:0 8px;min-height:48px;cursor:pointer;font-size:1.12rem;font-weight:800;letter-spacing:-.04em;color:${theme.textMain}}
         .ns-brand-mark{width:40px;height:40px;flex-shrink:0}.ns-admin-label{font-size:.58rem;padding:3px 6px;border-radius:5px;background:rgba(128,80,232,.12);color:#8050E8}
         .ns-main-nav{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:5px!important;width:100%!important;overflow:visible!important}
-        .ns-main-nav button{display:flex!important;align-items:center!important;gap:13px!important;min-height:45px!important;width:100%!important;padding:0 13px!important;border:0!important;border-radius:10px!important;background:transparent!important;color:${theme.textMuted}!important;font-size:.9rem!important;font-weight:550!important;text-align:left!important;cursor:pointer}
+        .ns-main-nav button{display:flex!important;align-items:center!important;gap:13px!important;min-height:45px!important;width:100%!important;padding:0 13px!important;border:0!important;border-radius:10px!important;background:transparent!important;color:${theme.textMuted}!important;font-size:.9rem!important;font-weight:550!important;text-align:left!important;cursor:pointer;pointer-events:auto!important;position:relative;z-index:2}
         .ns-main-nav button svg{flex-shrink:0}.ns-main-nav button.ns-nav-active{background:rgba(128,80,232,.10)!important;color:#8050E8!important;font-weight:700!important}
         .ns-main-nav button:not(.ns-nav-active):hover{background:${isDarkMode ? '#262626' : '#F3F3F3'}!important;color:${theme.textMain}!important}
         .ns-sidebar-bottom{margin-top:auto;padding-top:15px;border-top:1px solid ${theme.border};display:flex;flex-direction:column;gap:13px}
@@ -2108,8 +2108,8 @@ export default function Home() {
         .ns-user-copy{display:flex;flex-direction:column;min-width:0;gap:3px}.ns-user-copy strong{font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .ns-user-copy small{color:${theme.textMuted};font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .ns-signout{border:0;background:transparent;color:${theme.textMuted};padding:8px;border-radius:8px;cursor:pointer}
-        .ns-signin{border:0;background:#8050E8;color:white;padding:11px;border-radius:9px;font-weight:700;cursor:pointer}
-        .ns-main-content{width:auto!important;max-width:none!important;min-width:0!important;margin:0 0 0 258px!important;padding:34px clamp(22px,3.5vw,58px) 56px!important}
+         .ns-signin{position:relative;z-index:3;pointer-events:auto;border:0;background:#8050E8;color:white;padding:11px;border-radius:9px;font-weight:700;cursor:pointer}
+        .ns-main-content{position:relative!important;z-index:1!important;isolation:isolate;width:auto!important;max-width:none!important;min-width:0!important;margin:0 0 0 258px!important;padding:34px clamp(22px,3.5vw,58px) 56px!important;pointer-events:auto!important}
         .ns-app-shell button{transition:background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .16s ease}
         .ns-app-shell button:focus-visible,.ns-app-shell input:focus-visible,.ns-app-shell textarea:focus-visible,.ns-app-shell select:focus-visible{outline:2px solid #8050E8!important;outline-offset:2px!important}
         @media(max-width:760px){
