@@ -61,12 +61,23 @@ export default function ResetPasswordPage() {
     }
 
     setLoading(true);
-    const { error: updateError } = await supabase.auth.updateUser({ password });
-    setLoading(false);
-
-    if (updateError) {
-      setError("We couldn't update your password. The reset link may have expired; please request a new one.");
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({ password });
+      if (updateError) {
+        console.error("Password update failed:", updateError);
+        setError(updateError.message);
+        return;
+      }
+    } catch (updateError) {
+      console.error("Password update failed:", updateError);
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "An unexpected error occurred while updating your password."
+      );
       return;
+    } finally {
+      setLoading(false);
     }
 
     setMessage("Your password has been updated. Redirecting you to the home page…");
