@@ -69,9 +69,8 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    setMessage("Your password has been updated. You can now sign in with your new password.");
-    await supabase.auth.signOut();
-    window.setTimeout(() => router.push("/login"), 1200);
+    setMessage("Your password has been updated. Redirecting you to the home page…");
+    window.setTimeout(() => router.replace("/"), 1200);
   }
 
   return (
