@@ -22,7 +22,7 @@ export default function ForgotPasswordPage() {
       const normalizedEmail = email.trim().toLowerCase();
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         normalizedEmail,
-        { redirectTo: `${window.location.origin}/reset-password` }
+        { redirectTo: "https://north-synapse-gwrnktj9j-north-synapse.vercel.app/reset-password" }
       );
 
       if (resetError) {
