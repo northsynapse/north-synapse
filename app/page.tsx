@@ -1941,19 +1941,23 @@ export default function Home() {
                     {disc.authorAvatar ? <img src={disc.authorAvatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 32, height: 32, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{(disc.authorName || 'S').slice(0, 1).toUpperCase()}</div>}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}><span style={{ fontSize: '0.85rem', fontWeight: 650 }}>{disc.authorName}</span><span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{disc.date}</span></div>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.8rem', marginBottom: '0.5rem' }}>
-                    <strong style={{ flex: '1 1 auto', minWidth: 0, fontSize: '1.1rem', fontWeight: 'bold', overflowWrap: 'anywhere' }}>{disc.title}</strong>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', flexShrink: 0 }}>
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <strong style={{ display: 'block', fontSize: '1.1rem', fontWeight: 'bold', overflowWrap: 'anywhere' }}>{disc.title}</strong>
+                  </div>
+                  <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{disc.content}</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.7rem', paddingTop: '0.75rem', borderTop: `1px solid ${theme.border}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.45rem 0.8rem', minWidth: 0 }}>
+                      <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by {disc.authorEmail ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(disc.authorName, disc.authorEmail); }} style={{ color: theme.textMuted, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{disc.authorName}</button> : <span>{disc.authorName}</span>} on {disc.date}</span>
+                      <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold', whiteSpace: 'nowrap' }}>{disc.repliesCount} Replies</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '0.7rem', marginLeft: 'auto' }}>
                       {!isAdmin && user?.id && <button type="button" onClick={(e) => { e.stopPropagation(); void handleReportContent('discussion', disc.id); }} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>Report</button>}
-                      {(isAdmin || user?.email?.toLowerCase() === disc.authorEmail?.toLowerCase()) && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteDiscussion(disc.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
-                      <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{disc.repliesCount} Replies</span>
+                      {(isAdmin || user?.email?.toLowerCase() === disc.authorEmail?.toLowerCase()) && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteDiscussion(disc.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
                       {!isAdmin && <button type="button" onClick={(e) => handleBookmarkDiscussion(disc.id, e)} aria-label={disc.bookmarkedByMe ? 'Remove saved discussion' : 'Save discussion'} style={{ border: `1px solid ${theme.border}`, borderRadius: '7px', padding: '0.35rem 0.55rem', background: disc.bookmarkedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: disc.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                         {disc.bookmarkedByMe ? '★ Saved' : '☆ Save'}
                       </button>}
                     </div>
                   </div>
-                  <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{disc.content}</p>
-                  <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by {disc.authorEmail ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(disc.authorName, disc.authorEmail); }} style={{ color: theme.textMuted, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{disc.authorName}</button> : <span>{disc.authorName}</span>} on {disc.date}</span>
                 </div>
               ))}
             </div>
