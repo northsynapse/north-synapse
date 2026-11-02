@@ -204,6 +204,11 @@ export default function Home() {
 
   // 官方公告以 Supabase 数据库为唯一来源，避免公告只存在于前端代码。
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+  const [announcementDraftTitle, setAnnouncementDraftTitle] = useState('');
+  const [announcementDraftContent, setAnnouncementDraftContent] = useState('');
+  const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
+  const [adminAnnouncementSubmissions, setAdminAnnouncementSubmissions] = useState<any[]>([]);
+  const [announcementReviewLoading, setAnnouncementReviewLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -230,6 +235,29 @@ export default function Home() {
     void loadAnnouncements();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!isAdmin) {
+      setAdminAnnouncementSubmissions([]);
+      return () => { active = false; };
+    }
+    const loadSubmissions = async () => {
+      const { data, error } = await supabase
+        .from('announcement_submissions')
+        .select('id,title,content,author_name,author_email,created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      if (!active) return;
+      if (error) {
+        console.error('Unable to load announcement submissions:', error.message);
+        return;
+      }
+      setAdminAnnouncementSubmissions(data || []);
+    };
+    void loadSubmissions();
+    return () => { active = false; };
+  }, [isAdmin]);
 
   const [previewResource, setPreviewResource] = useState<ResourceItem | null>(null);
   const [newCommentText, setNewCommentText] = useState('');
@@ -1548,6 +1576,85 @@ export default function Home() {
     setPreviewResource(prev => prev?.id === resourceId ? null : prev);
   }
 
+  async function handleSubmitAnnouncement(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user?.id) {
+      alert('Please sign in before submitting an announcement.');
+      setShowAuthModal(true);
+      return;
+    }
+    const title = announcementDraftTitle.trim();
+    const content = announcementDraftContent.trim();
+    if (!title || !content) return;
+    setAnnouncementSubmitting(true);
+    const { data: saved, error } = await supabase.from('announcement_submissions').insert({
+      author_id: user.id,
+      author_email: user.email || '',
+      author_name: nickname || username || user.email?.split('@')[0] || 'Student',
+      title,
+      content
+    }).select('id').single();
+    if (error || !saved) {
+      console.error('Announcement submission failed:', error?.message);
+      alert('Your announcement could not be submitted. Please try again.');
+      setAnnouncementSubmitting(false);
+      return;
+    }
+    const { data: sessionData } = await supabase.auth.getSession();
+    const emailResponse = await fetch('/api/announcement-submissions/notify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${sessionData.session?.access_token || ''}`
+      },
+      body: JSON.stringify({ title, content, submitter: nickname || username || 'Student' })
+    }).catch(() => null);
+    setAnnouncementDraftTitle('');
+    setAnnouncementDraftContent('');
+    setAnnouncementSubmitting(false);
+    if (emailResponse?.ok) {
+      alert('Your announcement has been submitted for review. The administrator has been notified by email.');
+    } else {
+      alert('Your announcement has been saved for review, but the email notification is not configured or could not be sent. The administrator can still review it in the Admin dashboard.');
+    }
+  }
+
+  async function handleReviewAnnouncementSubmission(submissionId: string, approve: boolean) {
+    if (!isAdmin || announcementReviewLoading) return;
+    setAnnouncementReviewLoading(true);
+    if (approve) {
+      const { error } = await supabase.rpc('approve_announcement_submission', { p_submission_id: submissionId });
+      if (error) {
+        console.error('Announcement approval failed:', error.message);
+        alert('Could not approve this announcement. Please check the database migration and try again.');
+        setAnnouncementReviewLoading(false);
+        return;
+      }
+      const { data, error: loadError } = await supabase
+        .from('announcements')
+        .select('id,title,content,author_name,created_at')
+        .eq('is_published', true)
+        .order('created_at', { ascending: false });
+      if (!loadError) setAnnouncements((data || []).map((item: any) => ({
+        id: item.id, title: item.title, content: item.content,
+        authorName: item.author_name || 'North Synapse',
+        date: new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      })));
+    } else {
+      const { error } = await supabase.from('announcement_submissions')
+        .update({ status: 'rejected', reviewer_id: user?.id, reviewed_at: new Date().toISOString() })
+        .eq('id', submissionId).eq('status', 'pending');
+      if (error) {
+        console.error('Announcement rejection failed:', error.message);
+        alert('Could not reject this submission. Please try again.');
+        setAnnouncementReviewLoading(false);
+        return;
+      }
+    }
+    setAdminAnnouncementSubmissions(prev => prev.filter(item => item.id !== submissionId));
+    setAnnouncementReviewLoading(false);
+  }
+
   function handleDeleteDiscussion(discussionId: string) {
     const discussion = discussions.find(item => item.id === discussionId);
     if (!user?.id || !discussion || (!isAdmin && discussion.authorEmail?.toLowerCase() !== user.email?.toLowerCase())) return;
@@ -2027,7 +2134,24 @@ export default function Home() {
         {/* ANNOUNCEMENTS 视图 */}
         {activeTab === 'announcements' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Announcements</h1>
+            <div>
+              <h1 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '0.35rem' }}>Announcements</h1>
+              <p style={{ color: theme.textMuted, margin: 0 }}>Updates, opportunities, and important news from the North Synapse community.</p>
+            </div>
+            {!isAdmin && <form onSubmit={handleSubmitAnnouncement} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Suggest an Announcement</h2>
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: '0.35rem 0 0' }}>Have useful news or an opportunity to share? Submit it for administrator review. Approved announcements are published automatically.</p>
+              </div>
+              <input required maxLength={180} value={announcementDraftTitle} onChange={e => setAnnouncementDraftTitle(e.target.value)} placeholder="Announcement title" style={{ width: '100%', boxSizing: 'border-box', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} />
+              <textarea required maxLength={10000} rows={5} value={announcementDraftContent} onChange={e => setAnnouncementDraftContent(e.target.value)} placeholder="Write your announcement..." style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit' }} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <span style={{ color: theme.textMuted, fontSize: '0.78rem' }}>All submissions are reviewed before publication.</span>
+                <button type="submit" disabled={announcementSubmitting || !user} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1.1rem', fontWeight: 750, cursor: announcementSubmitting || !user ? 'not-allowed' : 'pointer', opacity: announcementSubmitting || !user ? 0.65 : 1 }}>{announcementSubmitting ? 'Submitting…' : 'Submit for Review'}</button>
+              </div>
+              {!user && <p style={{ color: theme.textMuted, fontSize: '0.8rem', margin: 0 }}>Sign in to submit an announcement.</p>}
+            </form>}
+            {announcements.map((item) => (
             {announcements.map((item) => (
               <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
@@ -2086,6 +2210,22 @@ export default function Home() {
                 <button type="button" onClick={() => setShowEditProfileModal(true)} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1rem', cursor: 'pointer', fontWeight: 700 }}>Edit Profile</button>
               </section>
               <TeamManagement isDarkMode={isDarkMode} isAdmin={isAdmin} />
+              <section style={{ border: `1px solid ${theme.border}`, borderRadius: '14px', background: theme.cardBg, padding: 'clamp(1rem, 3vw, 1.5rem)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                  <div><h2 style={{ margin: 0, fontSize: '1.2rem' }}>Announcement review</h2><p style={{ margin: '0.3rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>Review student submissions. Approval publishes the announcement immediately.</p></div>
+                  <span style={{ borderRadius: '999px', background: 'rgba(123,82,229,0.12)', color: theme.accent, padding: '0.3rem 0.7rem', fontSize: '0.8rem', fontWeight: 750 }}>{adminAnnouncementSubmissions.length} pending</span>
+                </div>
+                {adminAnnouncementSubmissions.length === 0 ? <p style={{ color: theme.textMuted, margin: 0 }}>No announcement submissions waiting for review.</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                  {adminAnnouncementSubmissions.map(item => <article key={item.id} style={{ border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}><div><strong style={{ fontSize: '1.05rem' }}>{item.title}</strong><p style={{ color: theme.textMuted, fontSize: '0.78rem', margin: '0.25rem 0 0' }}>{item.author_name} · {item.author_email} · {new Date(item.created_at).toLocaleString()}</p></div><span style={{ color: '#D0AA70', fontSize: '0.75rem', fontWeight: 750 }}>PENDING</span></div>
+                    <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.55, margin: '0.85rem 0' }}>{item.content}</p>
+                    <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                      <button type="button" disabled={announcementReviewLoading} onClick={() => void handleReviewAnnouncementSubmission(item.id, true)} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '7px', padding: '0.55rem 0.9rem', fontWeight: 700, cursor: 'pointer' }}>Approve &amp; Publish</button>
+                      <button type="button" disabled={announcementReviewLoading} onClick={() => void handleReviewAnnouncementSubmission(item.id, false)} style={{ background: 'transparent', color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: '7px', padding: '0.55rem 0.9rem', cursor: 'pointer' }}>Reject</button>
+                    </div>
+                  </article>)}
+                </div>}
+              </section>
               {adminLoading && !adminMetrics ? <p style={{ color: theme.textMuted }}>Loading dashboard data…</p> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.9rem' }}>{[
                 { label: 'Registered accounts', value: adminMetrics?.registered_users ?? '—', note: 'All registered accounts' },
                 { label: 'Online now', value: adminMetrics?.online_users ?? '—', note: 'Active in the last 2 minutes' },
