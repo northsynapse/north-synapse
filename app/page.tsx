@@ -2285,6 +2285,7 @@ export default function Home() {
             </div>
 
             <p style={{ fontSize: '0.95rem', marginBottom: '1.5rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{selectedDiscussion.content}</p>
+            {!!selectedDiscussion.attachments?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem', marginBottom: '1.2rem' }}>{selectedDiscussion.attachments.map((file, index) => <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 0.75rem', borderRadius: 8, border: `1px solid ${theme.border}`, color: theme.accent, textDecoration: 'none', overflowWrap: 'anywhere' }}>📎 {file.name}</a>)}</div>}
 
             <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
