@@ -21,6 +21,7 @@ interface CommentItem {
   date: string;
   likes: number;
   likedByMe?: boolean;
+  parentId?: string | null;
 }
 
 interface ResourceAttachment {
@@ -229,6 +230,9 @@ export default function Home() {
   const [newCommentText, setNewCommentText] = useState('');
   const [selectedDiscussion, setSelectedDiscussion] = useState<DiscussionItem | null>(null);
   const [newReplyText, setNewReplyText] = useState('');
+  const [discussionSort, setDiscussionSort] = useState<'latest' | 'popular' | 'discussed'>('latest');
+  const [replySort, setReplySort] = useState<'newest' | 'oldest' | 'best'>('newest');
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   // Dashboard 默认仅展示前 4 项，避免个人内容过多时页面过长。
   const [expandedDashboardSections, setExpandedDashboardSections] = useState<Record<string, boolean>>({});
@@ -494,7 +498,7 @@ export default function Home() {
       const [attachmentsResult, commentsResult, repliesResult, likesResult, bookmarksResult, discussionBookmarksResult] = await Promise.all([
         resourceIds.length ? supabase.from('resource_attachments').select('*').in('resource_id', resourceIds) : Promise.resolve({ data: [], error: null } as any),
         resourceIds.length ? supabase.from('resource_comments').select('*').in('resource_id', resourceIds).order('created_at') : Promise.resolve({ data: [], error: null } as any),
-        discussionIds.length ? supabase.from('discussion_replies').select('*').in('discussion_id', discussionIds).order('created_at') : Promise.resolve({ data: [], error: null } as any),
+        discussionIds.length ? supabase.from('discussion_replies').select('*').in('discussion_id', discussionIds).order('created_at', { ascending: true }) : Promise.resolve({ data: [], error: null } as any),
         resourceIds.length ? supabase.from('resource_likes').select('resource_id,user_id').in('resource_id', resourceIds) : Promise.resolve({ data: [], error: null } as any),
         resourceIds.length ? supabase.from('resource_bookmarks').select('resource_id,user_id').in('resource_id', resourceIds) : Promise.resolve({ data: [], error: null } as any),
         discussionIds.length ? supabase.from('discussion_bookmarks').select('discussion_id,user_id').in('discussion_id', discussionIds) : Promise.resolve({ data: [], error: null } as any)
@@ -539,7 +543,7 @@ export default function Home() {
         const replies = (repliesResult.data || []).filter((x: any) => x.discussion_id === d.id).map((x: any) => {
           const p = profiles.get(x.author_id);
           const replyLikes = replyLikesResult.data || [];
-          return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: replyLikes.filter((like: any) => like.reply_id === x.id).length, likedByMe: replyLikes.some((like: any) => like.reply_id === x.id && like.user_id === userId) };
+          return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: replyLikes.filter((like: any) => like.reply_id === x.id).length, likedByMe: replyLikes.some((like: any) => like.reply_id === x.id && like.user_id === userId), parentId: x.parent_reply_id || null };
         });
         return {
           id: d.id, title: d.title, content: d.content, authorEmail: author?.email || '', authorId: d.author_id || undefined, authorName: d.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account', authorAvatar: author?.avatar_path || '',
@@ -1368,13 +1372,13 @@ export default function Home() {
 
     if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(selectedDiscussion.id)) { alert('Replies are available on database-published discussions.'); return; }
     const { data: savedReply, error } = await supabase.from('discussion_replies').insert({
-      discussion_id: selectedDiscussion.id, author_id: user.id, content: newReplyText.trim()
+      discussion_id: selectedDiscussion.id, author_id: user.id, content: newReplyText.trim(), parent_reply_id: replyingToId
     }).select('*').single();
     if (error || !savedReply) { console.error('Reply save failed:', error?.message); alert('Could not save reply. Please try again.'); return; }
     const replyObj: CommentItem = {
       id: savedReply.id, authorEmail: user.email, authorName: nickname || username || user.email.split('@')[0],
       authorAvatar: avatarUrl, text: savedReply.content,
-      date: new Date(savedReply.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), likes: 0
+      date: new Date(savedReply.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }), likes: 0, parentId: replyingToId
     };
 
     const updatedDisc = {
@@ -1386,6 +1390,7 @@ export default function Home() {
     setSelectedDiscussion(updatedDisc);
     setDiscussions(prev => prev.map(d => d.id === selectedDiscussion.id ? updatedDisc : d));
     setNewReplyText('');
+    setReplyingToId(null);
   }
 
   async function handleLikeResource(id: string, e?: React.MouseEvent) {
@@ -1906,8 +1911,19 @@ export default function Home() {
                 + Start New Topic
               </button>}
             </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ color: theme.textMuted, fontSize: '0.85rem', alignSelf: 'center' }}>Sort by</span>
+              <select aria-label="Sort discussions" value={discussionSort} onChange={(e) => setDiscussionSort(e.target.value as 'latest' | 'popular' | 'discussed')} style={{ padding: '0.55rem 0.75rem', borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>
+                <option value="latest">Latest</option><option value="popular">Popular</option><option value="discussed">Most discussed</option>
+              </select>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {discussions.map((disc) => (
+              {[...discussions].sort((a, b) => discussionSort === 'discussed'
+                ? b.repliesCount - a.repliesCount || new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+                : discussionSort === 'popular'
+                  ? (b.repliesCount / (1 + Math.max(0, (Date.now() - new Date(b.createdAt || 0).getTime()) / 86400000) * 0.12)) - (a.repliesCount / (1 + Math.max(0, (Date.now() - new Date(a.createdAt || 0).getTime()) / 86400000) * 0.12))
+                  : new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              ).map((disc) => (
                 <div key={disc.id} onClick={() => setSelectedDiscussion(disc)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.8rem' }}>
                     {disc.authorAvatar ? <img src={disc.authorAvatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 32, height: 32, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{(disc.authorName || 'S').slice(0, 1).toUpperCase()}</div>}
@@ -2195,25 +2211,39 @@ export default function Home() {
             <p style={{ fontSize: '0.95rem', marginBottom: '1.5rem', whiteSpace: 'pre-wrap' }}>{selectedDiscussion.content}</p>
 
             <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: '1rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>Replies ({selectedDiscussion.repliesCount})</h3>
-
-              {!isAdmin && <form onSubmit={handleAddDiscussionReply} style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.5rem' }}>
-                <input type="text" placeholder="Write a reply..." value={newReplyText} onChange={(e) => setNewReplyText(e.target.value)} style={{ flex: 1, padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain }} />
-                <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Reply</button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0 }}>Comments ({selectedDiscussion.repliesCount})</h3>
+                <select aria-label="Sort comments" value={replySort} onChange={(e) => setReplySort(e.target.value as 'newest' | 'oldest' | 'best')} style={{ padding: '0.45rem 0.65rem', borderRadius: 7, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, fontSize: '0.82rem' }}>
+                  <option value="newest">Newest</option><option value="oldest">Oldest</option><option value="best">Best</option>
+                </select>
+              </div>
+              {!isAdmin && <form onSubmit={handleAddDiscussionReply} style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', marginBottom: '1.5rem' }}>
+                {replyingToId && <div style={{ color: theme.textMuted, fontSize: '0.8rem' }}>Replying to a comment <button type="button" onClick={() => setReplyingToId(null)} style={{ border: 0, background: 'none', color: theme.accent, cursor: 'pointer' }}>Cancel</button></div>}
+                <textarea rows={3} placeholder={replyingToId ? 'Write a reply to this comment...' : 'Share a thoughtful comment...'} value={newReplyText} onChange={(e) => setNewReplyText(e.target.value)} style={{ width: '100%', padding: '0.75rem', borderRadius: 8, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', resize: 'vertical' }} />
+                <button type="submit" disabled={!newReplyText.trim()} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.65rem 1.2rem', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end', opacity: newReplyText.trim() ? 1 : 0.55 }}>Post {replyingToId ? 'Reply' : 'Comment'}</button>
               </form>}
-
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                {selectedDiscussion.replies.map(r => (
-                  <div key={r.id} style={{ backgroundColor: theme.bg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      {r.authorEmail ? <button type="button" onClick={() => openPublicProfile(r.authorName, r.authorEmail)} style={{ fontSize: '0.85rem', color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{r.authorName}</button> : <span style={{ fontSize: '0.85rem' }}>{r.authorName}</span>}
-                      <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{r.date}</span>
+                {[...selectedDiscussion.replies].filter(r => !r.parentId).sort((a, b) => replySort === 'best' ? (b.likes || 0) - (a.likes || 0) : replySort === 'oldest' ? new Date(a.date).getTime() - new Date(b.date).getTime() : new Date(b.date).getTime() - new Date(a.date).getTime()).map(r => (
+                  <div key={r.id} style={{ backgroundColor: theme.bg, padding: '0.9rem', borderRadius: 9, border: `1px solid ${theme.border}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', gap: '0.5rem' }}>
+                      {r.authorEmail ? <button type="button" onClick={() => openPublicProfile(r.authorName, r.authorEmail)} style={{ fontSize: '0.88rem', color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', font: 'inherit', fontWeight: 650 }}>{r.authorName}</button> : <span style={{ fontSize: '0.88rem', fontWeight: 650 }}>{r.authorName}</span>}
+                      <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>{r.date}</span>
                     </div>
-                    <p style={{ fontSize: '0.85rem' }}>{r.text}</p>
-                    {(isAdmin || user?.email?.toLowerCase() === r.authorEmail?.toLowerCase()) && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, r.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
-                    {!isAdmin && <button type="button" onClick={() => handleLikeDiscussionReply(selectedDiscussion.id, r.id)} aria-label={r.likedByMe ? 'Unlike reply' : 'Like reply'} style={{ marginTop: '0.25rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: r.likedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: r.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>
-                      {r.likedByMe ? '♥ Liked' : '♡ Like'} · {r.likes || 0}
-                    </button>}
+                    <p style={{ fontSize: '0.9rem', lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '0.35rem 0 0.55rem' }}>{r.text}</p>
+                    <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      {!isAdmin && <button type="button" onClick={() => { setReplyingToId(r.id); setNewReplyText(''); }} style={{ border: 0, background: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.8rem', padding: '0.2rem' }}>↳ Reply</button>}
+                      {!isAdmin && <button type="button" onClick={() => handleLikeDiscussionReply(selectedDiscussion.id, r.id)} style={{ border: 0, background: 'none', color: r.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem', padding: '0.2rem' }}>{r.likedByMe ? '♥' : '♡'} {r.likes || 0}</button>}
+                      {(isAdmin || user?.email?.toLowerCase() === r.authorEmail?.toLowerCase()) && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, r.id)} style={{ border: 0, background: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem', padding: '0.2rem' }}>Delete</button>}
+                    </div>
+                    {selectedDiscussion.replies.filter(child => child.parentId === r.id).map(child => (
+                      <div key={child.id} style={{ marginTop: '0.75rem', marginLeft: 'clamp(0.6rem, 4vw, 1.6rem)', padding: '0.75rem', borderLeft: `2px solid ${theme.accent}`, background: theme.cardBg, borderRadius: '0 8px 8px 0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}><span style={{ fontSize: '0.84rem', fontWeight: 650 }}>{child.authorName}</span><span style={{ color: theme.textMuted, fontSize: '0.7rem' }}>{child.date}</span></div>
+                        <p style={{ fontSize: '0.86rem', lineHeight: 1.5, whiteSpace: 'pre-wrap', margin: '0.35rem 0' }}>{child.text}</p>
+                        {!isAdmin && <button type="button" onClick={() => { setReplyingToId(r.id); setNewReplyText(''); }} style={{ border: 0, background: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.78rem', padding: 0 }}>↳ Reply</button>}
+                        {!isAdmin && <button type="button" onClick={() => handleLikeDiscussionReply(selectedDiscussion.id, child.id)} style={{ border: 0, background: 'none', color: child.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.78rem', marginLeft: 10 }}>{child.likedByMe ? '♥' : '♡'} {child.likes || 0}</button>}
+                        {(isAdmin || user?.email?.toLowerCase() === child.authorEmail?.toLowerCase()) && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, child.id)} style={{ border: 0, background: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '0.78rem', marginLeft: 10 }}>Delete</button>}
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
