@@ -1371,10 +1371,22 @@ export default function Home() {
     if (!newReplyText.trim() || !selectedDiscussion) return;
 
     if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(selectedDiscussion.id)) { alert('Replies are available on database-published discussions.'); return; }
-    const { data: savedReply, error } = await supabase.from('discussion_replies').insert({
-      discussion_id: selectedDiscussion.id, author_id: user.id, content: newReplyText.trim(), parent_reply_id: replyingToId
-    }).select('*').single();
-    if (error || !savedReply) { console.error('Reply save failed:', error?.message); alert('Could not save reply. Please try again.'); return; }
+    // 顶层评论不依赖新字段，确保数据库迁移尚未执行时仍可正常发表评论。
+    const replyPayload: { discussion_id: string; author_id: string; content: string; parent_reply_id?: string | null } = {
+      discussion_id: selectedDiscussion.id,
+      author_id: user.id,
+      content: newReplyText.trim()
+    };
+    if (replyingToId) replyPayload.parent_reply_id = replyingToId;
+    const { data: savedReply, error } = await supabase.from('discussion_replies').insert(replyPayload).select('*').single();
+    if (error || !savedReply) {
+      console.error('Reply save failed:', error?.message);
+      const missingThreadColumn = !!replyingToId && /parent_reply_id|column.*does not exist|schema cache/i.test(error?.message || '');
+      alert(missingThreadColumn
+        ? 'Threaded replies are not enabled in the database yet. Please apply the latest Supabase migration first.'
+        : `Could not save comment: ${error?.message || 'Unknown database error'}`);
+      return;
+    }
     const replyObj: CommentItem = {
       id: savedReply.id, authorEmail: user.email, authorName: nickname || username || user.email.split('@')[0],
       authorAvatar: avatarUrl, text: savedReply.content,
