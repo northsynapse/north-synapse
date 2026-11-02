@@ -1942,7 +1942,7 @@ export default function Home() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}><span style={{ fontSize: '0.85rem', fontWeight: 650 }}>{disc.authorName}</span><span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{disc.date}</span></div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.8rem', marginBottom: '0.5rem' }}>
-                    <strong style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{disc.title}</strong>
+                    <strong style={{ flex: '1 1 auto', minWidth: 0, fontSize: '1.1rem', fontWeight: 'bold', overflowWrap: 'anywhere' }}>{disc.title}</strong>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', flexShrink: 0 }}>
                       {!isAdmin && user?.id && <button type="button" onClick={(e) => { e.stopPropagation(); void handleReportContent('discussion', disc.id); }} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>Report</button>}
                       {(isAdmin || user?.email?.toLowerCase() === disc.authorEmail?.toLowerCase()) && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteDiscussion(disc.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
@@ -1952,7 +1952,7 @@ export default function Home() {
                       </button>}
                     </div>
                   </div>
-                  <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem' }}>{disc.content}</p>
+                  <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{disc.content}</p>
                   <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by {disc.authorEmail ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(disc.authorName, disc.authorEmail); }} style={{ color: theme.textMuted, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{disc.authorName}</button> : <span>{disc.authorName}</span>} on {disc.date}</span>
                 </div>
               ))}
@@ -2215,12 +2215,12 @@ export default function Home() {
       {selectedDiscussion && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
           <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '680px', maxHeight: '80vh', border: `1px solid ${theme.border}`, padding: '2rem', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold' }}>{selectedDiscussion.title}</h2>
-              <button onClick={() => setSelectedDiscussion(null)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '1rem' }}>
+              <h2 style={{ flex: '1 1 auto', minWidth: 0, margin: 0, fontSize: '1.3rem', fontWeight: 'bold', overflowWrap: 'anywhere' }}>{selectedDiscussion.title}</h2>
+              <button onClick={() => setSelectedDiscussion(null)} style={{ flexShrink: 0, background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
             </div>
 
-            <p style={{ fontSize: '0.95rem', marginBottom: '1.5rem', whiteSpace: 'pre-wrap' }}>{selectedDiscussion.content}</p>
+            <p style={{ fontSize: '0.95rem', marginBottom: '1.5rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{selectedDiscussion.content}</p>
 
             <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -2250,7 +2250,7 @@ export default function Home() {
                     {selectedDiscussion.replies.filter(child => child.parentId === r.id).map(child => (
                       <div key={child.id} style={{ marginTop: '0.75rem', marginLeft: 'clamp(0.6rem, 4vw, 1.6rem)', padding: '0.75rem', borderLeft: `2px solid ${theme.accent}`, background: theme.cardBg, borderRadius: '0 8px 8px 0' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}><span style={{ fontSize: '0.84rem', fontWeight: 650 }}>{child.authorName}</span><span style={{ color: theme.textMuted, fontSize: '0.7rem' }}>{child.date}</span></div>
-                        <p style={{ fontSize: '0.86rem', lineHeight: 1.5, whiteSpace: 'pre-wrap', margin: '0.35rem 0' }}>{child.text}</p>
+                        <p style={{ fontSize: '0.86rem', lineHeight: 1.5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '0.35rem 0' }}>{child.text}</p>
                         {!isAdmin && <button type="button" onClick={() => { setReplyingToId(r.id); setNewReplyText(''); }} style={{ border: 0, background: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.78rem', padding: 0 }}>↳ Reply</button>}
                         {!isAdmin && <button type="button" onClick={() => handleLikeDiscussionReply(selectedDiscussion.id, child.id)} style={{ border: 0, background: 'none', color: child.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.78rem', marginLeft: 10 }}>{child.likedByMe ? '♥' : '♡'} {child.likes || 0}</button>}
                         {(isAdmin || user?.email?.toLowerCase() === child.authorEmail?.toLowerCase()) && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, child.id)} style={{ border: 0, background: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '0.78rem', marginLeft: 10 }}>Delete</button>}
@@ -2311,7 +2311,7 @@ export default function Home() {
       {/* 编辑资料与注销弹窗 */}
       {showEditProfileModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}` }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', boxSizing: 'border-box', minWidth: 0, border: `1px solid ${theme.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
               <h2>Edit Profile</h2>
               <button onClick={() => setShowEditProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
