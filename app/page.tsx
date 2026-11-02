@@ -89,6 +89,7 @@ interface AnnouncementItem {
   content: string;
   date: string;
   authorName: string;
+  attachments?: ResourceAttachment[];
 }
 
 export default function Home() {
@@ -206,6 +207,7 @@ export default function Home() {
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [announcementDraftTitle, setAnnouncementDraftTitle] = useState('');
   const [announcementDraftContent, setAnnouncementDraftContent] = useState('');
+  const [announcementDraftFiles, setAnnouncementDraftFiles] = useState<File[]>([]);
   const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
   const [adminAnnouncementSubmissions, setAdminAnnouncementSubmissions] = useState<any[]>([]);
   const [announcementReviewLoading, setAnnouncementReviewLoading] = useState(false);
@@ -215,7 +217,7 @@ export default function Home() {
     const loadAnnouncements = async () => {
       const { data, error } = await supabase
         .from('announcements')
-        .select('id,title,content,author_name,created_at')
+        .select('id,title,content,author_name,created_at,attachments')
         .eq('is_published', true)
         .order('created_at', { ascending: false });
       if (!active) return;
@@ -229,6 +231,7 @@ export default function Home() {
         title: item.title,
         content: item.content,
         authorName: item.author_name || 'North Synapse',
+        attachments: Array.isArray(item.attachments) ? item.attachments : [],
         date: new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       })));
     };
@@ -245,7 +248,7 @@ export default function Home() {
     const loadSubmissions = async () => {
       const { data, error } = await supabase
         .from('announcement_submissions')
-        .select('id,title,content,author_name,author_email,created_at')
+        .select('id,title,content,author_name,author_email,created_at,attachments')
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
       if (!active) return;
@@ -1576,35 +1579,79 @@ export default function Home() {
     setPreviewResource(prev => prev?.id === resourceId ? null : prev);
   }
 
+  async function uploadAnnouncementFiles(files: File[]) {
+    const uploaded: ResourceAttachment[] = [];
+    const paths: string[] = [];
+    for (const file of files) {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const storagePath = `${user.id}/announcements/${crypto.randomUUID()}-${safeName}`;
+      const { error } = await supabase.storage.from('resource-attachments').upload(storagePath, file, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: false
+      });
+      if (error) {
+        if (paths.length) await supabase.storage.from('resource-attachments').remove(paths);
+        throw new Error(`Could not upload "${file.name}": ${error.message}`);
+      }
+      paths.push(storagePath);
+      uploaded.push({
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        url: supabase.storage.from('resource-attachments').getPublicUrl(storagePath).data.publicUrl
+      });
+    }
+    return { uploaded, paths };
+  }
+
+  function handleAnnouncementFilesChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(event.target.files || []);
+    if (announcementDraftFiles.length + selected.length > 5) {
+      alert('You can attach up to 5 files.');
+      event.target.value = '';
+      return;
+    }
+    const oversized = selected.find(file => file.size > 20 * 1024 * 1024);
+    if (oversized) {
+      alert(`"${oversized.name}" exceeds the 20 MB file limit.`);
+      event.target.value = '';
+      return;
+    }
+    setAnnouncementDraftFiles(prev => [...prev, ...selected]);
+    event.target.value = '';
+  }
+
   async function handleAdminPublishAnnouncement(e: React.FormEvent) {
     e.preventDefault();
-    if (!isAdmin) return;
+    if (!isAdmin || !user?.id) return;
     const title = announcementDraftTitle.trim();
     const content = announcementDraftContent.trim();
     if (!title || !content) return;
     setAnnouncementSubmitting(true);
-    const { data: publishedId, error } = await supabase.rpc('publish_announcement', {
-      p_title: title,
-      p_content: content
-    });
-    if (error || !publishedId) {
+    let uploadedPaths: string[] = [];
+    try {
+      const files = await uploadAnnouncementFiles(announcementDraftFiles);
+      uploadedPaths = files.paths;
+      const { data: publishedId, error } = await supabase.rpc('publish_announcement', {
+        p_title: title,
+        p_content: content,
+        p_attachments: files.uploaded
+      });
+      if (error || !publishedId) throw new Error(error?.message || 'The database did not return an announcement ID.');
+      setAnnouncements(prev => [{
+        id: publishedId, title, content, authorName: 'North Synapse',
+        attachments: files.uploaded,
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      }, ...prev]);
+      setAnnouncementDraftTitle('');
+      setAnnouncementDraftContent('');
+      setAnnouncementDraftFiles([]);
+    } catch (error: any) {
+      if (uploadedPaths.length) await supabase.storage.from('resource-attachments').remove(uploadedPaths);
       console.error('Direct announcement publish failed:', error?.message);
-      alert(error?.message
-        ? `Could not publish this announcement: ${error.message}`
-        : 'Could not publish this announcement. Please try again.');
+      alert(`Could not publish this announcement: ${error?.message || 'Please try again.'}`);
+    } finally {
       setAnnouncementSubmitting(false);
-      return;
     }
-    setAnnouncements(prev => [{
-      id: publishedId,
-      title,
-      content,
-      authorName: 'North Synapse',
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    }, ...prev]);
-    setAnnouncementDraftTitle('');
-    setAnnouncementDraftContent('');
-    setAnnouncementSubmitting(false);
   }
 
   async function handleSubmitAnnouncement(e: React.FormEvent) {
@@ -1618,16 +1665,25 @@ export default function Home() {
     const content = announcementDraftContent.trim();
     if (!title || !content) return;
     setAnnouncementSubmitting(true);
-    const { data: saved, error } = await supabase.from('announcement_submissions').insert({
-      author_id: user.id,
-      author_email: user.email || '',
-      author_name: nickname || username || user.email?.split('@')[0] || 'Student',
-      title,
-      content
-    }).select('id').single();
-    if (error || !saved) {
+    let uploadedPaths: string[] = [];
+    let saved: any = null;
+    try {
+      const files = await uploadAnnouncementFiles(announcementDraftFiles);
+      uploadedPaths = files.paths;
+      const { data, error } = await supabase.from('announcement_submissions').insert({
+        author_id: user.id,
+        author_email: user.email || '',
+        author_name: nickname || username || user.email?.split('@')[0] || 'Student',
+        title,
+        content,
+        attachments: files.uploaded
+      }).select('id').single();
+      if (error || !data) throw new Error(error?.message || 'Submission could not be saved.');
+      saved = data;
+    } catch (error: any) {
+      if (uploadedPaths.length) await supabase.storage.from('resource-attachments').remove(uploadedPaths);
       console.error('Announcement submission failed:', error?.message);
-      alert('Your announcement could not be submitted. Please try again.');
+      alert(`Your announcement could not be submitted: ${error?.message || 'Please try again.'}`);
       setAnnouncementSubmitting(false);
       return;
     }
@@ -1642,6 +1698,7 @@ export default function Home() {
     }).catch(() => null);
     setAnnouncementDraftTitle('');
     setAnnouncementDraftContent('');
+    setAnnouncementDraftFiles([]);
     setAnnouncementSubmitting(false);
     if (emailResponse?.ok) {
       alert('Your announcement has been submitted for review. The administrator has been notified by email.');
@@ -2173,6 +2230,7 @@ export default function Home() {
               <div><h2 style={{ margin: 0, fontSize: '1.15rem' }}>Publish an Announcement</h2><p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: '0.35rem 0 0' }}>Administrator posts are published immediately.</p></div>
               <input required maxLength={180} value={announcementDraftTitle} onChange={e => setAnnouncementDraftTitle(e.target.value)} placeholder="Announcement title" style={{ width: '100%', boxSizing: 'border-box', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} />
               <textarea required maxLength={10000} rows={5} value={announcementDraftContent} onChange={e => setAnnouncementDraftContent(e.target.value)} placeholder="Write the announcement..." style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}><label style={{ color: theme.textMuted, fontSize: '0.85rem', fontWeight: 650 }}>Attachments (up to 5 files, 20 MB each)</label><input type="file" multiple onChange={handleAnnouncementFilesChange} style={{ color: theme.textMain }} />{announcementDraftFiles.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', color: theme.textMuted, fontSize: '0.82rem' }}><span>📎 {file.name}</span><button type="button" onClick={() => setAnnouncementDraftFiles(prev => prev.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer' }}>Remove</button></div>)}</div>
               <button type="submit" disabled={announcementSubmitting} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1.1rem', fontWeight: 750, cursor: announcementSubmitting ? 'wait' : 'pointer', alignSelf: 'flex-start' }}>{announcementSubmitting ? 'Publishing…' : 'Publish Now'}</button>
             </form>}
             {!isAdmin && <form onSubmit={handleSubmitAnnouncement} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
@@ -2182,6 +2240,7 @@ export default function Home() {
               </div>
               <input required maxLength={180} value={announcementDraftTitle} onChange={e => setAnnouncementDraftTitle(e.target.value)} placeholder="Announcement title" style={{ width: '100%', boxSizing: 'border-box', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} />
               <textarea required maxLength={10000} rows={5} value={announcementDraftContent} onChange={e => setAnnouncementDraftContent(e.target.value)} placeholder="Write your announcement..." style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}><label style={{ color: theme.textMuted, fontSize: '0.85rem', fontWeight: 650 }}>Attachments (up to 5 files, 20 MB each)</label><input type="file" multiple onChange={handleAnnouncementFilesChange} style={{ color: theme.textMain }} />{announcementDraftFiles.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', color: theme.textMuted, fontSize: '0.82rem' }}><span>📎 {file.name}</span><button type="button" onClick={() => setAnnouncementDraftFiles(prev => prev.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer' }}>Remove</button></div>)}</div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <span style={{ color: theme.textMuted, fontSize: '0.78rem' }}>All submissions are reviewed before publication.</span>
                 <button type="submit" disabled={announcementSubmitting || !user} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1.1rem', fontWeight: 750, cursor: announcementSubmitting || !user ? 'not-allowed' : 'pointer', opacity: announcementSubmitting || !user ? 0.65 : 1 }}>{announcementSubmitting ? 'Submitting…' : 'Submit for Review'}</button>
@@ -2195,7 +2254,8 @@ export default function Home() {
                   <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
                 </div>
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{item.title}</h3>
-                <p style={{ marginTop: '0.5rem', color: theme.textMain }}>{item.content}</p>
+                <p style={{ marginTop: '0.5rem', color: theme.textMain, whiteSpace: 'pre-wrap' }}>{item.content}</p>
+                {!!item.attachments?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.8rem' }}>{item.attachments.map((file, index) => <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.7rem', borderRadius: '8px', border: `1px solid ${theme.border}`, color: theme.accent, textDecoration: 'none', fontSize: '0.85rem', overflowWrap: 'anywhere' }}>📎 {file.name}</a>)}</div>
               </div>
             ))}
           </div>
@@ -2255,6 +2315,7 @@ export default function Home() {
                   {adminAnnouncementSubmissions.map(item => <article key={item.id} style={{ border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}><div><strong style={{ fontSize: '1.05rem' }}>{item.title}</strong><p style={{ color: theme.textMuted, fontSize: '0.78rem', margin: '0.25rem 0 0' }}>{item.author_name} · {item.author_email} · {new Date(item.created_at).toLocaleString()}</p></div><span style={{ color: '#D0AA70', fontSize: '0.75rem', fontWeight: 750 }}>PENDING</span></div>
                     <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.55, margin: '0.85rem 0' }}>{item.content}</p>
+                     {!!item.attachments?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', margin: '0.5rem 0 0.85rem' }}>{item.attachments.map((file: ResourceAttachment, index: number) => <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ color: theme.accent, textDecoration: 'none', fontSize: '0.85rem' }}>📎 {file.name}</a>)}</div>}
                     <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                       <button type="button" disabled={announcementReviewLoading} onClick={() => void handleReviewAnnouncementSubmission(item.id, true)} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '7px', padding: '0.55rem 0.9rem', fontWeight: 700, cursor: 'pointer' }}>Approve &amp; Publish</button>
                       <button type="button" disabled={announcementReviewLoading} onClick={() => void handleReviewAnnouncementSubmission(item.id, false)} style={{ background: 'transparent', color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: '7px', padding: '0.55rem 0.9rem', cursor: 'pointer' }}>Reject</button>
