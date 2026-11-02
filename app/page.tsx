@@ -67,6 +67,7 @@ interface DiscussionItem {
   replies: CommentItem[];
   bookmarkedByMe?: boolean;
   bookmarks?: number;
+  attachments?: ResourceAttachment[];
 }
 
 interface LoungeRoom {
@@ -159,6 +160,10 @@ export default function Home() {
 
   const [newDiscTitle, setNewDiscTitle] = useState('');
   const [newDiscContent, setNewDiscContent] = useState('');
+  const [newDiscAttachments, setNewDiscAttachments] = useState<ResourceAttachment[]>([]);
+  const [discussionSearch, setDiscussionSearch] = useState('');
+  const [isPublishingDiscussion, setIsPublishingDiscussion] = useState(false);
+  const discussionFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 自习室与番茄钟
   const [joinedRoom, setJoinedRoom] = useState<LoungeRoom | null>(null);
@@ -548,6 +553,7 @@ export default function Home() {
         return {
           id: d.id, title: d.title, content: d.content, authorEmail: author?.email || '', authorId: d.author_id || undefined, authorName: d.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account', authorAvatar: author?.avatar_path || '',
           date: formatDate(d.created_at), createdAt: d.created_at, repliesCount: replies.length, replies,
+          attachments: Array.isArray(d.attachments) ? d.attachments.map((item: any) => ({ name: item.name, type: item.type || 'application/octet-stream', url: item.url || '' })) : [],
           bookmarkedByMe: discussionBookmarks.some((x: any) => x.discussion_id === d.id && x.user_id === userId),
           bookmarks: discussionBookmarks.filter((x: any) => x.discussion_id === d.id).length
         };
@@ -1333,30 +1339,73 @@ export default function Home() {
     alert('Academic resource note published!');
   }
 
+  function handleDiscussionFileSelection(files: FileList | null) {
+    if (!files) return;
+    const selected = Array.from(files);
+    const remaining = Math.max(0, 5 - newDiscAttachments.length);
+    if (selected.length > remaining) alert('You can attach up to 5 files to one discussion.');
+    const accepted = selected.slice(0, remaining);
+    const tooLarge = accepted.find(file => file.size > 20 * 1024 * 1024);
+    if (tooLarge) { alert(`"${tooLarge.name}" is larger than 20 MB. Please choose a smaller file.`); return; }
+    setNewDiscAttachments(previous => [...previous, ...accepted.map(file => ({ name: file.name, type: file.type || 'application/octet-stream', url: '', file }))]);
+  }
+
   async function handleCreateDiscussionSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (isAdmin) return;
-    if (!user) {
-      alert('Please sign in first.');
-      setShowAuthModal(true);
+    if (isAdmin || isPublishingDiscussion) return;
+    if (!user) { alert('Please sign in first.'); setShowAuthModal(true); return; }
+    if (!newDiscTitle.trim() || !newDiscContent.trim()) return;
+    setIsPublishingDiscussion(true);
+    const { data: saved, error } = await supabase.from('discussions').insert({
+      author_id: user.id, title: newDiscTitle.trim(), content: newDiscContent.trim(), attachments: []
+    }).select('*').single();
+    if (error || !saved) {
+      console.error('Discussion save failed:', error?.message);
+      alert('The discussion could not be saved. Please try again.');
+      setIsPublishingDiscussion(false);
       return;
     }
-    if (!newDiscTitle.trim() || !newDiscContent.trim()) return;
-
-    const { data: saved, error } = await supabase.from('discussions').insert({
-      author_id: user.id, title: newDiscTitle.trim(), content: newDiscContent.trim()
-    }).select('*').single();
-    if (error || !saved) { console.error('Discussion save failed:', error?.message); alert('The discussion could not be saved. Please try again.'); return; }
+    const uploaded: Array<{ name: string; type: string; url: string; storage_path: string }> = [];
+    for (const attachment of newDiscAttachments) {
+      if (!attachment.file) continue;
+      const safeName = attachment.file.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const storagePath = `${user.id}/discussions/${saved.id}/${crypto.randomUUID()}-${safeName}`;
+      const { error: uploadError } = await supabase.storage.from('resource-attachments').upload(storagePath, attachment.file, { contentType: attachment.type || 'application/octet-stream', upsert: false });
+      if (uploadError) {
+        console.error('Discussion attachment upload failed:', uploadError.message);
+        if (uploaded.length) await supabase.storage.from('resource-attachments').remove(uploaded.map(item => item.storage_path));
+        await supabase.from('discussions').delete().eq('id', saved.id).eq('author_id', user.id);
+        alert(`Could not upload "${attachment.name}": ${uploadError.message}. The discussion was not published.`);
+        setIsPublishingDiscussion(false);
+        return;
+      }
+      const url = supabase.storage.from('resource-attachments').getPublicUrl(storagePath).data.publicUrl;
+      uploaded.push({ name: attachment.name, type: attachment.type, url, storage_path: storagePath });
+    }
+    const savedAttachments = uploaded.map(({ name, type, url }) => ({ name, type, url }));
+    if (savedAttachments.length) {
+      const { error: metadataError } = await supabase.from('discussions').update({ attachments: savedAttachments }).eq('id', saved.id).eq('author_id', user.id);
+      if (metadataError) {
+        console.error('Discussion attachment metadata save failed:', metadataError.message);
+        await supabase.storage.from('resource-attachments').remove(uploaded.map(item => item.storage_path));
+        await supabase.from('discussions').delete().eq('id', saved.id).eq('author_id', user.id);
+        alert('The files could not be linked to the discussion. Nothing was published. Please try again.');
+        setIsPublishingDiscussion(false);
+        return;
+      }
+    }
     const newDisc: DiscussionItem = {
       id: saved.id, title: saved.title, content: saved.content, authorEmail: user.email,
       authorName: nickname || username || user.email.split('@')[0],
       date: new Date(saved.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
-      createdAt: saved.created_at, repliesCount: 0, replies: [], bookmarkedByMe: false, bookmarks: 0
+      createdAt: saved.created_at, repliesCount: 0, replies: [], attachments: savedAttachments, bookmarkedByMe: false, bookmarks: 0
     };
     setDiscussions(prev => [newDisc, ...prev.filter(item => item.id !== newDisc.id)]);
     setShowCreateDiscussionModal(false);
     setNewDiscTitle('');
     setNewDiscContent('');
+    setNewDiscAttachments([]);
+    setIsPublishingDiscussion(false);
     alert('Discussion topic posted!');
   }
 
@@ -1923,14 +1972,24 @@ export default function Home() {
                 + Start New Topic
               </button>}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: '1 1 280px', minWidth: 0, maxWidth: 560, border: `1px solid ${theme.border}`, background: theme.cardBg, borderRadius: 9, padding: '0.55rem 0.75rem' }}>
+                <span aria-hidden="true" style={{ color: theme.textMuted, fontSize: '1rem' }}>⌕</span>
+                <input type="search" aria-label="Search discussions" placeholder="Search topics, content, or authors..." value={discussionSearch} onChange={(e) => setDiscussionSearch(e.target.value)} style={{ width: '100%', minWidth: 0, border: 0, outline: 0, background: 'transparent', color: theme.textMain, fontSize: '0.9rem' }} />
+                {discussionSearch && <button type="button" onClick={() => setDiscussionSearch('')} style={{ border: 0, background: 'none', color: theme.textMuted, cursor: 'pointer' }}>Clear</button>}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span style={{ color: theme.textMuted, fontSize: '0.85rem', alignSelf: 'center' }}>Sort by</span>
               <select aria-label="Sort discussions" value={discussionSort} onChange={(e) => setDiscussionSort(e.target.value as 'latest' | 'popular' | 'discussed')} style={{ padding: '0.55rem 0.75rem', borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>
                 <option value="latest">Latest</option><option value="popular">Popular</option><option value="discussed">Most discussed</option>
               </select>
+              </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {[...discussions].sort((a, b) => discussionSort === 'discussed'
+              {[...discussions].filter(disc => {
+                const query = discussionSearch.trim().toLowerCase();
+                return !query || [disc.title, disc.content, disc.authorName].some(value => (value || '').toLowerCase().includes(query));
+              }).sort((a, b) => discussionSort === 'discussed'
                 ? b.repliesCount - a.repliesCount || new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
                 : discussionSort === 'popular'
                   ? (b.repliesCount / (1 + Math.max(0, (Date.now() - new Date(b.createdAt || 0).getTime()) / 86400000) * 0.12)) - (a.repliesCount / (1 + Math.max(0, (Date.now() - new Date(a.createdAt || 0).getTime()) / 86400000) * 0.12))
@@ -1945,6 +2004,7 @@ export default function Home() {
                     <strong style={{ display: 'block', fontSize: '1.1rem', fontWeight: 'bold', overflowWrap: 'anywhere' }}>{disc.title}</strong>
                   </div>
                   <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{disc.content}</p>
+                  {!!disc.attachments?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>{disc.attachments.map((file, index) => <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.65rem', borderRadius: 7, border: `1px solid ${theme.border}`, color: theme.accent, textDecoration: 'none', fontSize: '0.8rem', overflowWrap: 'anywhere' }}>📎 {file.name}</a>)}</div>}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.7rem', paddingTop: '0.75rem', borderTop: `1px solid ${theme.border}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.45rem 0.8rem', minWidth: 0 }}>
                       <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by {disc.authorEmail ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(disc.authorName, disc.authorEmail); }} style={{ color: theme.textMuted, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{disc.authorName}</button> : <span>{disc.authorName}</span>} on {disc.date}</span>
@@ -2218,7 +2278,7 @@ export default function Home() {
       {/* 讨论回复弹窗 */}
       {selectedDiscussion && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '92%', maxWidth: '900px', maxHeight: '88vh', border: `1px solid ${theme.border}`, padding: 'clamp(1rem, 3vw, 2.25rem)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '96vw', maxWidth: '1200px', height: '94vh', maxHeight: '94dvh', border: `1px solid ${theme.border}`, padding: 'clamp(1rem, 3vw, 2.5rem)', display: 'flex', flexDirection: 'column', overflowY: 'auto', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '1rem' }}>
               <h2 style={{ flex: '1 1 auto', minWidth: 0, margin: 0, fontSize: '1.3rem', fontWeight: 'bold', overflowWrap: 'anywhere' }}>{selectedDiscussion.title}</h2>
               <button onClick={() => setSelectedDiscussion(null)} style={{ flexShrink: 0, background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
@@ -2429,17 +2489,24 @@ export default function Home() {
 
       {/* 发起讨论弹窗 */}
       {showCreateDiscussionModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', border: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-              <h2>Start Discussion</h2>
-              <button onClick={() => setShowCreateDiscussionModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999, padding: '1rem', boxSizing: 'border-box' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: 'clamp(1rem, 3vw, 2rem)', borderRadius: '14px', width: 'min(94vw, 760px)', maxHeight: '92dvh', overflowY: 'auto', border: `1px solid ${theme.border}`, boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', gap: '1rem' }}>
+              <h2 style={{ margin: 0 }}>Start Discussion</h2>
+              <button type="button" onClick={() => setShowCreateDiscussionModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
             </div>
-
             <form onSubmit={handleCreateDiscussionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <input type="text" required placeholder="Topic Title" value={newDiscTitle} onChange={(e) => setNewDiscTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              <textarea required rows={4} placeholder="Content" value={newDiscContent} onChange={(e) => setNewDiscContent(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
-              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Post Topic</button>
+              <input type="text" required placeholder="Topic Title" value={newDiscTitle} onChange={(e) => setNewDiscTitle(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', fontSize: '1rem' }} />
+              <textarea required rows={8} placeholder="Write your discussion..." value={newDiscContent} onChange={(e) => setNewDiscContent(e.target.value)} style={{ width: '100%', minHeight: 220, padding: '0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', resize: 'vertical', font: 'inherit' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', padding: '0.9rem', border: `1px dashed ${theme.border}`, borderRadius: 9 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div><strong style={{ fontSize: '0.9rem' }}>Attachments</strong><div style={{ color: theme.textMuted, fontSize: '0.78rem', marginTop: 3 }}>Up to 5 files · 20 MB each</div></div>
+                  <button type="button" onClick={() => discussionFileInputRef.current?.click()} disabled={newDiscAttachments.length >= 5} style={{ border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, borderRadius: 8, padding: '0.55rem 0.8rem', cursor: newDiscAttachments.length >= 5 ? 'not-allowed' : 'pointer', opacity: newDiscAttachments.length >= 5 ? 0.5 : 1 }}>＋ Add files</button>
+                  <input ref={discussionFileInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx,.zip" onChange={(e) => { handleDiscussionFileSelection(e.target.files); e.currentTarget.value = ''; }} style={{ display: 'none' }} />
+                </div>
+                {newDiscAttachments.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>{newDiscAttachments.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}><span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere', color: theme.textMuted, fontSize: '0.84rem' }}>📎 {file.name}</span><button type="button" onClick={() => setNewDiscAttachments(previous => previous.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer' }}>Remove</button></div>)}</div>}
+              </div>
+              <button type="submit" disabled={isPublishingDiscussion} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.85rem', borderRadius: '8px', fontWeight: 'bold', cursor: isPublishingDiscussion ? 'wait' : 'pointer', opacity: isPublishingDiscussion ? 0.7 : 1 }}>{isPublishingDiscussion ? 'Publishing...' : 'Post Topic'}</button>
             </form>
           </div>
         </div>
