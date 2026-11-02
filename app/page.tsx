@@ -2218,7 +2218,7 @@ export default function Home() {
       {/* 讨论回复弹窗 */}
       {selectedDiscussion && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
-          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '90%', maxWidth: '680px', maxHeight: '80vh', border: `1px solid ${theme.border}`, padding: '2rem', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '92%', maxWidth: '900px', maxHeight: '88vh', border: `1px solid ${theme.border}`, padding: 'clamp(1rem, 3vw, 2.25rem)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '1rem' }}>
               <h2 style={{ flex: '1 1 auto', minWidth: 0, margin: 0, fontSize: '1.3rem', fontWeight: 'bold', overflowWrap: 'anywhere' }}>{selectedDiscussion.title}</h2>
               <button onClick={() => setSelectedDiscussion(null)} style={{ flexShrink: 0, background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
