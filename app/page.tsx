@@ -1583,19 +1583,24 @@ export default function Home() {
     const content = announcementDraftContent.trim();
     if (!title || !content) return;
     setAnnouncementSubmitting(true);
-    const { data, error } = await supabase.from('announcements')
-      .insert({ title, content, author_name: 'North Synapse', is_published: true })
-      .select('id,title,content,author_name,created_at').single();
-    if (error || !data) {
+    const { data: publishedId, error } = await supabase.rpc('publish_announcement', {
+      p_title: title,
+      p_content: content
+    });
+    if (error || !publishedId) {
       console.error('Direct announcement publish failed:', error?.message);
-      alert('Could not publish this announcement. Please try again.');
+      alert(error?.message
+        ? `Could not publish this announcement: ${error.message}`
+        : 'Could not publish this announcement. Please try again.');
       setAnnouncementSubmitting(false);
       return;
     }
     setAnnouncements(prev => [{
-      id: data.id, title: data.title, content: data.content,
-      authorName: data.author_name || 'North Synapse',
-      date: new Date(data.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      id: publishedId,
+      title,
+      content,
+      authorName: 'North Synapse',
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     }, ...prev]);
     setAnnouncementDraftTitle('');
     setAnnouncementDraftContent('');
@@ -2512,7 +2517,7 @@ export default function Home() {
             <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Email</label>
-                <input type="email" required placeholder="student@tdsb.ca" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+                <input type="email" required placeholder="you@example.com" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
               </div>
 
               <div>
