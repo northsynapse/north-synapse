@@ -1576,6 +1576,32 @@ export default function Home() {
     setPreviewResource(prev => prev?.id === resourceId ? null : prev);
   }
 
+  async function handleAdminPublishAnnouncement(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isAdmin) return;
+    const title = announcementDraftTitle.trim();
+    const content = announcementDraftContent.trim();
+    if (!title || !content) return;
+    setAnnouncementSubmitting(true);
+    const { data, error } = await supabase.from('announcements')
+      .insert({ title, content, author_name: 'North Synapse', is_published: true })
+      .select('id,title,content,author_name,created_at').single();
+    if (error || !data) {
+      console.error('Direct announcement publish failed:', error?.message);
+      alert('Could not publish this announcement. Please try again.');
+      setAnnouncementSubmitting(false);
+      return;
+    }
+    setAnnouncements(prev => [{
+      id: data.id, title: data.title, content: data.content,
+      authorName: data.author_name || 'North Synapse',
+      date: new Date(data.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    }, ...prev]);
+    setAnnouncementDraftTitle('');
+    setAnnouncementDraftContent('');
+    setAnnouncementSubmitting(false);
+  }
+
   async function handleSubmitAnnouncement(e: React.FormEvent) {
     e.preventDefault();
     if (!user?.id) {
@@ -2138,6 +2164,12 @@ export default function Home() {
               <h1 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '0.35rem' }}>Announcements</h1>
               <p style={{ color: theme.textMuted, margin: 0 }}>Updates, opportunities, and important news from the North Synapse community.</p>
             </div>
+            {isAdmin && <form onSubmit={handleAdminPublishAnnouncement} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div><h2 style={{ margin: 0, fontSize: '1.15rem' }}>Publish an Announcement</h2><p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: '0.35rem 0 0' }}>Administrator posts are published immediately.</p></div>
+              <input required maxLength={180} value={announcementDraftTitle} onChange={e => setAnnouncementDraftTitle(e.target.value)} placeholder="Announcement title" style={{ width: '100%', boxSizing: 'border-box', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} />
+              <textarea required maxLength={10000} rows={5} value={announcementDraftContent} onChange={e => setAnnouncementDraftContent(e.target.value)} placeholder="Write the announcement..." style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit' }} />
+              <button type="submit" disabled={announcementSubmitting} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1.1rem', fontWeight: 750, cursor: announcementSubmitting ? 'wait' : 'pointer', alignSelf: 'flex-start' }}>{announcementSubmitting ? 'Publishing…' : 'Publish Now'}</button>
+            </form>}
             {!isAdmin && <form onSubmit={handleSubmitAnnouncement} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Suggest an Announcement</h2>
