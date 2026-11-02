@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${accessToken}` } }
   });
   const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
   if (authError || !user) {
@@ -28,12 +29,24 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null);
-  const title = typeof body?.title === 'string' ? body.title.trim() : '';
-  const content = typeof body?.content === 'string' ? body.content.trim() : '';
-  const submitter = typeof body?.submitter === 'string' ? body.submitter.trim() : 'Student';
-  if (!title || !content || title.length > 180 || content.length > 10000) {
-    return NextResponse.json({ error: 'Invalid announcement details.' }, { status: 400 });
+  const submissionId = typeof body?.submissionId === 'string' ? body.submissionId : '';
+  if (!submissionId) {
+    return NextResponse.json({ error: 'Submission ID is required.' }, { status: 400 });
   }
+
+  const { data: submission, error: submissionError } = await supabase
+    .from('announcement_submissions')
+    .select('id,title,content,author_name,author_email,author_id,status')
+    .eq('id', submissionId)
+    .single();
+
+  if (submissionError || !submission || submission.author_id !== user.id || submission.status !== 'pending') {
+    return NextResponse.json({ error: 'A matching pending submission was not found.' }, { status: 404 });
+  }
+
+  const title = submission.title;
+  const content = submission.content;
+  const submitter = submission.author_name || 'Student';
 
   if (!resendApiKey || !fromEmail) {
     return NextResponse.json({
