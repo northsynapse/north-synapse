@@ -2001,7 +2001,7 @@ export default function Home() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}><span style={{ fontSize: '0.85rem', fontWeight: 650 }}>{disc.authorName}</span><span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{disc.date}</span></div>
                   </div>
                   <div style={{ marginBottom: '0.5rem' }}>
-                    <strong style={{ display: 'block', fontSize: '1.1rem', fontWeight: 'bold', overflowWrap: 'anywhere' }}>{disc.title}</strong>
+                    <strong style={{ display: 'block', fontSize: '1.4rem', lineHeight: 1.3, fontWeight: 800, letterSpacing: '-0.02em', color: theme.textMain, overflowWrap: 'anywhere' }}>{disc.title}</strong>
                   </div>
                   <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{disc.content}</p>
                   {!!disc.attachments?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>{disc.attachments.map((file, index) => <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.65rem', borderRadius: 7, border: `1px solid ${theme.border}`, color: theme.accent, textDecoration: 'none', fontSize: '0.8rem', overflowWrap: 'anywhere' }}>📎 {file.name}</a>)}</div>}
@@ -2280,7 +2280,7 @@ export default function Home() {
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
           <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '96vw', maxWidth: '1200px', height: '94vh', maxHeight: '94dvh', border: `1px solid ${theme.border}`, padding: 'clamp(1rem, 3vw, 2.5rem)', display: 'flex', flexDirection: 'column', overflowY: 'auto', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '1rem' }}>
-              <h2 style={{ flex: '1 1 auto', minWidth: 0, margin: 0, fontSize: '1.3rem', fontWeight: 'bold', overflowWrap: 'anywhere' }}>{selectedDiscussion.title}</h2>
+              <h2 style={{ flex: '1 1 auto', minWidth: 0, margin: 0, fontSize: 'clamp(1.7rem, 3vw, 2.25rem)', lineHeight: 1.2, fontWeight: 850, letterSpacing: '-0.025em', color: theme.textMain, overflowWrap: 'anywhere' }}>{selectedDiscussion.title}</h2>
               <button onClick={() => setSelectedDiscussion(null)} style={{ flexShrink: 0, background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
             </div>
 
