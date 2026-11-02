@@ -1460,7 +1460,7 @@ export default function Home() {
     const { error } = await deleteQuery;
     if (error) { console.error('Reply delete failed:', error.message); alert('Could not delete reply. Please try again.'); return; }
     const updateDiscussion = (item: DiscussionItem): DiscussionItem => {
-      const replies = item.replies.filter(entry => entry.id !== replyId);
+      const replies = item.replies.filter(entry => entry.id !== replyId && entry.parentId !== replyId);
       return { ...item, replies, repliesCount: replies.length };
     };
     setDiscussions(prev => prev.map(item => item.id === discussionId ? updateDiscussion(item) : item));
