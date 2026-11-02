@@ -1633,7 +1633,7 @@ export default function Home() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${sessionData.session?.access_token || ''}`
       },
-      body: JSON.stringify({ title, content, submitter: nickname || username || 'Student' })
+      body: JSON.stringify({ submissionId: saved.id })
     }).catch(() => null);
     setAnnouncementDraftTitle('');
     setAnnouncementDraftContent('');
