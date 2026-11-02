@@ -2184,7 +2184,6 @@ export default function Home() {
               {!user && <p style={{ color: theme.textMuted, fontSize: '0.8rem', margin: 0 }}>Sign in to submit an announcement.</p>}
             </form>}
             {announcements.map((item) => (
-            {announcements.map((item) => (
               <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
                   <strong style={{ color: theme.accent }}>{item.authorName}</strong>
