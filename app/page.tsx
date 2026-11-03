@@ -210,6 +210,7 @@ export default function Home() {
   const [announcementDraftFiles, setAnnouncementDraftFiles] = useState<File[]>([]);
   const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
   const [showAnnouncementComposer, setShowAnnouncementComposer] = useState(false);
+  const announcementFileInputRef = useRef<HTMLInputElement | null>(null);
   const [adminAnnouncementSubmissions, setAdminAnnouncementSubmissions] = useState<any[]>([]);
   const [announcementReviewLoading, setAnnouncementReviewLoading] = useState(false);
 
@@ -2261,7 +2262,8 @@ export default function Home() {
                     <textarea required maxLength={10000} rows={7} value={announcementDraftContent} onChange={e => setAnnouncementDraftContent(e.target.value)} placeholder="Write your announcement..." style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit' }} />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                       <label style={{ color: theme.textMuted, fontSize: '0.85rem', fontWeight: 650 }}>Attachments (up to 5 files, 20 MB each)</label>
-                      <label style={{ display: 'inline-flex', alignItems: 'center', width: 'fit-content', padding: '0.55rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 650 }}>Choose files<input type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleAnnouncementFilesChange} style={{ display: 'none' }} /></label>
+                      <input ref={announcementFileInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleAnnouncementFilesChange} style={{ display: 'none' }} />
+                      <button type="button" onClick={() => announcementFileInputRef.current?.click()} style={{ display: 'inline-flex', alignItems: 'center', width: 'fit-content', padding: '0.55rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 650 }}>Choose files</button>
                       {announcementDraftFiles.length === 0 && <span style={{ color: theme.textMuted, fontSize: '0.8rem' }}>No files selected</span>}
                       {announcementDraftFiles.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', color: theme.textMuted, fontSize: '0.82rem' }}><span style={{ overflowWrap: 'anywhere' }}>📎 {file.name}</span><button type="button" onClick={() => setAnnouncementDraftFiles(prev => prev.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer', flexShrink: 0 }}>Remove</button></div>)}
                     </div>
