@@ -209,6 +209,7 @@ export default function Home() {
   const [announcementDraftContent, setAnnouncementDraftContent] = useState('');
   const [announcementDraftFiles, setAnnouncementDraftFiles] = useState<File[]>([]);
   const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
+  const [showAnnouncementComposer, setShowAnnouncementComposer] = useState(false);
   const [adminAnnouncementSubmissions, setAdminAnnouncementSubmissions] = useState<any[]>([]);
   const [announcementReviewLoading, setAnnouncementReviewLoading] = useState(false);
 
@@ -2222,42 +2223,57 @@ export default function Home() {
         {/* ANNOUNCEMENTS 视图 */}
         {activeTab === 'announcements' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div>
-              <h1 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '0.35rem' }}>Announcements</h1>
-              <p style={{ color: theme.textMuted, margin: 0 }}>Updates, opportunities, and important news from the North Synapse community.</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: '1.8rem', fontWeight: '800', margin: 0 }}>Announcements</h1>
+              <button type="button" onClick={() => setShowAnnouncementComposer(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: theme.accent, color: '#fff', border: 0, borderRadius: '9px', padding: '0.75rem 1rem', fontWeight: 750, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>＋</span>
+                {isAdmin ? 'Publish Announcement' : 'Submit an Announcement'}
+              </button>
             </div>
-            {isAdmin && <form onSubmit={handleAdminPublishAnnouncement} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              <div><h2 style={{ margin: 0, fontSize: '1.15rem' }}>Publish an Announcement</h2><p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: '0.35rem 0 0' }}>Administrator posts are published immediately.</p></div>
-              <input required maxLength={180} value={announcementDraftTitle} onChange={e => setAnnouncementDraftTitle(e.target.value)} placeholder="Announcement title" style={{ width: '100%', boxSizing: 'border-box', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} />
-              <textarea required maxLength={10000} rows={5} value={announcementDraftContent} onChange={e => setAnnouncementDraftContent(e.target.value)} placeholder="Write the announcement..." style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit' }} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}><label style={{ color: theme.textMuted, fontSize: '0.85rem', fontWeight: 650 }}>Attachments (up to 5 files, 20 MB each)</label><label style={{ display: 'inline-flex', alignItems: 'center', width: 'fit-content', padding: '0.55rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 650 }}>Choose files<input type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleAnnouncementFilesChange} style={{ display: 'none' }} /></label>{announcementDraftFiles.length === 0 && <span style={{ color: theme.textMuted, fontSize: '0.8rem' }}>No files selected</span>}{announcementDraftFiles.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', color: theme.textMuted, fontSize: '0.82rem' }}><span>📎 {file.name}</span><button type="button" onClick={() => setAnnouncementDraftFiles(prev => prev.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer' }}>Remove</button></div>)}</div>
-              <button type="submit" disabled={announcementSubmitting} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1.1rem', fontWeight: 750, cursor: announcementSubmitting ? 'wait' : 'pointer', alignSelf: 'flex-start' }}>{announcementSubmitting ? 'Publishing…' : 'Publish Now'}</button>
-            </form>}
-            {!isAdmin && <form onSubmit={handleSubmitAnnouncement} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Suggest an Announcement</h2>
-                <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: '0.35rem 0 0' }}>Have useful news or an opportunity to share? Submit it for administrator review. Approved announcements are published automatically.</p>
+            {announcements.length === 0 ? (
+              <div style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '2.5rem 1.5rem', textAlign: 'center', color: theme.textMuted }}>
+                <div style={{ fontSize: '1.8rem', marginBottom: '0.65rem' }}>📢</div>
+                <p style={{ margin: 0 }}>No announcements yet.</p>
               </div>
-              <input required maxLength={180} value={announcementDraftTitle} onChange={e => setAnnouncementDraftTitle(e.target.value)} placeholder="Announcement title" style={{ width: '100%', boxSizing: 'border-box', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} />
-              <textarea required maxLength={10000} rows={5} value={announcementDraftContent} onChange={e => setAnnouncementDraftContent(e.target.value)} placeholder="Write your announcement..." style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit' }} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}><label style={{ color: theme.textMuted, fontSize: '0.85rem', fontWeight: 650 }}>Attachments (up to 5 files, 20 MB each)</label><label style={{ display: 'inline-flex', alignItems: 'center', width: 'fit-content', padding: '0.55rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 650 }}>Choose files<input type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleAnnouncementFilesChange} style={{ display: 'none' }} /></label>{announcementDraftFiles.length === 0 && <span style={{ color: theme.textMuted, fontSize: '0.8rem' }}>No files selected</span>}{announcementDraftFiles.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', color: theme.textMuted, fontSize: '0.82rem' }}><span>📎 {file.name}</span><button type="button" onClick={() => setAnnouncementDraftFiles(prev => prev.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer' }}>Remove</button></div>)}</div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <span style={{ color: theme.textMuted, fontSize: '0.78rem' }}>All submissions are reviewed before publication.</span>
-                <button type="submit" disabled={announcementSubmitting || !user} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1.1rem', fontWeight: 750, cursor: announcementSubmitting || !user ? 'not-allowed' : 'pointer', opacity: announcementSubmitting || !user ? 0.65 : 1 }}>{announcementSubmitting ? 'Submitting…' : 'Submit for Review'}</button>
-              </div>
-              {!user && <p style={{ color: theme.textMuted, fontSize: '0.8rem', margin: 0 }}>Sign in to submit an announcement.</p>}
-            </form>}
-            {announcements.map((item) => (
-              <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
+            ) : announcements.map((item) => (
+              <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: 'clamp(1.1rem, 3vw, 1.8rem)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.8rem' }}>
                   <strong style={{ color: theme.accent }}>{item.authorName}</strong>
                   <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
                 </div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{item.title}</h3>
-                <p style={{ marginTop: '0.5rem', color: theme.textMain, whiteSpace: 'pre-wrap' }}>{item.content}</p>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '0 0 0.5rem' }}>{item.title}</h3>
+                <p style={{ margin: 0, color: theme.textMain, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{item.content}</p>
                 {!!item.attachments?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.8rem' }}>{item.attachments.map((file, index) => <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.7rem', borderRadius: '8px', border: `1px solid ${theme.border}`, color: theme.accent, textDecoration: 'none', fontSize: '0.85rem', overflowWrap: 'anywhere' }}>📎 {file.name}</a>)}</div>}
               </div>
             ))}
+            {showAnnouncementComposer && (
+              <div onClick={() => { if (!announcementSubmitting) setShowAnnouncementComposer(false); }} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(5, 8, 15, 0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', overflowY: 'auto' }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: '680px', maxHeight: '92vh', overflowY: 'auto', background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: 'clamp(1rem, 3vw, 1.5rem)', boxShadow: '0 24px 80px rgba(0,0,0,0.35)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1rem' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>{isAdmin ? 'Publish an Announcement' : 'Submit an Announcement'}</h2>
+                      <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: '0.35rem 0 0' }}>{isAdmin ? 'Your announcement will be published immediately.' : 'Your announcement will be reviewed by an administrator before publication.'}</p>
+                    </div>
+                    <button type="button" aria-label="Close" onClick={() => setShowAnnouncementComposer(false)} disabled={announcementSubmitting} style={{ border: `1px solid ${theme.border}`, background: 'transparent', color: theme.textMain, borderRadius: '8px', width: '34px', height: '34px', cursor: announcementSubmitting ? 'not-allowed' : 'pointer', fontSize: '1.1rem', flexShrink: 0 }}>×</button>
+                  </div>
+                  <form onSubmit={isAdmin ? handleAdminPublishAnnouncement : handleSubmitAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    <input required maxLength={180} value={announcementDraftTitle} onChange={e => setAnnouncementDraftTitle(e.target.value)} placeholder="Announcement title" style={{ width: '100%', boxSizing: 'border-box', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} />
+                    <textarea required maxLength={10000} rows={7} value={announcementDraftContent} onChange={e => setAnnouncementDraftContent(e.target.value)} placeholder="Write your announcement..." style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      <label style={{ color: theme.textMuted, fontSize: '0.85rem', fontWeight: 650 }}>Attachments (up to 5 files, 20 MB each)</label>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', width: 'fit-content', padding: '0.55rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 650 }}>Choose files<input type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleAnnouncementFilesChange} style={{ display: 'none' }} /></label>
+                      {announcementDraftFiles.length === 0 && <span style={{ color: theme.textMuted, fontSize: '0.8rem' }}>No files selected</span>}
+                      {announcementDraftFiles.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', color: theme.textMuted, fontSize: '0.82rem' }}><span style={{ overflowWrap: 'anywhere' }}>📎 {file.name}</span><button type="button" onClick={() => setAnnouncementDraftFiles(prev => prev.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer', flexShrink: 0 }}>Remove</button></div>)}
+                    </div>
+                    {!isAdmin && !user && <p style={{ color: theme.textMuted, fontSize: '0.8rem', margin: 0 }}>Sign in to submit an announcement.</p>}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                      <button type="button" onClick={() => setShowAnnouncementComposer(false)} disabled={announcementSubmitting} style={{ background: 'transparent', color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: '8px', padding: '0.7rem 1rem', fontWeight: 650, cursor: 'pointer' }}>Cancel</button>
+                      <button type="submit" disabled={announcementSubmitting || (!isAdmin && !user)} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1.1rem', fontWeight: 750, cursor: announcementSubmitting || (!isAdmin && !user) ? 'not-allowed' : 'pointer', opacity: announcementSubmitting || (!isAdmin && !user) ? 0.65 : 1 }}>{announcementSubmitting ? (isAdmin ? 'Publishing…' : 'Submitting…') : (isAdmin ? 'Publish Now' : 'Submit for Review')}</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
