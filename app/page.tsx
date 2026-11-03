@@ -1715,8 +1715,8 @@ export default function Home() {
     if (approve) {
       const { error } = await supabase.rpc('approve_announcement_submission', { p_submission_id: submissionId });
       if (error) {
-        console.error('Announcement approval failed:', error.message);
-        alert('Could not approve this announcement. Please check the database migration and try again.');
+        console.error('Announcement approval failed:', error);
+        alert(`Could not approve this announcement: ${error.message || 'Unknown database error'}. Please check that migrations 003 and 005 have both been applied.`);
         setAnnouncementReviewLoading(false);
         return;
       }
@@ -2262,10 +2262,7 @@ export default function Home() {
                     <textarea required maxLength={10000} rows={7} value={announcementDraftContent} onChange={e => setAnnouncementDraftContent(e.target.value)} placeholder="Write your announcement..." style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit' }} />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                       <label style={{ color: theme.textMuted, fontSize: '0.85rem', fontWeight: 650 }}>Attachments (up to 5 files, 20 MB each)</label>
-                      <label style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', width: 'fit-content', padding: '0.55rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 650, overflow: 'hidden' }}>
-                        Choose files
-                        <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleAnnouncementFilesChange} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
-                      </label>
+                      <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleAnnouncementFilesChange} aria-label="Choose announcement attachments" style={{ display: 'block', width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: '0.55rem', border: `1px solid ${theme.border}`, borderRadius: '8px', background: theme.bg, color: theme.textMain, fontSize: '0.85rem', cursor: 'pointer' }} />
                       {announcementDraftFiles.length === 0 && <span style={{ color: theme.textMuted, fontSize: '0.8rem' }}>No files selected</span>}
                       {announcementDraftFiles.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', color: theme.textMuted, fontSize: '0.82rem' }}><span style={{ overflowWrap: 'anywhere' }}>📎 {file.name}</span><button type="button" onClick={() => setAnnouncementDraftFiles(prev => prev.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer', flexShrink: 0 }}>Remove</button></div>)}
                     </div>
