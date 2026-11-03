@@ -92,3 +92,7 @@ revoke all on function public.approve_announcement_submission(uuid) from public;
 grant execute on function public.approve_announcement_submission(uuid) to authenticated;
 revoke all on function public.publish_announcement(text, text, jsonb) from public;
 grant execute on function public.publish_announcement(text, text, jsonb) to authenticated;
+
+
+-- 刷新 PostgREST schema cache，让前端立即识别新函数签名。
+notify pgrst, 'reload schema';
