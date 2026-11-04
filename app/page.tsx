@@ -1696,7 +1696,7 @@ export default function Home() {
     setAnnouncementDraftFiles([]);
     setAnnouncementSubmitting(false);
     setShowAnnouncementComposer(false);
-    alert('Your announcement has been submitted successfully. You can check its review status in the Admin dashboard submission process.');
+    alert('Your announcement has been sent to the administrators for review. It will be published after approval.');
   }
 
   async function handleReviewAnnouncementSubmission(submissionId: string, approve: boolean) {
