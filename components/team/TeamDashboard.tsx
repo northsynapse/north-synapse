@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Flag, Headset, Users, ClipboardList, RefreshCw } from 'lucide-react';
+import { Flag, Headset, Users, RefreshCw } from 'lucide-react';
 
 type Props = { teamRole: string | null; isAdmin: boolean; isDarkMode: boolean };
 export default function TeamDashboard({ teamRole, isAdmin, isDarkMode }: Props) {
@@ -10,7 +10,6 @@ export default function TeamDashboard({ teamRole, isAdmin, isDarkMode }: Props) 
   const [reports,setReports]=useState<any[]>([]);
   const [tickets,setTickets]=useState<any[]>([]);
   const [directory,setDirectory]=useState<any[]>([]);
-  const [logs,setLogs]=useState<any[]>([]);
   const [search,setSearch]=useState('');
   const [replyDrafts,setReplyDrafts]=useState<Record<string,string>>({});
   const [loading,setLoading]=useState(false);
@@ -47,12 +46,10 @@ export default function TeamDashboard({ teamRole, isAdmin, isDarkMode }: Props) 
     }
     if(t.error)setError(t.error.message);else setTickets(t.data||[]);
     if(isCore){
-      const [u,a]=await Promise.all([
-        supabase.rpc('team_user_directory',{p_search:search.trim()}),
-        supabase.from('admin_activity_logs').select('id,actor_id,action,target_user_id,details,created_at').order('created_at',{ascending:false}).limit(50)
-      ]);
-      if(!u.error)setDirectory(u.data||[]);
-      if(!a.error)setLogs(a.data||[]);
+      if(search.trim().length >= 2){
+        const {data,error:directoryError}=await supabase.rpc('team_user_directory',{p_search:search.trim()});
+        if(!directoryError)setDirectory(data||[]);else setError(directoryError.message);
+      } else setDirectory([]);
     }
     setLoading(false);
   },[canOpen,isAdmin,teamRole,search,isCore]);
@@ -109,12 +106,9 @@ export default function TeamDashboard({ teamRole, isAdmin, isDarkMode }: Props) 
     {isCore&&<section style={{border:`1px solid ${theme.border}`,borderRadius:13,background:theme.card,padding:16,display:'grid',gap:12}}>
       <h2 style={{margin:0,fontSize:19,display:'flex',gap:8,alignItems:'center'}}><Users size={18}/> User directory</h2>
       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by email or name" style={{padding:10,borderRadius:8,border:`1px solid ${theme.border}`,background:theme.bg,color:theme.text}}/>
-      {directory.map(u=><div key={u.user_id} style={{borderTop:`1px solid ${theme.border}`,paddingTop:9,display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><div><strong>{u.nickname||u.username}</strong><div style={{fontSize:12,color:theme.muted}}>{u.email} · Joined {new Date(u.created_at).toLocaleDateString()}</div></div><span style={{fontSize:12,color:theme.muted}}>{u.team_role==='core_team'?'Core Team':u.team_role==='community_team'?'Community Team':'Member'}</span></div>)}
+      {search.trim().length < 2 ? <p style={{color:theme.muted,margin:0}}>Enter at least 2 characters to search for a member.</p> : directory.length===0 ? <p style={{color:theme.muted,margin:0}}>No matching members found.</p> : directory.map(u=><div key={u.user_id} style={{borderTop:`1px solid ${theme.border}`,paddingTop:9,display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><div><strong>{u.nickname||u.username}</strong><div style={{fontSize:12,color:theme.muted}}>{u.email} · Joined {new Date(u.created_at).toLocaleDateString()}</div></div><span style={{fontSize:12,color:theme.muted}}>{u.team_role==='core_team'?'Core Team':u.team_role==='community_team'?'Community Team':'Member'}</span></div>)}
     </section>}
-    {isCore&&<section style={{border:`1px solid ${theme.border}`,borderRadius:13,background:theme.card,padding:16,display:'grid',gap:10}}>
-      <h2 style={{margin:0,fontSize:19,display:'flex',gap:8,alignItems:'center'}}><ClipboardList size={18}/> Administrative activity</h2>
-      {logs.length===0?<p style={{color:theme.muted}}>No activity records available.</p>:logs.map(log=><div key={log.id} style={{borderTop:`1px solid ${theme.border}`,paddingTop:8,fontSize:13}}><strong>{String(log.action).replaceAll('_',' ')}</strong><div style={{color:theme.muted}}>{new Date(log.created_at).toLocaleString()} · {log.target_user_id||'Platform'}</div></div>)}
-    </section>}
+
     {loading&&<small style={{color:theme.muted}}>Refreshing team data…</small>}
   </div>;
 }

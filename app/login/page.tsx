@@ -29,20 +29,25 @@ export default function LoginPage() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
 
-    setLoading(false);
+      if (error) {
+        setError(error.message);
+        return;
+      }
 
-    if (error) {
-      setError(error.message);
-      return;
+      router.push("/");
+      router.refresh();
+    } catch (authError) {
+      console.error("Sign-in request failed:", authError);
+      setError("Unable to sign in right now. Please check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
-
-    router.push("/");
-    router.refresh();
   }
 
   return (
@@ -70,7 +75,7 @@ export default function LoginPage() {
             </label>
             <input
               id="email"
-              type="text"
+              type="email"
               inputMode="email"
               autoCapitalize="none"
               spellCheck={false}

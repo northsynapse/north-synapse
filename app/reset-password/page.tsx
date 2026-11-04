@@ -3,7 +3,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { KeyRound, ArrowLeft, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import styles from "./page.module.css";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -59,47 +61,105 @@ export default function ResetPasswordPage() {
     }
 
     setLoading(true);
-    const { error: updateError } = await supabase.auth.updateUser({ password });
-    setLoading(false);
-
-    if (updateError) {
-      setError("We couldn't update your password. The reset link may have expired; please request a new one.");
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({ password });
+      if (updateError) {
+        console.error("Password update failed:", updateError);
+        setError(updateError.message);
+        return;
+      }
+    } catch (updateError) {
+      console.error("Password update failed:", updateError);
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "An unexpected error occurred while updating your password."
+      );
       return;
+    } finally {
+      setLoading(false);
     }
 
-    setMessage("Your password has been updated. You can now sign in with your new password.");
-    await supabase.auth.signOut();
-    window.setTimeout(() => router.push("/login"), 1200);
+    setMessage("Your password has been updated. Redirecting you to the home page…");
+    window.setTimeout(() => router.replace("/"), 1200);
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 shadow-card">
-        <Link href="/login" className="text-sm text-[var(--muted)] hover:text-[var(--primary)]">← Back to sign in</Link>
-        <h1 className="mt-8 text-3xl font-semibold">Create a new password</h1>
-        <p className="mt-2 text-[var(--muted)]">Choose a new password for your North Synapse account.</p>
-        {ready ? (
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-            <div>
-              <label htmlFor="password" className="mb-2 block font-medium">New password</label>
-              <input id="password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-[var(--border)] bg-transparent px-4 py-3 outline-none focus:border-[var(--primary)]" placeholder="At least 8 characters" />
+    <main className={styles.page}>
+      <div aria-hidden="true" className={styles.orbitOne} />
+      <div aria-hidden="true" className={styles.orbitTwo} />
+
+      <div className={styles.wrapper}>
+        <div className={styles.brand}>
+          <span className={styles.brandIcon}><KeyRound size={19} strokeWidth={2.2} /></span>
+          <span className={styles.brandName}>North Synapse</span>
+        </div>
+
+        <section className={styles.card}>
+          <div className={styles.accentLine} />
+          <div className={styles.cardBody}>
+            <Link href="/login" className={styles.backLink}>
+              <ArrowLeft size={15} /> Back to sign in
+            </Link>
+
+            <div className={styles.icon}><ShieldCheck size={25} strokeWidth={1.8} /></div>
+            <p className={styles.eyebrow}>Account security</p>
+            <h1 className={styles.heading}>Create a new password</h1>
+            <p className={styles.description}>
+              Choose a new password for your North Synapse account. Use at least 8 characters.
+            </p>
+
+            {ready ? (
+              <form onSubmit={handleSubmit} className={styles.form}>
+                <div>
+                  <label htmlFor="password" className={styles.label}>New password</label>
+                  <input
+                    id="password"
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className={styles.input}
+                    placeholder="At least 8 characters"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="confirmPassword" className={styles.label}>Confirm new password</label>
+                  <input
+                    id="confirmPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    className={styles.input}
+                    placeholder="Enter it again"
+                  />
+                </div>
+                {error && <p role="alert" className={styles.error}>{error}</p>}
+                {message && <p role="status" className={styles.success}>{message}</p>}
+                <button type="submit" disabled={loading} className={styles.submit}>
+                  {loading ? "Updating password…" : "Update password"}
+                </button>
+              </form>
+            ) : (
+              <div className={styles.notice}>
+                {error && <p role="alert" className={styles.error}>{error}</p>}
+                <Link href="/forgot-password" className={styles.footerLink}>Request a new reset link</Link>
+              </div>
+            )}
+
+            <div className={styles.footer}>
+              Remembered your password?{" "}
+              <Link href="/login" className={styles.footerLink}>Sign in</Link>
             </div>
-            <div>
-              <label htmlFor="confirmPassword" className="mb-2 block font-medium">Confirm new password</label>
-              <input id="confirmPassword" type="password" autoComplete="new-password" minLength={8} required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="w-full rounded-xl border border-[var(--border)] bg-transparent px-4 py-3 outline-none focus:border-[var(--primary)]" placeholder="Enter it again" />
-            </div>
-            {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
-            {message && <p role="status" className="text-sm text-green-600">{message}</p>}
-            <button type="submit" disabled={loading} className="w-full rounded-xl bg-[var(--primary)] px-4 py-3 font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60">
-              {loading ? "Updating..." : "Update password"}
-            </button>
-          </form>
-        ) : (
-          <div className="mt-6 space-y-4">
-            {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
-            <Link href="/forgot-password" className="inline-block font-medium text-[var(--primary)] hover:underline">Request a new reset link</Link>
           </div>
-        )}
+        </section>
+
+        <p className={styles.tagline}>A learning community built for curious minds.</p>
       </div>
     </main>
   );

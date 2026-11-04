@@ -1,0 +1,84 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+export const runtime = 'nodejs';
+
+export async function POST(request: NextRequest) {
+  const authorization = request.headers.get('authorization') || '';
+  const accessToken = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  if (!accessToken) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const fromEmail = process.env.RESEND_FROM_EMAIL;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.json({ error: 'Supabase is not configured.' }, { status: 500 });
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${accessToken}` } }
+  });
+  const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Invalid session.' }, { status: 401 });
+  }
+
+  const body = await request.json().catch(() => null);
+  const submissionId = typeof body?.submissionId === 'string' ? body.submissionId : '';
+  if (!submissionId) {
+    return NextResponse.json({ error: 'Submission ID is required.' }, { status: 400 });
+  }
+
+  const { data: submission, error: submissionError } = await supabase
+    .from('announcement_submissions')
+    .select('id,title,content,author_name,author_email,author_id,status')
+    .eq('id', submissionId)
+    .single();
+
+  if (submissionError || !submission || submission.author_id !== user.id || submission.status !== 'pending') {
+    return NextResponse.json({ error: 'A matching pending submission was not found.' }, { status: 404 });
+  }
+
+  const title = submission.title;
+  const content = submission.content;
+  const submitter = submission.author_name || 'Student';
+
+  if (!resendApiKey || !fromEmail) {
+    return NextResponse.json({
+      sent: false,
+      configurationRequired: true,
+      error: 'Email notification is not configured yet.'
+    }, { status: 503 });
+  }
+
+  const safe = (value: string) => value.replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char] || char);
+
+  const emailResponse = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: ['northsynapse@gmail.com'],
+      subject: `Announcement review: ${title}`,
+      html: `<h2>New announcement submission</h2><p><strong>Title:</strong> ${safe(title)}</p><p><strong>Submitted by:</strong> ${safe(submitter)} (${safe(user.email || 'No email')})</p><div style="white-space:pre-wrap">${safe(content)}</div><p>Sign in to North Synapse and open Admin → Announcement review to approve or reject this submission.</p>`
+    })
+  });
+
+  if (!emailResponse.ok) {
+    const detail = await emailResponse.text();
+    console.error('Announcement review email failed:', detail);
+    return NextResponse.json({ sent: false, error: 'The submission was saved, but the review email could not be sent.' }, { status: 502 });
+  }
+
+  return NextResponse.json({ sent: true });
+}

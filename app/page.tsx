@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import Link from 'next/link';
 import { BookOpen, Coffee, Megaphone, MessagesSquare, MessageSquareText, LayoutDashboard, Shield, Users, Sun, Moon, LogOut, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import StudyRooms from '@/components/study-rooms/StudyRooms';
@@ -8,6 +9,7 @@ import TeamChat from '@/components/team/TeamChat';
 import TeamManagement from '@/components/team/TeamManagement';
 import TeamDashboard from '@/components/team/TeamDashboard';
 import MySupportTickets from '@/components/team/MySupportTickets';
+import RichTextEditor, { AnnouncementRichContent } from '@/components/announcements/RichTextEditor';
 
 type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard' | 'admin' | 'team-chat' | 'team-dashboard';
 
@@ -20,6 +22,7 @@ interface CommentItem {
   date: string;
   likes: number;
   likedByMe?: boolean;
+  parentId?: string | null;
 }
 
 interface ResourceAttachment {
@@ -65,6 +68,7 @@ interface DiscussionItem {
   replies: CommentItem[];
   bookmarkedByMe?: boolean;
   bookmarks?: number;
+  attachments?: ResourceAttachment[];
 }
 
 interface LoungeRoom {
@@ -86,6 +90,8 @@ interface AnnouncementItem {
   content: string;
   date: string;
   authorName: string;
+  titleStyle?: { fontFamily?: string; fontSize?: string; color?: string };
+  attachments?: ResourceAttachment[];
 }
 
 export default function Home() {
@@ -157,6 +163,10 @@ export default function Home() {
 
   const [newDiscTitle, setNewDiscTitle] = useState('');
   const [newDiscContent, setNewDiscContent] = useState('');
+  const [newDiscAttachments, setNewDiscAttachments] = useState<ResourceAttachment[]>([]);
+  const [discussionSearch, setDiscussionSearch] = useState('');
+  const [isPublishingDiscussion, setIsPublishingDiscussion] = useState(false);
+  const discussionFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 自习室与番茄钟
   const [joinedRoom, setJoinedRoom] = useState<LoungeRoom | null>(null);
@@ -197,26 +207,38 @@ export default function Home() {
 
   // 官方公告以 Supabase 数据库为唯一来源，避免公告只存在于前端代码。
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+  const [announcementDraftTitle, setAnnouncementDraftTitle] = useState('');
+  const [announcementDraftTitleStyle, setAnnouncementDraftTitleStyle] = useState({ fontFamily: 'Arial', fontSize: '1.35rem', color: '#61259F' });
+  const [announcementDraftContent, setAnnouncementDraftContent] = useState('');
+  const [announcementDraftFiles, setAnnouncementDraftFiles] = useState<File[]>([]);
+  const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
+  const [showAnnouncementComposer, setShowAnnouncementComposer] = useState(false);
+  const announcementFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [adminAnnouncementSubmissions, setAdminAnnouncementSubmissions] = useState<any[]>([]);
+  const [announcementReviewLoading, setAnnouncementReviewLoading] = useState(false);
+  const [announcementRejectionReasons, setAnnouncementRejectionReasons] = useState<Record<string, string>>({});
+  const [announcementDecisionNotifications, setAnnouncementDecisionNotifications] = useState<any[]>([]);
 
   useEffect(() => {
     let active = true;
     const loadAnnouncements = async () => {
       const { data, error } = await supabase
         .from('announcements')
-        .select('id,title,content,author_name,created_at')
+        .select('id,title,body,content,author_name,created_at,attachments,is_published,title_style')
         .eq('is_published', true)
         .order('created_at', { ascending: false });
       if (!active) return;
       if (error) {
-        console.error('Unable to load announcements from database:', error.message);
-        setAnnouncements([]);
+        console.error('Unable to load published announcements:', error.message);
         return;
       }
       setAnnouncements((data || []).map((item: any) => ({
         id: item.id,
         title: item.title,
-        content: item.content,
+        content: item.content || item.body || '',
         authorName: item.author_name || 'North Synapse',
+        titleStyle: item.title_style || undefined,
+        attachments: Array.isArray(item.attachments) ? item.attachments : [],
         date: new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       })));
     };
@@ -224,10 +246,52 @@ export default function Home() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    if (!user?.id || isAdmin) {
+      setAnnouncementDecisionNotifications([]);
+      return () => { active = false; };
+    }
+    const loadDecisionNotifications = async () => {
+      const { data, error } = await supabase.rpc('consume_announcement_decision_notifications');
+      if (!active) return;
+      if (error) { console.error('Unable to load announcement decision notifications:', error.message); return; }
+      if (Array.isArray(data) && data.length) setAnnouncementDecisionNotifications(data);
+    };
+    void loadDecisionNotifications();
+    return () => { active = false; };
+  }, [user?.id, isAdmin]);
+
+  useEffect(() => {
+    let active = true;
+    if (!isAdmin) {
+      setAdminAnnouncementSubmissions([]);
+      return () => { active = false; };
+    }
+    const loadSubmissions = async () => {
+      const { data, error } = await supabase
+        .from('announcement_submissions')
+        .select('id,title,content,author_name,author_email,created_at,attachments,title_style')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      if (!active) return;
+      if (error) {
+        console.error('Unable to load announcement submissions:', error.message);
+        return;
+      }
+      setAdminAnnouncementSubmissions(data || []);
+    };
+    void loadSubmissions();
+    return () => { active = false; };
+  }, [isAdmin]);
+
   const [previewResource, setPreviewResource] = useState<ResourceItem | null>(null);
   const [newCommentText, setNewCommentText] = useState('');
   const [selectedDiscussion, setSelectedDiscussion] = useState<DiscussionItem | null>(null);
   const [newReplyText, setNewReplyText] = useState('');
+  const [discussionSort, setDiscussionSort] = useState<'latest' | 'popular' | 'discussed'>('latest');
+  const [replySort, setReplySort] = useState<'newest' | 'oldest' | 'best'>('newest');
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   // Dashboard 默认仅展示前 4 项，避免个人内容过多时页面过长。
   const [expandedDashboardSections, setExpandedDashboardSections] = useState<Record<string, boolean>>({});
@@ -493,7 +557,7 @@ export default function Home() {
       const [attachmentsResult, commentsResult, repliesResult, likesResult, bookmarksResult, discussionBookmarksResult] = await Promise.all([
         resourceIds.length ? supabase.from('resource_attachments').select('*').in('resource_id', resourceIds) : Promise.resolve({ data: [], error: null } as any),
         resourceIds.length ? supabase.from('resource_comments').select('*').in('resource_id', resourceIds).order('created_at') : Promise.resolve({ data: [], error: null } as any),
-        discussionIds.length ? supabase.from('discussion_replies').select('*').in('discussion_id', discussionIds).order('created_at') : Promise.resolve({ data: [], error: null } as any),
+        discussionIds.length ? supabase.from('discussion_replies').select('*').in('discussion_id', discussionIds).order('created_at', { ascending: true }) : Promise.resolve({ data: [], error: null } as any),
         resourceIds.length ? supabase.from('resource_likes').select('resource_id,user_id').in('resource_id', resourceIds) : Promise.resolve({ data: [], error: null } as any),
         resourceIds.length ? supabase.from('resource_bookmarks').select('resource_id,user_id').in('resource_id', resourceIds) : Promise.resolve({ data: [], error: null } as any),
         discussionIds.length ? supabase.from('discussion_bookmarks').select('discussion_id,user_id').in('discussion_id', discussionIds) : Promise.resolve({ data: [], error: null } as any)
@@ -538,11 +602,12 @@ export default function Home() {
         const replies = (repliesResult.data || []).filter((x: any) => x.discussion_id === d.id).map((x: any) => {
           const p = profiles.get(x.author_id);
           const replyLikes = replyLikesResult.data || [];
-          return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: replyLikes.filter((like: any) => like.reply_id === x.id).length, likedByMe: replyLikes.some((like: any) => like.reply_id === x.id && like.user_id === userId) };
+          return { id: x.id, authorEmail: p?.email || '', authorName: p?.nickname || p?.username || 'Student', authorAvatar: p?.avatar_path || '', text: x.content, date: formatDate(x.created_at), likes: replyLikes.filter((like: any) => like.reply_id === x.id).length, likedByMe: replyLikes.some((like: any) => like.reply_id === x.id && like.user_id === userId), parentId: x.parent_reply_id || null };
         });
         return {
           id: d.id, title: d.title, content: d.content, authorEmail: author?.email || '', authorId: d.author_id || undefined, authorName: d.author_id ? (author?.nickname || author?.username || 'Student') : 'Deleted account', authorAvatar: author?.avatar_path || '',
           date: formatDate(d.created_at), createdAt: d.created_at, repliesCount: replies.length, replies,
+          attachments: Array.isArray(d.attachments) ? d.attachments.map((item: any) => ({ name: item.name, type: item.type || 'application/octet-stream', url: item.url || '' })) : [],
           bookmarkedByMe: discussionBookmarks.some((x: any) => x.discussion_id === d.id && x.user_id === userId),
           bookmarks: discussionBookmarks.filter((x: any) => x.discussion_id === d.id).length
         };
@@ -934,7 +999,7 @@ export default function Home() {
       setLoading(false);
       return;
     }
-    if (cleanPassword.length < 8) {
+    if (isSignUp && cleanPassword.length < 8) {
       alert('Password must be at least 8 characters long.');
       setLoading(false);
       return;
@@ -1328,30 +1393,73 @@ export default function Home() {
     alert('Academic resource note published!');
   }
 
+  function handleDiscussionFileSelection(files: FileList | null) {
+    if (!files) return;
+    const selected = Array.from(files);
+    const remaining = Math.max(0, 5 - newDiscAttachments.length);
+    if (selected.length > remaining) alert('You can attach up to 5 files to one discussion.');
+    const accepted = selected.slice(0, remaining);
+    const tooLarge = accepted.find(file => file.size > 20 * 1024 * 1024);
+    if (tooLarge) { alert(`"${tooLarge.name}" is larger than 20 MB. Please choose a smaller file.`); return; }
+    setNewDiscAttachments(previous => [...previous, ...accepted.map(file => ({ name: file.name, type: file.type || 'application/octet-stream', url: '', file }))]);
+  }
+
   async function handleCreateDiscussionSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (isAdmin) return;
-    if (!user) {
-      alert('Please sign in first.');
-      setShowAuthModal(true);
+    if (isAdmin || isPublishingDiscussion) return;
+    if (!user) { alert('Please sign in first.'); setShowAuthModal(true); return; }
+    if (!newDiscTitle.trim() || !newDiscContent.trim()) return;
+    setIsPublishingDiscussion(true);
+    const { data: saved, error } = await supabase.from('discussions').insert({
+      author_id: user.id, title: newDiscTitle.trim(), content: newDiscContent.trim(), attachments: []
+    }).select('*').single();
+    if (error || !saved) {
+      console.error('Discussion save failed:', error?.message);
+      alert('The discussion could not be saved. Please try again.');
+      setIsPublishingDiscussion(false);
       return;
     }
-    if (!newDiscTitle.trim() || !newDiscContent.trim()) return;
-
-    const { data: saved, error } = await supabase.from('discussions').insert({
-      author_id: user.id, title: newDiscTitle.trim(), content: newDiscContent.trim()
-    }).select('*').single();
-    if (error || !saved) { console.error('Discussion save failed:', error?.message); alert('The discussion could not be saved. Please try again.'); return; }
+    const uploaded: Array<{ name: string; type: string; url: string; storage_path: string }> = [];
+    for (const attachment of newDiscAttachments) {
+      if (!attachment.file) continue;
+      const safeName = attachment.file.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const storagePath = `${user.id}/discussions/${saved.id}/${crypto.randomUUID()}-${safeName}`;
+      const { error: uploadError } = await supabase.storage.from('resource-attachments').upload(storagePath, attachment.file, { contentType: attachment.type || 'application/octet-stream', upsert: false });
+      if (uploadError) {
+        console.error('Discussion attachment upload failed:', uploadError.message);
+        if (uploaded.length) await supabase.storage.from('resource-attachments').remove(uploaded.map(item => item.storage_path));
+        await supabase.from('discussions').delete().eq('id', saved.id).eq('author_id', user.id);
+        alert(`Could not upload "${attachment.name}": ${uploadError.message}. The discussion was not published.`);
+        setIsPublishingDiscussion(false);
+        return;
+      }
+      const url = supabase.storage.from('resource-attachments').getPublicUrl(storagePath).data.publicUrl;
+      uploaded.push({ name: attachment.name, type: attachment.type, url, storage_path: storagePath });
+    }
+    const savedAttachments = uploaded.map(({ name, type, url }) => ({ name, type, url }));
+    if (savedAttachments.length) {
+      const { error: metadataError } = await supabase.from('discussions').update({ attachments: savedAttachments }).eq('id', saved.id).eq('author_id', user.id);
+      if (metadataError) {
+        console.error('Discussion attachment metadata save failed:', metadataError.message);
+        await supabase.storage.from('resource-attachments').remove(uploaded.map(item => item.storage_path));
+        await supabase.from('discussions').delete().eq('id', saved.id).eq('author_id', user.id);
+        alert('The files could not be linked to the discussion. Nothing was published. Please try again.');
+        setIsPublishingDiscussion(false);
+        return;
+      }
+    }
     const newDisc: DiscussionItem = {
       id: saved.id, title: saved.title, content: saved.content, authorEmail: user.email,
       authorName: nickname || username || user.email.split('@')[0],
       date: new Date(saved.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
-      createdAt: saved.created_at, repliesCount: 0, replies: [], bookmarkedByMe: false, bookmarks: 0
+      createdAt: saved.created_at, repliesCount: 0, replies: [], attachments: savedAttachments, bookmarkedByMe: false, bookmarks: 0
     };
     setDiscussions(prev => [newDisc, ...prev.filter(item => item.id !== newDisc.id)]);
     setShowCreateDiscussionModal(false);
     setNewDiscTitle('');
     setNewDiscContent('');
+    setNewDiscAttachments([]);
+    setIsPublishingDiscussion(false);
     alert('Discussion topic posted!');
   }
 
@@ -1366,14 +1474,26 @@ export default function Home() {
     if (!newReplyText.trim() || !selectedDiscussion) return;
 
     if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(selectedDiscussion.id)) { alert('Replies are available on database-published discussions.'); return; }
-    const { data: savedReply, error } = await supabase.from('discussion_replies').insert({
-      discussion_id: selectedDiscussion.id, author_id: user.id, content: newReplyText.trim()
-    }).select('*').single();
-    if (error || !savedReply) { console.error('Reply save failed:', error?.message); alert('Could not save reply. Please try again.'); return; }
+    // 顶层评论不依赖新字段，确保数据库迁移尚未执行时仍可正常发表评论。
+    const replyPayload: { discussion_id: string; author_id: string; content: string; parent_reply_id?: string | null } = {
+      discussion_id: selectedDiscussion.id,
+      author_id: user.id,
+      content: newReplyText.trim()
+    };
+    if (replyingToId) replyPayload.parent_reply_id = replyingToId;
+    const { data: savedReply, error } = await supabase.from('discussion_replies').insert(replyPayload).select('*').single();
+    if (error || !savedReply) {
+      console.error('Reply save failed:', error?.message);
+      const missingThreadColumn = !!replyingToId && /parent_reply_id|column.*does not exist|schema cache/i.test(error?.message || '');
+      alert(missingThreadColumn
+        ? 'Threaded replies are not enabled in the database yet. Please apply the latest Supabase migration first.'
+        : `Could not save comment: ${error?.message || 'Unknown database error'}`);
+      return;
+    }
     const replyObj: CommentItem = {
       id: savedReply.id, authorEmail: user.email, authorName: nickname || username || user.email.split('@')[0],
       authorAvatar: avatarUrl, text: savedReply.content,
-      date: new Date(savedReply.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), likes: 0
+      date: new Date(savedReply.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }), likes: 0, parentId: replyingToId
     };
 
     const updatedDisc = {
@@ -1385,6 +1505,7 @@ export default function Home() {
     setSelectedDiscussion(updatedDisc);
     setDiscussions(prev => prev.map(d => d.id === selectedDiscussion.id ? updatedDisc : d));
     setNewReplyText('');
+    setReplyingToId(null);
   }
 
   async function handleLikeResource(id: string, e?: React.MouseEvent) {
@@ -1459,7 +1580,7 @@ export default function Home() {
     const { error } = await deleteQuery;
     if (error) { console.error('Reply delete failed:', error.message); alert('Could not delete reply. Please try again.'); return; }
     const updateDiscussion = (item: DiscussionItem): DiscussionItem => {
-      const replies = item.replies.filter(entry => entry.id !== replyId);
+      const replies = item.replies.filter(entry => entry.id !== replyId && entry.parentId !== replyId);
       return { ...item, replies, repliesCount: replies.length };
     };
     setDiscussions(prev => prev.map(item => item.id === discussionId ? updateDiscussion(item) : item));
@@ -1479,6 +1600,171 @@ export default function Home() {
       setResources(prev => prev.filter(item => item.id !== resourceId));
     });
     setPreviewResource(prev => prev?.id === resourceId ? null : prev);
+  }
+
+  async function uploadAnnouncementFiles(files: File[]) {
+    const uploaded: ResourceAttachment[] = [];
+    const paths: string[] = [];
+    for (const file of files) {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const storagePath = `${user.id}/announcements/${crypto.randomUUID()}-${safeName}`;
+      const { error } = await supabase.storage.from('resource-attachments').upload(storagePath, file, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: false
+      });
+      if (error) {
+        if (paths.length) await supabase.storage.from('resource-attachments').remove(paths);
+        throw new Error(`Could not upload "${file.name}": ${error.message}`);
+      }
+      paths.push(storagePath);
+      uploaded.push({
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        url: supabase.storage.from('resource-attachments').getPublicUrl(storagePath).data.publicUrl
+      });
+    }
+    return { uploaded, paths };
+  }
+
+  function handleAnnouncementFilesChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(event.target.files || []);
+    if (announcementDraftFiles.length + selected.length > 5) {
+      alert('You can attach up to 5 files.');
+      event.target.value = '';
+      return;
+    }
+    const oversized = selected.find(file => file.size > 20 * 1024 * 1024);
+    if (oversized) {
+      alert(`"${oversized.name}" exceeds the 20 MB file limit.`);
+      event.target.value = '';
+      return;
+    }
+    setAnnouncementDraftFiles(prev => [...prev, ...selected]);
+    event.target.value = '';
+  }
+
+  async function handleAdminPublishAnnouncement(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isAdmin || !user?.id) return;
+    const title = announcementDraftTitle.trim();
+    const content = announcementDraftContent.trim();
+    if (!title || !content) return;
+    setAnnouncementSubmitting(true);
+    let uploadedPaths: string[] = [];
+    try {
+      const files = await uploadAnnouncementFiles(announcementDraftFiles);
+      uploadedPaths = files.paths;
+      const { data: publishedId, error } = await supabase.rpc('publish_announcement', {
+        p_title: title,
+        p_content: content,
+        p_attachments: files.uploaded,
+        p_title_style: announcementDraftTitleStyle
+      });
+      if (error || !publishedId) throw new Error(error?.message || 'The database did not return an announcement ID.');
+      setAnnouncements(prev => [{
+        id: publishedId, title, content, authorName: 'North Synapse', titleStyle: announcementDraftTitleStyle,
+        attachments: files.uploaded,
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      }, ...prev]);
+      setAnnouncementDraftTitle('');
+      setAnnouncementDraftTitleStyle({ fontFamily: 'Arial', fontSize: '1.35rem', color: '#61259F' });
+      setAnnouncementDraftContent('');
+      setAnnouncementDraftFiles([]);
+      setShowAnnouncementComposer(false);
+      alert('Your announcement has been published successfully.');
+    } catch (error: any) {
+      if (uploadedPaths.length) await supabase.storage.from('resource-attachments').remove(uploadedPaths);
+      console.error('Direct announcement publish failed:', error?.message);
+      alert(`Could not publish this announcement: ${error?.message || 'Please try again.'}`);
+    } finally {
+      setAnnouncementSubmitting(false);
+    }
+  }
+
+  async function handleSubmitAnnouncement(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user?.id) {
+      alert('Please sign in before submitting an announcement.');
+      setShowAuthModal(true);
+      return;
+    }
+    const title = announcementDraftTitle.trim();
+    const content = announcementDraftContent.trim();
+    if (!title || !content) return;
+    setAnnouncementSubmitting(true);
+    let uploadedPaths: string[] = [];
+    let saved: any = null;
+    try {
+      const files = await uploadAnnouncementFiles(announcementDraftFiles);
+      uploadedPaths = files.paths;
+      const { data, error } = await supabase.from('announcement_submissions').insert({
+        author_id: user.id,
+        author_email: user.email || '',
+        author_name: nickname || username || user.email?.split('@')[0] || 'Student',
+        title,
+        content,
+        title_style: announcementDraftTitleStyle,
+        attachments: files.uploaded
+      }).select('id').single();
+      if (error || !data) throw new Error(error?.message || 'Submission could not be saved.');
+      saved = data;
+    } catch (error: any) {
+      if (uploadedPaths.length) await supabase.storage.from('resource-attachments').remove(uploadedPaths);
+      console.error('Announcement submission failed:', error?.message);
+      alert(`Your announcement could not be submitted: ${error?.message || 'Please try again.'}`);
+      setAnnouncementSubmitting(false);
+      return;
+    }
+    setAnnouncementDraftTitle('');
+    setAnnouncementDraftTitleStyle({ fontFamily: 'Arial', fontSize: '1.35rem', color: '#61259F' });
+    setAnnouncementDraftContent('');
+    setAnnouncementDraftFiles([]);
+    setAnnouncementSubmitting(false);
+    setShowAnnouncementComposer(false);
+    alert('Your announcement has been sent to the administrators for review. It will be published after approval.');
+  }
+
+  async function handleReviewAnnouncementSubmission(submissionId: string, approve: boolean, rejectionReason = '') {
+    if (!isAdmin || announcementReviewLoading) return;
+    setAnnouncementReviewLoading(true);
+    if (approve) {
+      const { error } = await supabase.rpc('approve_announcement_submission', { p_submission_id: submissionId });
+      if (error) {
+        console.error('Announcement approval failed:', error);
+        alert(`Could not approve this announcement: ${error.message || 'Unknown database error'}. Check that the latest announcement compatibility migration has been applied in Supabase.`);
+        setAnnouncementReviewLoading(false);
+        return;
+      }
+      const { data, error: loadError } = await supabase
+        .from('announcements')
+        .select('id,title,content,author_name,created_at,attachments,title_style')
+        .eq('is_published', true)
+        .order('created_at', { ascending: false });
+      if (loadError) {
+        console.error('Announcement was approved, but the announcement list could not be refreshed:', loadError.message);
+        alert('The submission was approved, but the announcement list could not refresh. Please reload the page.');
+      } else {
+        setAnnouncements((data || []).map((item: any) => ({
+          id: item.id, title: item.title, content: item.content || item.body || '',
+          authorName: item.author_name || 'North Synapse',
+          titleStyle: item.title_style || undefined,
+          attachments: Array.isArray(item.attachments) ? item.attachments : [],
+          date: new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        })));
+      }
+    } else {
+      const { error } = await supabase.from('announcement_submissions')
+        .update({ status: 'rejected', reviewer_id: user?.id, reviewed_at: new Date().toISOString(), decision_reason: rejectionReason.trim() || null })
+        .eq('id', submissionId).eq('status', 'pending');
+      if (error) {
+        console.error('Announcement rejection failed:', error.message);
+        alert('Could not reject this submission. Please try again.');
+        setAnnouncementReviewLoading(false);
+        return;
+      }
+    }
+    setAdminAnnouncementSubmissions(prev => prev.filter(item => item.id !== submissionId));
+    setAnnouncementReviewLoading(false);
   }
 
   function handleDeleteDiscussion(discussionId: string) {
@@ -1597,16 +1883,30 @@ export default function Home() {
      4. 主题样式与计算
      ========================================================================== */
   const theme = {
-    bg: isDarkMode ? '#101010' : '#FAFAFA',
-    cardBg: isDarkMode ? '#191919' : '#FFFFFF',
-    border: isDarkMode ? '#303030' : '#EAEAEA',
-    textMain: isDarkMode ? '#F5F5F5' : '#202020',
-    textMuted: isDarkMode ? '#A3A3A3' : '#737373',
-    accent: '#8050E8',
+    bg: isDarkMode ? '#10131A' : '#FAFAFA',
+    cardBg: isDarkMode ? '#191E28' : '#FFFFFF',
+    border: isDarkMode ? '#303746' : '#EAEAEA',
+    textMain: isDarkMode ? '#E9EAF0' : '#202020',
+    textMuted: isDarkMode ? '#A6ADBA' : '#737373',
+    accent: '#7B52E5',
   };
 
   const subjectsList = ['Mathematics', 'Science', 'English & ESL', 'French', 'History & Social Sciences', 'Geography', 'Business & Economics', 'Art & Music', 'Computer Science & Tech'];
   const gradesList = ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'AP Courses', 'Academic Competitions'];
+  // 中文注释：统一标签颜色体系，年级使用紫色，AP 与竞赛共用琥珀色，文理分别使用蓝绿与陶土色。
+  const tagColors = {
+    level: '#7B52E5',
+    advanced: '#D0AA70',
+    stem: '#83B0C4',
+    humanities: '#9BB894',
+  };
+  const getTagColor = (tag: string) => {
+    if (/^Grade (9|10|11|12)$/.test(tag)) return tagColors.level;
+    if (tag === 'AP Courses' || tag === 'Academic Competitions') return tagColors.advanced;
+    if (['Mathematics', 'Science', 'Computer Science & Tech'].includes(tag)) return tagColors.stem;
+    if (['English & ESL', 'French', 'History & Social Sciences', 'Geography', 'Business & Economics', 'Art & Music'].includes(tag)) return tagColors.humanities;
+    return tagColors.level;
+  };
 
   const filteredResources = resources.filter(res => {
     const resourceTags = res.tags || [];
@@ -1731,11 +2031,7 @@ export default function Home() {
       {/* 侧边导航：桌面端固定显示，移动端自动切换为顶部导航 */}
       <header className="ns-site-header" style={{ background: theme.cardBg, borderColor: theme.border }}>
         <div className="ns-brand" onClick={() => setActiveTab('resources')}>
-          <svg className="ns-brand-mark" viewBox="0 0 64 64" fill="none" aria-label="North Synapse logo">
-            <path d="M45 12 C45 5 19 5 19 19 C19 31 45 31 45 44 C45 57 19 57 19 50" stroke="#8050E8" strokeWidth="3.2" strokeLinecap="round" strokeDasharray="1 5"/>
-            <path d="M45 12 C45 5 19 5 19 19 C19 31 45 31 45 44 C45 57 19 57 19 50" stroke="#8050E8" strokeWidth="1.5" strokeLinecap="round" opacity=".55"/>
-            <circle cx="45" cy="12" r="3.2" fill="#8050E8"/><circle cx="19" cy="19" r="3.2" fill="#8050E8"/><circle cx="45" cy="44" r="3.2" fill="#8050E8"/><circle cx="19" cy="50" r="3.2" fill="#8050E8"/>
-          </svg><span>North Synapse</span>{isAdmin && <span className="ns-admin-label">ADMIN</span>}
+          <span>North Synapse</span>{isAdmin && <span className="ns-admin-label">ADMIN</span>}
         </div>
         <nav className="ns-main-nav">
           {((isAdmin ? ['resources','lounges','announcements','discussions'] : ['resources','lounges','announcements','discussions','feedback']) as NavTab[]).map((tab) => {
@@ -1763,7 +2059,7 @@ export default function Home() {
       <main className="ns-main-content" style={{ maxWidth: '1080px', margin: '0 auto', padding: '2rem' }}>
         
         {/* 公告轮播栏 */}
-        <div className="ns-notice-banner" style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', border: `1px solid ${theme.accent}`, borderRadius: '12px', padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
+        <div className="ns-notice-banner" style={{ backgroundColor: 'rgba(118, 85, 143, 0.10)', border: `1px solid ${theme.accent}`, borderRadius: '12px', padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, overflow: 'hidden' }}>
             <span className="ns-notice-count" style={{ backgroundColor: theme.accent, color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.6rem', borderRadius: '6px', flexShrink: 0 }}>
               NOTICE ({currentBannerIndex + 1}/{announcements.length})
@@ -1789,7 +2085,7 @@ export default function Home() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: theme.accent, padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '700', display: 'inline-block', marginBottom: '0.5rem' }}>
+                <span style={{ backgroundColor: 'rgba(118, 85, 143, 0.16)', color: theme.accent, padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '700', display: 'inline-block', marginBottom: '0.5rem' }}>
                   Academic Platform
                 </span>
                 <h1 style={{ fontSize: '2.2rem', fontWeight: '900' }}>North Synapse Resource Hub</h1>
@@ -1812,22 +2108,28 @@ export default function Home() {
               <div>
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>LEVEL &amp; TRACK:</span>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  {gradesList.map((grd) => (
-                    <button key={grd} onClick={() => setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, grd])} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedGrades.includes(grd) ? theme.accent : theme.border}`, backgroundColor: selectedGrades.includes(grd) ? theme.accent : theme.bg, color: selectedGrades.includes(grd) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
+                  {gradesList.map((grd) => {
+                    const tagColor = getTagColor(grd);
+                    return (
+                    <button key={grd} onClick={() => setSelectedGrades(prev => prev.includes(grd) ? prev.filter(g => g !== grd) : [...prev, grd])} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedGrades.includes(grd) ? tagColor : `${tagColor}55`}`, backgroundColor: selectedGrades.includes(grd) ? tagColor : `${tagColor}12`, color: selectedGrades.includes(grd) ? '#FFF' : tagColor, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
                       {grd}
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
               <div>
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: theme.textMuted, display: 'block', marginBottom: '0.6rem' }}>SUBJECT CATEGORIES:</span>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  {subjectsList.map((sub) => (
-                    <button key={sub} onClick={() => setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub])} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedSubjects.includes(sub) ? theme.accent : theme.border}`, backgroundColor: selectedSubjects.includes(sub) ? theme.accent : theme.bg, color: selectedSubjects.includes(sub) ? '#FFF' : theme.textMain, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
+                  {subjectsList.map((sub) => {
+                    const tagColor = getTagColor(sub);
+                    return (
+                    <button key={sub} onClick={() => setSelectedSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub])} style={{ padding: '0.4rem 1rem', borderRadius: '20px', border: `1px solid ${selectedSubjects.includes(sub) ? tagColor : `${tagColor}55`}`, backgroundColor: selectedSubjects.includes(sub) ? tagColor : `${tagColor}12`, color: selectedSubjects.includes(sub) ? '#FFF' : tagColor, fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' }}>
                       {sub}
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -1843,7 +2145,7 @@ export default function Home() {
                 <div key={res.id} onClick={() => setPreviewResource(res)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>{res.title}</h3>
                   <p style={{ color: theme.textMuted, fontSize: '0.9rem', marginBottom: '0.6rem' }}>{res.description}</p>
-              {!!res.tags?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '1rem' }}>{res.tags.map(tag => <span key={tag} style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', borderRadius: 5, background: theme.bg, color: theme.accent, border: `1px solid ${theme.border}` }}>{tag}</span>)}</div>}
+              {!!res.tags?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '1rem' }}>{res.tags.map((tag) => { const tagColor = getTagColor(tag); return <span key={tag} style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', borderRadius: 5, background: `${tagColor}12`, color: tagColor, border: `1px solid ${tagColor}45` }}>{tag}</span>; })}</div>}
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${theme.border}`, paddingTop: '0.8rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
                       {res.authorAvatar ? <img src={res.authorAvatar} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 30, height: 30, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{(res.authorName || 'S').slice(0, 1).toUpperCase()}</div>}
@@ -1889,26 +2191,52 @@ export default function Home() {
                 + Start New Topic
               </button>}
             </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: '1 1 280px', minWidth: 0, maxWidth: 560, border: `1px solid ${theme.border}`, background: theme.cardBg, borderRadius: 9, padding: '0.55rem 0.75rem' }}>
+                <span aria-hidden="true" style={{ color: theme.textMuted, fontSize: '1rem' }}>⌕</span>
+                <input type="search" aria-label="Search discussions" placeholder="Search topics, content, or authors..." value={discussionSearch} onChange={(e) => setDiscussionSearch(e.target.value)} style={{ width: '100%', minWidth: 0, border: 0, outline: 0, background: 'transparent', color: theme.textMain, fontSize: '0.9rem' }} />
+                {discussionSearch && <button type="button" onClick={() => setDiscussionSearch('')} style={{ border: 0, background: 'none', color: theme.textMuted, cursor: 'pointer' }}>Clear</button>}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ color: theme.textMuted, fontSize: '0.85rem', alignSelf: 'center' }}>Sort by</span>
+              <select aria-label="Sort discussions" value={discussionSort} onChange={(e) => setDiscussionSort(e.target.value as 'latest' | 'popular' | 'discussed')} style={{ padding: '0.55rem 0.75rem', borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>
+                <option value="latest">Latest</option><option value="popular">Popular</option><option value="discussed">Most discussed</option>
+              </select>
+              </div>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {discussions.map((disc) => (
+              {[...discussions].filter(disc => {
+                const query = discussionSearch.trim().toLowerCase();
+                return !query || [disc.title, disc.content, disc.authorName].some(value => (value || '').toLowerCase().includes(query));
+              }).sort((a, b) => discussionSort === 'discussed'
+                ? b.repliesCount - a.repliesCount || new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+                : discussionSort === 'popular'
+                  ? (b.repliesCount / (1 + Math.max(0, (Date.now() - new Date(b.createdAt || 0).getTime()) / 86400000) * 0.12)) - (a.repliesCount / (1 + Math.max(0, (Date.now() - new Date(a.createdAt || 0).getTime()) / 86400000) * 0.12))
+                  : new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              ).map((disc) => (
                 <div key={disc.id} onClick={() => setSelectedDiscussion(disc)} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '1.5rem', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.8rem' }}>
                     {disc.authorAvatar ? <img src={disc.authorAvatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 32, height: 32, borderRadius: '50%', background: theme.bg, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{(disc.authorName || 'S').slice(0, 1).toUpperCase()}</div>}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}><span style={{ fontSize: '0.85rem', fontWeight: 650 }}>{disc.authorName}</span><span style={{ fontSize: '0.75rem', color: theme.textMuted }}>{disc.date}</span></div>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.8rem', marginBottom: '0.5rem' }}>
-                    <strong style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{disc.title}</strong>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', flexShrink: 0 }}>
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <strong style={{ display: 'block', fontSize: '1.4rem', lineHeight: 1.3, fontWeight: 800, letterSpacing: '-0.02em', color: theme.textMain, overflowWrap: 'anywhere' }}>{disc.title}</strong>
+                  </div>
+                  <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{disc.content}</p>
+                  {!!disc.attachments?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>{disc.attachments.map((file, index) => <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.65rem', borderRadius: 7, border: `1px solid ${theme.border}`, color: theme.accent, textDecoration: 'none', fontSize: '0.8rem', overflowWrap: 'anywhere' }}>📎 {file.name}</a>)}</div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.7rem', paddingTop: '0.75rem', borderTop: `1px solid ${theme.border}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.45rem 0.8rem', minWidth: 0 }}>
+                      <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by {disc.authorEmail ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(disc.authorName, disc.authorEmail); }} style={{ color: theme.textMuted, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{disc.authorName}</button> : <span>{disc.authorName}</span>} on {disc.date}</span>
+                      <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold', whiteSpace: 'nowrap' }}>{disc.repliesCount} Replies</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '0.7rem', marginLeft: 'auto' }}>
                       {!isAdmin && user?.id && <button type="button" onClick={(e) => { e.stopPropagation(); void handleReportContent('discussion', disc.id); }} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>Report</button>}
-                      {(isAdmin || user?.email?.toLowerCase() === disc.authorEmail?.toLowerCase()) && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteDiscussion(disc.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}>Delete</button>}
-                      <span style={{ fontSize: '0.8rem', color: theme.accent, fontWeight: 'bold' }}>{disc.repliesCount} Replies</span>
+                      {(isAdmin || user?.email?.toLowerCase() === disc.authorEmail?.toLowerCase()) && <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteDiscussion(disc.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
                       {!isAdmin && <button type="button" onClick={(e) => handleBookmarkDiscussion(disc.id, e)} aria-label={disc.bookmarkedByMe ? 'Remove saved discussion' : 'Save discussion'} style={{ border: `1px solid ${theme.border}`, borderRadius: '7px', padding: '0.35rem 0.55rem', background: disc.bookmarkedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: disc.bookmarkedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                         {disc.bookmarkedByMe ? '★ Saved' : '☆ Save'}
                       </button>}
                     </div>
                   </div>
-                  <p style={{ fontSize: '0.9rem', color: theme.textMuted, marginBottom: '0.8rem' }}>{disc.content}</p>
-                  <span style={{ fontSize: '0.75rem', color: theme.textMuted }}>Posted by {disc.authorEmail ? <button type="button" onClick={(e) => { e.stopPropagation(); openPublicProfile(disc.authorName, disc.authorEmail); }} style={{ color: theme.textMuted, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{disc.authorName}</button> : <span>{disc.authorName}</span>} on {disc.date}</span>
                 </div>
               ))}
             </div>
@@ -1918,17 +2246,79 @@ export default function Home() {
         {/* ANNOUNCEMENTS 视图 */}
         {activeTab === 'announcements' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Announcements</h1>
-            {announcements.map((item) => (
-              <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '1.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: '1.8rem', fontWeight: '800', margin: 0 }}>Announcements</h1>
+              <button type="button" onClick={() => setShowAnnouncementComposer(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: theme.accent, color: '#fff', border: 0, borderRadius: '9px', padding: '0.75rem 1rem', fontWeight: 750, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>＋</span>
+                {isAdmin ? 'Publish Announcement' : 'Submit an Announcement'}
+              </button>
+            </div>
+            {announcements.length === 0 ? (
+              <div style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '2.5rem 1.5rem', textAlign: 'center', color: theme.textMuted }}>
+                <div style={{ fontSize: '1.8rem', marginBottom: '0.65rem' }}>📢</div>
+                <p style={{ margin: 0 }}>No announcements yet.</p>
+              </div>
+            ) : announcements.map((item) => (
+              <div key={item.id} style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: 'clamp(1.1rem, 3vw, 1.8rem)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.8rem' }}>
                   <strong style={{ color: theme.accent }}>{item.authorName}</strong>
                   <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
                 </div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{item.title}</h3>
-                <p style={{ marginTop: '0.5rem', color: theme.textMain }}>{item.content}</p>
+                <h3 style={{ fontFamily: item.titleStyle?.fontFamily || 'Arial', fontSize: item.titleStyle?.fontSize || '1.2rem', color: item.titleStyle?.color || theme.textMain, fontWeight: 750, margin: '0 0 0.5rem', overflowWrap: 'anywhere' }}>{item.title}</h3>
+                <AnnouncementRichContent html={item.content} />
+                {!!item.attachments?.length && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', marginTop: '0.8rem' }}>{item.attachments.map((file, index) => file.type?.startsWith('image/') ? <img key={`${file.name}-${index}`} src={file.url} alt={file.name} style={{ display: 'block', maxWidth: '100%', maxHeight: 640, width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: 8 }} /> : <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.7rem', borderRadius: '8px', border: `1px solid ${theme.border}`, color: theme.accent, textDecoration: 'none', fontSize: '0.85rem', overflowWrap: 'anywhere', width: 'fit-content' }}>📎 {file.name}</a>)}</div>}
               </div>
             ))}
+            {showAnnouncementComposer && (
+              <div onClick={() => { if (!announcementSubmitting) setShowAnnouncementComposer(false); }} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(5, 8, 15, 0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', overflowY: 'auto' }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: '680px', maxHeight: '92vh', overflowY: 'auto', background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: 'clamp(1rem, 3vw, 1.5rem)', boxShadow: '0 24px 80px rgba(0,0,0,0.35)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1rem' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>{isAdmin ? 'Publish an Announcement' : 'Submit an Announcement'}</h2>
+                      <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: '0.35rem 0 0' }}>{isAdmin ? 'Publish an update for everyone in the North Synapse community.' : 'Share a useful update or opportunity with the North Synapse community.'}</p>
+                    </div>
+                    <button type="button" aria-label="Close" onClick={() => setShowAnnouncementComposer(false)} disabled={announcementSubmitting} style={{ border: `1px solid ${theme.border}`, background: 'transparent', color: theme.textMain, borderRadius: '8px', width: '34px', height: '34px', cursor: announcementSubmitting ? 'not-allowed' : 'pointer', fontSize: '1.1rem', flexShrink: 0 }}>×</button>
+                  </div>
+                  <div style={{ padding: '0.8rem 0.9rem', borderRadius: '9px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMuted, fontSize: '0.82rem', lineHeight: 1.55 }}>
+                    <strong style={{ display: 'block', color: theme.textMain, marginBottom: '0.25rem' }}>How it works</strong>
+                    {isAdmin
+                      ? 'Add a clear title and the announcement details, attach supporting files if needed, then select “Publish Now” to make it visible to everyone.'
+                      : 'Add a clear title and the announcement details, attach up to 5 supporting files (20 MB each) if needed, then select “Submit for Review”. Your submission will appear in the Admin dashboard for review. It will only appear publicly after an administrator approves it.'}
+                  </div>
+                  <form onSubmit={isAdmin ? handleAdminPublishAnnouncement : handleSubmitAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                      <input required maxLength={180} value={announcementDraftTitle} onChange={e => setAnnouncementDraftTitle(e.target.value)} placeholder="Announcement title" style={{ width: '100%', boxSizing: 'border-box', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, fontFamily: announcementDraftTitleStyle.fontFamily, fontSize: announcementDraftTitleStyle.fontSize, fontWeight: 750 }} />
+                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', padding: '0.6rem', border: `1px solid ${theme.border}`, borderRadius: 8 }}>
+                        <span style={{ color: theme.textMuted, fontSize: '0.8rem', fontWeight: 650 }}>Title style</span>
+                        <select aria-label="Title font" value={announcementDraftTitleStyle.fontFamily} onChange={e => setAnnouncementDraftTitleStyle(v => ({ ...v, fontFamily: e.target.value }))} style={{ padding: '0.45rem', borderRadius: 6, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }}><option>Arial</option><option>Georgia</option><option>Times New Roman</option><option>Verdana</option><option>Trebuchet MS</option><option>Courier New</option></select>
+                        <select aria-label="Title size" value={announcementDraftTitleStyle.fontSize} onChange={e => setAnnouncementDraftTitleStyle(v => ({ ...v, fontSize: e.target.value }))} style={{ padding: '0.45rem', borderRadius: 6, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }}><option value="1rem">Small</option><option value="1.2rem">Normal</option><option value="1.35rem">Large</option><option value="1.6rem">X-Large</option><option value="1.9rem">XX-Large</option></select>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: theme.textMuted, fontSize: '0.8rem' }}>Color <input aria-label="Title color" type="color" value={announcementDraftTitleStyle.color} onChange={e => setAnnouncementDraftTitleStyle(v => ({ ...v, color: e.target.value }))} style={{ width: 32, height: 28, padding: 0, border: 0, background: 'transparent' }} /></label>
+                      </div>
+                    </div>
+                    <RichTextEditor
+                      value={announcementDraftContent}
+                      onChange={setAnnouncementDraftContent}
+                      disabled={announcementSubmitting}
+                      placeholder="Write your announcement..."
+                      borderColor={theme.border}
+                      background={theme.bg}
+                      textColor={theme.textMain}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      <label style={{ color: theme.textMuted, fontSize: '0.85rem', fontWeight: 650 }}>Images & attachments (up to 5 files, 20 MB each)</label>
+                      <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleAnnouncementFilesChange} aria-label="Choose announcement attachments" style={{ display: 'block', width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: '0.55rem', border: `1px solid ${theme.border}`, borderRadius: '8px', background: theme.bg, color: theme.textMain, fontSize: '0.85rem', cursor: 'pointer' }} />
+                      {announcementDraftFiles.length === 0 && <span style={{ color: theme.textMuted, fontSize: '0.8rem' }}>No files selected</span>}
+                      {announcementDraftFiles.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', color: theme.textMuted, fontSize: '0.82rem' }}><span style={{ overflowWrap: 'anywhere' }}>📎 {file.name}</span><button type="button" onClick={() => setAnnouncementDraftFiles(prev => prev.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer', flexShrink: 0 }}>Remove</button></div>)}
+                    </div>
+                    {!isAdmin && !user && <p style={{ color: theme.textMuted, fontSize: '0.8rem', margin: 0 }}>Sign in to submit an announcement.</p>}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                      <button type="button" onClick={() => setShowAnnouncementComposer(false)} disabled={announcementSubmitting} style={{ background: 'transparent', color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: '8px', padding: '0.7rem 1rem', fontWeight: 650, cursor: 'pointer' }}>Cancel</button>
+                      <button type="submit" disabled={announcementSubmitting || (!isAdmin && !user)} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1.1rem', fontWeight: 750, cursor: announcementSubmitting || (!isAdmin && !user) ? 'not-allowed' : 'pointer', opacity: announcementSubmitting || (!isAdmin && !user) ? 0.65 : 1 }}>{announcementSubmitting ? (isAdmin ? 'Publishing…' : 'Submitting…') : (isAdmin ? 'Publish Now' : 'Submit for Review')}</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1977,6 +2367,24 @@ export default function Home() {
                 <button type="button" onClick={() => setShowEditProfileModal(true)} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '8px', padding: '0.7rem 1rem', cursor: 'pointer', fontWeight: 700 }}>Edit Profile</button>
               </section>
               <TeamManagement isDarkMode={isDarkMode} isAdmin={isAdmin} />
+              <section style={{ border: `1px solid ${theme.border}`, borderRadius: '14px', background: theme.cardBg, padding: 'clamp(1rem, 3vw, 1.5rem)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                  <div><h2 style={{ margin: 0, fontSize: '1.2rem' }}>Announcement review</h2><p style={{ margin: '0.3rem 0 0', color: theme.textMuted, fontSize: '0.85rem' }}>Review student submissions. Approval publishes the announcement immediately.</p></div>
+                  <span style={{ borderRadius: '999px', background: 'rgba(123,82,229,0.12)', color: theme.accent, padding: '0.3rem 0.7rem', fontSize: '0.8rem', fontWeight: 750 }}>{adminAnnouncementSubmissions.length} pending</span>
+                </div>
+                {adminAnnouncementSubmissions.length === 0 ? <p style={{ color: theme.textMuted, margin: 0 }}>No announcement submissions waiting for review.</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                  {adminAnnouncementSubmissions.map(item => <article key={item.id} style={{ border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}><div><strong style={{ fontSize: item.title_style?.fontSize || '1.05rem', fontFamily: item.title_style?.fontFamily || 'Arial', color: item.title_style?.color || theme.textMain }}>{item.title}</strong><p style={{ color: theme.textMuted, fontSize: '0.78rem', margin: '0.25rem 0 0' }}>{item.author_name} · {item.author_email} · {new Date(item.created_at).toLocaleString()}</p></div><span style={{ color: '#D0AA70', fontSize: '0.75rem', fontWeight: 750 }}>PENDING</span></div>
+                    <div style={{ margin: '0.85rem 0', color: theme.textMain }}><AnnouncementRichContent html={item.content || item.body || ''} /></div>
+                    {!!item.attachments?.length && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', margin: '0.5rem 0 0.85rem' }}>{item.attachments.map((file: ResourceAttachment, index: number) => file.type?.startsWith('image/') ? <img key={`${file.name}-${index}`} src={file.url} alt={file.name} style={{ display: 'block', maxWidth: '100%', maxHeight: 520, width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: 8 }} /> : <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ color: theme.accent, textDecoration: 'none', fontSize: '0.85rem' }}>📎 {file.name}</a>)}</div>}
+                    <textarea value={announcementRejectionReasons[item.id] || ''} onChange={e => setAnnouncementRejectionReasons(prev => ({ ...prev, [item.id]: e.target.value }))} maxLength={1000} rows={2} placeholder="Optional rejection reason (shown to the submitter on their next login)" aria-label={`Rejection reason for ${item.title}`} style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.65rem 0.75rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit', fontSize: '0.85rem' }} />
+                    <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                      <button type="button" disabled={announcementReviewLoading} onClick={() => void handleReviewAnnouncementSubmission(item.id, true)} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '7px', padding: '0.55rem 0.9rem', fontWeight: 700, cursor: 'pointer' }}>Approve &amp; Publish</button>
+                      <button type="button" disabled={announcementReviewLoading} onClick={() => void handleReviewAnnouncementSubmission(item.id, false, announcementRejectionReasons[item.id] || '')} style={{ background: 'transparent', color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: '7px', padding: '0.55rem 0.9rem', cursor: 'pointer' }}>Reject</button>
+                    </div>
+                  </article>)}
+                </div>}
+              </section>
               {adminLoading && !adminMetrics ? <p style={{ color: theme.textMuted }}>Loading dashboard data…</p> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.9rem' }}>{[
                 { label: 'Registered accounts', value: adminMetrics?.registered_users ?? '—', note: 'All registered accounts' },
                 { label: 'Online now', value: adminMetrics?.online_users ?? '—', note: 'Active in the last 2 minutes' },
@@ -2088,15 +2496,372 @@ export default function Home() {
         <button type="button" onClick={() => setShowTermsModal(true)} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, padding: '.45rem .7rem', borderRadius: '999px', cursor: 'pointer', minHeight: '36px', fontSize: '.8rem', fontWeight: 600, boxShadow: '0 3px 12px rgba(0,0,0,.1)' }}>User notice</button>
       </div>
 
+      {announcementDecisionNotifications.length > 0 && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000001, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="announcement-decision-title" style={{ width: '100%', maxWidth: '520px', maxHeight: '85dvh', overflowY: 'auto', background: theme.cardBg, color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.4rem', boxShadow: '0 20px 70px rgba(0,0,0,0.35)' }}>
+            <h2 id="announcement-decision-title" style={{ margin: '0 0 0.5rem', fontSize: '1.25rem' }}>Announcement submission update</h2>
+            <p style={{ margin: '0 0 1rem', color: theme.textMuted, fontSize: '0.88rem' }}>An administrator has reviewed your announcement submission.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {announcementDecisionNotifications.map((item: any) => (
+                <article key={item.submission_id} style={{ padding: '0.9rem', border: `1px solid ${theme.border}`, borderRadius: '9px', background: theme.bg }}>
+                  <strong style={{ display: 'block', marginBottom: '0.4rem' }}>{item.title}</strong>
+                  <span style={{ display: 'inline-block', marginBottom: '0.45rem', color: item.status === 'approved' ? '#22A06B' : '#D97757', fontSize: '0.8rem', fontWeight: 750 }}>{item.status === 'approved' ? 'APPROVED · PUBLISHED' : 'NOT APPROVED'}</span>
+                  {item.status === 'rejected' && <p style={{ margin: 0, color: theme.textMuted, whiteSpace: 'pre-wrap', lineHeight: 1.55, fontSize: '0.88rem' }}>{item.decision_reason || 'No additional reason was provided by the administrator.'}</p>}
+                </article>
+              ))}
+            </div>
+            <button type="button" onClick={() => setAnnouncementDecisionNotifications([])} style={{ width: '100%', marginTop: '1.1rem', padding: '0.75rem', border: 0, borderRadius: '8px', background: theme.accent, color: '#fff', fontWeight: 750, cursor: 'pointer' }}>Got it</button>
+          </div>
+        </div>
+      )}
+
       {/* 常驻的用户须知入口：登录前后都能打开 */}
+      {showTermsModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.78)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000000, padding: '1rem' }}>
+          <div style={{ backgroundColor: theme.cardBg, color: theme.textMain, width: '100%', maxWidth: '620px', maxHeight: '90dvh', overflowY: 'auto', borderRadius: '14px', border: `1px solid ${theme.border}`, padding: 'clamp(1rem, 4vw, 1.75rem)', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+              <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Terms of Service & User Notice</h2>
+              <button type="button" onClick={() => setShowTermsModal(false)} aria-label="Close user notice" style={{ background: 'transparent', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem', padding: '0.4rem' }}>✕</button>
+            </div>
+            <p style={{ color: theme.textMuted, fontSize: '0.9rem', lineHeight: 1.6 }}>North Synapse is a student learning-community prototype. Please read these guidelines before using the platform.</p>
+            <ol style={{ paddingLeft: '1.3rem', lineHeight: 1.7, display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+              <li><strong>Academic purpose:</strong> Share learning notes, resources, and constructive academic discussion.</li>
+              <li><strong>Respect others:</strong> Do not harass, threaten, discriminate against, impersonate, or reveal another person’s private information.</li>
+              <li><strong>Share responsibly:</strong> Only upload content you created or have permission to share. Respect copyright and school rules.</li>
+              <li><strong>Appropriate content:</strong> Do not post illegal, dangerous, hateful, sexually explicit, or otherwise inappropriate material.</li>
+              <li><strong>Privacy:</strong> Never publish passwords, home addresses, phone numbers, student numbers, or other sensitive information.</li>
+              <li><strong>Accuracy and attribution:</strong> Credit original authors and do not present someone else’s work as your own.</li>
+              <li><strong>Prototype limitation:</strong> North Synapse is still evolving. Features and availability may change as the platform is improved.</li>
+            </ol>
+            <button type="button" onClick={() => setShowTermsModal(false)} style={{ width: '100%', marginTop: '1rem', backgroundColor: theme.accent, color: '#fff', border: 'none', padding: '0.75rem', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', minHeight: '44px' }}>I Understand</button>
+          </div>
+        </div>
+      )}
+
+      {/* 预览与学术引用弹窗 */}
+      {previewResource && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999, padding: '0.6rem', boxSizing: 'border-box' }}>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '100%', maxWidth: '960px', height: '90dvh', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '1.2rem 2rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2>{previewResource.title}</h2>
+              <button onClick={() => setPreviewResource(null)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.4rem' }}>X</button>
+            </div>
+
+            <div className="ns-resource-preview-body" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+              <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', borderRight: `1px solid ${theme.border}` }}>
+                <div style={{ fontSize: '0.95rem', lineHeight: '1.7', overflowWrap: 'anywhere', marginBottom: '1.25rem' }} dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewResource.content || '') }} />
+                {!!previewResource.attachments?.length && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', marginBottom: '1.5rem' }}><h3 style={{ margin: 0 }}>Attachments & links</h3>{previewResource.attachments.map((file, index) => {
+                  const isPdf = file.type === 'application/pdf' || /\.pdf(?:$|\?)/i.test(file.url);
+                  const driveMatch = file.url.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
+                  const docsMatch = file.url.match(/docs\.google\.com\/(document|spreadsheets|presentation)\/d\/([^/]+)/i);
+                  const embedUrl = driveMatch ? `https://drive.google.com/file/d/${driveMatch[1]}/preview` : docsMatch ? `https://docs.google.com/${docsMatch[1]}/d/${docsMatch[2]}/preview` : file.url;
+                  const canEmbed = (file.url.startsWith('data:') && isPdf) || /^https?:\/\//i.test(file.url);
+                  return <div key={`${file.name}-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                    <a href={file.url} target="_blank" rel="noreferrer" download={file.url.startsWith('data:') ? file.name : undefined} style={{ color: theme.accent, overflowWrap: 'anywhere' }}>📎 {file.name} · Open in new tab</a>
+                    {file.type.startsWith('image/') && file.url && <img src={file.url} alt={file.name} style={{ maxWidth: '100%', maxHeight: 420, objectFit: 'contain', borderRadius: 8 }} />}
+                    {canEmbed && ((isPdf && file.url.startsWith('data:')) || /^https?:\/\//i.test(file.url)) && <iframe title={`Preview: ${file.name}`} src={embedUrl} loading="lazy" style={{ width: '100%', height: '520px', border: `1px solid ${theme.border}`, borderRadius: '8px', background: '#fff' }} sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />}
+                    {!canEmbed && <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>This file can be opened in a new tab.</p>}
+                  </div>;
+                })}</div>}
+
+
+              </div>
+
+              <div className="ns-resource-comments" style={{ width: '360px', backgroundColor: theme.bg, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Comments ({previewResource.comments.length})</h3>
+                <form onSubmit={handleAddComment} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <textarea rows={3} placeholder="Write a comment..." value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, color: theme.textMain, boxSizing: 'border-box' }} />
+                  <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end' }}>Post Comment</button>
+                </form>
+
+                {previewResource.comments.map((c) => (
+                  <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {c.authorEmail ? <button type="button" onClick={() => openPublicProfile(c.authorName, c.authorEmail)} style={{ color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'none', font: 'inherit' }}>{c.authorName}</button> : <span>{c.authorName}</span>}
+                      <span style={{ color: theme.textMuted, fontSize: '0.72rem' }}>{c.date}</span>
+                    </div>
+                    <p style={{ fontSize: '0.85rem', marginTop: '0.3rem' }}>{c.text}</p>
+                    {(isAdmin || user?.email?.toLowerCase() === c.authorEmail?.toLowerCase()) && <button type="button" onClick={() => handleDeleteResourceComment(previewResource.id, c.id)} style={{ marginTop: '0.25rem', marginLeft: '0.4rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: 'transparent', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>Delete</button>}
+                    {!isAdmin && <button type="button" onClick={() => handleLikeResourceComment(previewResource.id, c.id)} aria-label={c.likedByMe ? 'Unlike comment' : 'Like comment'} style={{ marginTop: '0.25rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: `1px solid ${theme.border}`, background: c.likedByMe ? 'rgba(139,92,246,0.14)' : 'transparent', color: c.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem' }}>
+                      {c.likedByMe ? '♥ Liked' : '♡ Like'} · {c.likes || 0}
+                    </button>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 讨论回复弹窗 */}
+      {selectedDiscussion && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', width: '96vw', maxWidth: '1200px', height: '94vh', maxHeight: '94dvh', border: `1px solid ${theme.border}`, padding: 'clamp(1rem, 3vw, 2.5rem)', display: 'flex', flexDirection: 'column', overflowY: 'auto', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '1rem' }}>
+              <h2 style={{ flex: '1 1 auto', minWidth: 0, margin: 0, fontSize: 'clamp(1.7rem, 3vw, 2.25rem)', lineHeight: 1.2, fontWeight: 850, letterSpacing: '-0.025em', color: theme.textMain, overflowWrap: 'anywhere' }}>{selectedDiscussion.title}</h2>
+              <button onClick={() => setSelectedDiscussion(null)} style={{ flexShrink: 0, background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
+            </div>
+
+            <p style={{ fontSize: '0.95rem', marginBottom: '1.5rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{selectedDiscussion.content}</p>
+            {!!selectedDiscussion.attachments?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem', marginBottom: '1.2rem' }}>{selectedDiscussion.attachments.map((file, index) => <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 0.75rem', borderRadius: 8, border: `1px solid ${theme.border}`, color: theme.accent, textDecoration: 'none', overflowWrap: 'anywhere' }}>📎 {file.name}</a>)}</div>}
+
+            <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0 }}>Comments ({selectedDiscussion.repliesCount})</h3>
+                <select aria-label="Sort comments" value={replySort} onChange={(e) => setReplySort(e.target.value as 'newest' | 'oldest' | 'best')} style={{ padding: '0.45rem 0.65rem', borderRadius: 7, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, fontSize: '0.82rem' }}>
+                  <option value="newest">Newest</option><option value="oldest">Oldest</option><option value="best">Best</option>
+                </select>
+              </div>
+              {!isAdmin && <form onSubmit={handleAddDiscussionReply} style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', marginBottom: '1.5rem' }}>
+                {replyingToId && <div style={{ color: theme.textMuted, fontSize: '0.8rem' }}>Replying to a comment <button type="button" onClick={() => setReplyingToId(null)} style={{ border: 0, background: 'none', color: theme.accent, cursor: 'pointer' }}>Cancel</button></div>}
+                <textarea rows={3} placeholder={replyingToId ? 'Write a reply to this comment...' : 'Share a thoughtful comment...'} value={newReplyText} onChange={(e) => setNewReplyText(e.target.value)} style={{ width: '100%', padding: '0.75rem', borderRadius: 8, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', resize: 'vertical' }} />
+                <button type="submit" disabled={!newReplyText.trim()} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.65rem 1.2rem', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end', opacity: newReplyText.trim() ? 1 : 0.55 }}>Post {replyingToId ? 'Reply' : 'Comment'}</button>
+              </form>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                {[...selectedDiscussion.replies].filter(r => !r.parentId).sort((a, b) => replySort === 'best' ? (b.likes || 0) - (a.likes || 0) : replySort === 'oldest' ? new Date(a.date).getTime() - new Date(b.date).getTime() : new Date(b.date).getTime() - new Date(a.date).getTime()).map(r => (
+                  <div key={r.id} style={{ backgroundColor: theme.bg, padding: '0.9rem', borderRadius: 9, border: `1px solid ${theme.border}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', gap: '0.5rem' }}>
+                      {r.authorEmail ? <button type="button" onClick={() => openPublicProfile(r.authorName, r.authorEmail)} style={{ fontSize: '0.88rem', color: theme.textMain, background: 'none', border: 0, padding: 0, cursor: 'pointer', font: 'inherit', fontWeight: 650 }}>{r.authorName}</button> : <span style={{ fontSize: '0.88rem', fontWeight: 650 }}>{r.authorName}</span>}
+                      <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>{r.date}</span>
+                    </div>
+                    <p style={{ fontSize: '0.9rem', lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '0.35rem 0 0.55rem' }}>{r.text}</p>
+                    <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      {!isAdmin && <button type="button" onClick={() => { setReplyingToId(r.id); setNewReplyText(''); }} style={{ border: 0, background: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.8rem', padding: '0.2rem' }}>↳ Reply</button>}
+                      {!isAdmin && <button type="button" onClick={() => handleLikeDiscussionReply(selectedDiscussion.id, r.id)} style={{ border: 0, background: 'none', color: r.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.8rem', padding: '0.2rem' }}>{r.likedByMe ? '♥' : '♡'} {r.likes || 0}</button>}
+                      {(isAdmin || user?.email?.toLowerCase() === r.authorEmail?.toLowerCase()) && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, r.id)} style={{ border: 0, background: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem', padding: '0.2rem' }}>Delete</button>}
+                    </div>
+                    {selectedDiscussion.replies.filter(child => child.parentId === r.id).map(child => (
+                      <div key={child.id} style={{ marginTop: '0.75rem', marginLeft: 'clamp(0.6rem, 4vw, 1.6rem)', padding: '0.75rem', borderLeft: `2px solid ${theme.accent}`, background: theme.cardBg, borderRadius: '0 8px 8px 0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}><span style={{ fontSize: '0.84rem', fontWeight: 650 }}>{child.authorName}</span><span style={{ color: theme.textMuted, fontSize: '0.7rem' }}>{child.date}</span></div>
+                        <p style={{ fontSize: '0.86rem', lineHeight: 1.5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '0.35rem 0' }}>{child.text}</p>
+                        {!isAdmin && <button type="button" onClick={() => { setReplyingToId(r.id); setNewReplyText(''); }} style={{ border: 0, background: 'none', color: theme.accent, cursor: 'pointer', fontSize: '0.78rem', padding: 0 }}>↳ Reply</button>}
+                        {!isAdmin && <button type="button" onClick={() => handleLikeDiscussionReply(selectedDiscussion.id, child.id)} style={{ border: 0, background: 'none', color: child.likedByMe ? theme.accent : theme.textMuted, cursor: 'pointer', fontSize: '0.78rem', marginLeft: 10 }}>{child.likedByMe ? '♥' : '♡'} {child.likes || 0}</button>}
+                        {(isAdmin || user?.email?.toLowerCase() === child.authorEmail?.toLowerCase()) && <button type="button" onClick={() => handleDeleteDiscussionReply(selectedDiscussion.id, child.id)} style={{ border: 0, background: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '0.78rem', marginLeft: 10 }}>Delete</button>}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 登录/注册弹窗 */}
+      {showAuthModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '420px', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+              <h2>{isSignUp ? 'Sign Up' : 'Sign In'}</h2>
+              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+            </div>
+
+            <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Email</label>
+                <input type="email" required placeholder="you@example.com" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Password</label>
+                <input type="password" required placeholder="••••••••" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              {isSignUp && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.8rem', color: theme.textMuted }}>
+                    <input type="checkbox" required checked={isStudentConfirmed} onChange={(e) => setIsStudentConfirmed(e.target.checked)} /> Confirm Student/Alumni
+                  </label>
+                  <label style={{ fontSize: '0.8rem', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                    <input type="checkbox" required checked={hasAgreedTerms} onChange={(e) => setHasAgreedTerms(e.target.checked)} /> I agree to the Terms of Service. <button type="button" onClick={() => setShowTermsModal(true)} style={{ color: theme.accent, border: 0, background: 'transparent', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>What does this mean?</button>
+                  </label>
+                </div>
+              )}
+
+              <button type="submit" disabled={loading} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
+              </button>
+            </form>
+
+            <button type="button" disabled={loading} onClick={() => setIsSignUp(!isSignUp)} style={{ width: '100%', color: theme.accent, marginTop: '1rem', cursor: loading ? 'not-allowed' : 'pointer', textAlign: 'center', fontSize: '0.85rem', background: 'transparent', border: 0 }}>
+              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+            </button>
+            {!isSignUp && <p style={{ marginTop: '.65rem', textAlign: 'center', fontSize: '.82rem', color: theme.textMuted }}><Link href="/forgot-password" style={{ color: theme.accent, textDecoration: 'underline', textUnderlineOffset: 3 }}>Forgot your password?</Link></p>}
+          </div>
+        </div>
+      )}
+
+      {/* 编辑资料与注销弹窗 */}
+      {showEditProfileModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '480px', boxSizing: 'border-box', minWidth: 0, border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
+              <h2>Edit Profile</h2>
+              <button onClick={() => setShowEditProfileModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <input type="file" ref={fileInputRef} accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
+                <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '0.5rem 1rem', borderRadius: '6px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.textMain, cursor: 'pointer' }}>
+                  {avatarUrl ? 'Change Avatar' : 'Upload Avatar'}
+                </button>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Username</label>
+                <input type="text" required minLength={USERNAME_MIN} maxLength={USERNAME_MAX} value={username} onChange={(e) => setUsername(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+          <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: '0.3rem 0 0' }}>3–30 characters. Letters, numbers, spaces, and common symbols are allowed.</p>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Nickname</label>
+                <input type="text" required minLength={NICKNAME_MIN} maxLength={NICKNAME_MAX} value={nickname} onChange={(e) => setNickname(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+          <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: '0.3rem 0 0' }}>2–24 characters. Nicknames do not have to be unique.</p>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Grade (optional)</label>
+                <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
+                  <option value="">Prefer not to specify</option>
+                  <option value="Grade 9">Grade 9</option>
+                  <option value="Grade 10">Grade 10</option>
+                  <option value="Grade 11">Grade 11</option>
+                  <option value="Grade 12">Grade 12</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Gender (optional)</label>
+                <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }}>
+                  <option value="">Prefer not to specify</option>
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
+                  <option value="Non-binary">Non-binary</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
+                  <option value="Self-describe">Self-describe</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: theme.textMuted, marginBottom: '0.3rem' }}>Bio (optional)</label>
+                <textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+                <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                  Save Profile
+                </button>
+                <button type="button" onClick={handleDeleteAccount} style={{ backgroundColor: 'transparent', border: '1px solid #EF4444', color: '#EF4444', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  Delete Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 发布资源弹窗 */}
+      {showCreateResourceModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: 'clamp(1rem, 4vw, 2rem)', borderRadius: '12px', width: '100%', maxWidth: '540px', maxHeight: '92dvh', overflowY: 'auto', boxSizing: 'border-box', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
+              <h2>Share Resource Note</h2>
+              <button onClick={() => setShowCreateResourceModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer' }}>X</button>
+            </div>
+
+            <form onSubmit={handleCreateResourceSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <input type="text" required placeholder="Title" value={newResTitle} onChange={(e) => setNewResTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box' }} />
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 700 }}>Note content</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', padding: '0.55rem', border: `1px solid ${theme.border}`, borderBottom: 0, borderRadius: '8px 8px 0 0', background: theme.bg }}>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { richEditorRef.current?.focus(); document.execCommand('bold'); }} style={{ padding: '0.4rem 0.65rem', fontWeight: 800, borderRadius: 5, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>B</button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { richEditorRef.current?.focus(); document.execCommand('italic'); }} style={{ padding: '0.4rem 0.65rem', fontStyle: 'italic', borderRadius: 5, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>I</button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { richEditorRef.current?.focus(); document.execCommand('underline'); }} style={{ padding: '0.4rem 0.65rem', textDecoration: 'underline', borderRadius: 5, border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.textMain }}>U</button>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', color: theme.textMain }}>Text colour <input aria-label="Text colour" type="color" defaultValue="#8D7EB4" onChange={(e) => { richEditorRef.current?.focus(); document.execCommand('foreColor', false, e.target.value); }} style={{ width: 32, height: 30, padding: 0, border: 0, background: 'transparent' }} /></label>
+                </div>
+                <div ref={richEditorRef} contentEditable suppressContentEditableWarning onInput={(e) => { const html = sanitizeRichHtml(e.currentTarget.innerHTML); setRichContentHtml(html); setNewResContent(e.currentTarget.innerText); }} data-placeholder="Write your notes here…" style={{ minHeight: 150, maxHeight: 360, overflowY: 'auto', padding: '0.8rem', border: `1px solid ${theme.border}`, borderRadius: '0 0 8px 8px', outline: 'none', color: theme.textMain, background: theme.bg, overflowWrap: 'anywhere' }} />
+                <p style={{ fontSize: '0.75rem', color: theme.textMuted, margin: '0.4rem 0 0' }}>Select text to apply colour, bold, italic or underline. Rich formatting is saved with the note.</p>
+              </div>
+              <div style={{ border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <strong>Tags (optional)</strong>
+                <span style={{ fontSize: '0.78rem', color: theme.textMuted }}>Choose one or more grade levels and subjects, just like the Resource Hub filters.</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                  {resourceTagOptions.map(tag => <button key={tag} type="button" onClick={() => setSelectedResourceTags(previous => previous.includes(tag) ? previous.filter(item => item !== tag) : [...previous, tag])} style={{ padding: '0.4rem 0.65rem', borderRadius: 18, border: `1px solid ${selectedResourceTags.includes(tag) ? theme.accent : theme.border}`, background: selectedResourceTags.includes(tag) ? theme.accent : theme.bg, color: selectedResourceTags.includes(tag) ? '#FFF' : theme.textMain, cursor: 'pointer', fontSize: '0.82rem' }}>{tag}</button>)}
+                </div>
+              </div>
+              <div style={{ border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <strong>Attachments (optional)</strong>
+                <input ref={resourceFilesRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleResourceFileSelection} style={{ display: 'none' }} />
+                <button type="button" onClick={() => resourceFilesRef.current?.click()} style={{ alignSelf: 'flex-start', padding: '0.55rem 0.9rem', borderRadius: 7, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, cursor: 'pointer' }}>Choose files</button>
+                {resourceAttachments.length > 0 && <ul style={{ margin: 0, paddingLeft: '1.2rem', color: theme.textMuted, fontSize: '0.82rem' }}>{resourceAttachments.map((file, index) => <li key={`${file.name}-${index}`}>{file.name}</li>)}</ul>}
+                <p style={{ color: theme.textMuted, fontSize: '0.75rem', margin: 0 }}>Images, PDF, Word and PowerPoint files up to 20 MB each can be attached directly. For larger files, use a share link.</p>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}><input type="url" value={driveResourceUrl} onChange={(e) => setDriveResourceUrl(e.target.value)} placeholder="Google Drive / Docs / Slides share URL" style={{ flex: '1 1 220px', minWidth: 0, padding: '0.65rem', borderRadius: 6, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} /><button type="button" onClick={addDriveLink} style={{ padding: '0.65rem 0.9rem', borderRadius: 6, border: 0, background: theme.accent, color: '#fff', cursor: 'pointer' }}>Add link</button></div>
+                {resourceAttachments.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}><span style={{ flex: 1, overflowWrap: 'anywhere', fontSize: '0.85rem' }}>📎 {file.name}</span><button type="button" onClick={() => setResourceAttachments((previous) => previous.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer' }}>Remove</button></div>)}
+              </div>
+              <button type="submit" style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Publish Note</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 发起讨论弹窗 */}
+      {showCreateDiscussionModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999, padding: '1rem', boxSizing: 'border-box' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: 'clamp(1rem, 3vw, 2rem)', borderRadius: '14px', width: 'min(94vw, 760px)', maxHeight: '92dvh', overflowY: 'auto', border: `1px solid ${theme.border}`, boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', gap: '1rem' }}>
+              <h2 style={{ margin: 0 }}>Start Discussion</h2>
+              <button type="button" onClick={() => setShowCreateDiscussionModal(false)} style={{ background: 'none', border: 'none', color: theme.textMain, cursor: 'pointer', fontSize: '1.2rem' }}>X</button>
+            </div>
+            <form onSubmit={handleCreateDiscussionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <input type="text" required placeholder="Topic Title" value={newDiscTitle} onChange={(e) => setNewDiscTitle(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', fontSize: '1rem' }} />
+              <textarea required rows={8} placeholder="Write your discussion..." value={newDiscContent} onChange={(e) => setNewDiscContent(e.target.value)} style={{ width: '100%', minHeight: 220, padding: '0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.textMain, boxSizing: 'border-box', resize: 'vertical', font: 'inherit' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', padding: '0.9rem', border: `1px dashed ${theme.border}`, borderRadius: 9 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div><strong style={{ fontSize: '0.9rem' }}>Attachments</strong><div style={{ color: theme.textMuted, fontSize: '0.78rem', marginTop: 3 }}>Up to 5 files · 20 MB each</div></div>
+                  <button type="button" onClick={() => discussionFileInputRef.current?.click()} disabled={newDiscAttachments.length >= 5} style={{ border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, borderRadius: 8, padding: '0.55rem 0.8rem', cursor: newDiscAttachments.length >= 5 ? 'not-allowed' : 'pointer', opacity: newDiscAttachments.length >= 5 ? 0.5 : 1 }}>＋ Add files</button>
+                  <input ref={discussionFileInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx,.zip" onChange={(e) => { handleDiscussionFileSelection(e.target.files); e.currentTarget.value = ''; }} style={{ display: 'none' }} />
+                </div>
+                {newDiscAttachments.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>{newDiscAttachments.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}><span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere', color: theme.textMuted, fontSize: '0.84rem' }}>📎 {file.name}</span><button type="button" onClick={() => setNewDiscAttachments(previous => previous.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer' }}>Remove</button></div>)}</div>}
+              </div>
+              <button type="submit" disabled={isPublishingDiscussion} style={{ backgroundColor: theme.accent, color: '#FFF', border: 'none', padding: '0.85rem', borderRadius: '8px', fontWeight: 'bold', cursor: isPublishingDiscussion ? 'wait' : 'pointer', opacity: isPublishingDiscussion ? 0.7 : 1 }}>{isPublishingDiscussion ? 'Publishing...' : 'Post Topic'}</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+
+      {/* 公开个人主页：只显示用户公开资料，不显示邮箱 */}
+      {publicProfile && (
+        <div onClick={() => setPublicProfile(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000002, padding: '1rem' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, maxHeight: '85dvh', overflowY: 'auto', background: theme.cardBg, color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: 16, padding: 'clamp(1rem, 4vw, 1.6rem)', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h2 style={{ margin: 0 }}>Student Profile</h2><button type="button" onClick={() => setPublicProfile(null)} aria-label="Close profile" style={{ border: 0, background: 'transparent', color: theme.textMain, fontSize: '1.25rem', cursor: 'pointer' }}>✕</button></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '1.2rem 0' }}>
+              {publicProfile.avatarUrl ? <img src={publicProfile.avatarUrl} alt="Profile avatar" style={{ width: 76, height: 76, objectFit: 'cover', borderRadius: '50%' }} /> : <div style={{ width: 76, height: 76, borderRadius: '50%', display: 'grid', placeItems: 'center', background: theme.bg, fontSize: '1.7rem' }}>👤</div>}
+              <div><h3 style={{ margin: 0 }}>{publicProfile.nickname || publicProfile.username || 'Student'}</h3><p style={{ color: theme.textMuted, margin: '0.25rem 0' }}>@{publicProfile.username || 'student'}</p></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.7rem' }}>
+              <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Grade</small><div>{publicProfile.grade || 'Not specified'}</div></div>
+              <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Gender</small><div>{publicProfile.gender && publicProfile.gender !== 'Prefer not to say' ? publicProfile.gender : 'Not specified'}</div></div>
+              <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Joined</small><div>{publicProfile.createdAt || 'Not available'}</div></div>
+              <div style={{ background: theme.bg, borderRadius: 9, padding: '0.8rem' }}><small style={{ color: theme.textMuted }}>Platform time</small><div>{Math.floor((Number(publicProfile.totalStudySeconds) || 0) / 3600)}h {Math.floor(((Number(publicProfile.totalStudySeconds) || 0) % 3600) / 60)}m</div></div>
+            </div>
+            <div style={{ marginTop: '1rem' }}><strong>About</strong><p style={{ color: theme.textMuted, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{publicProfile.bio || 'This student has not added a bio yet.'}</p></div>
+            <p style={{ color: theme.textMuted, fontSize: '0.75rem' }}>Email addresses are private and are not shown on public profiles.</p>
+          </div>
+        </div>
+      )}
+
+
       <style>{`
         .ns-app-shell{min-height:100vh}
          .ns-site-header{pointer-events:auto!important;position:fixed!important;inset:0 auto 0 0!important;width:258px!important;height:100vh!important;min-height:100vh!important;box-sizing:border-box!important;padding:26px 18px 18px!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:30px!important;border-right:1px solid ${theme.border}!important;border-bottom:0!important;z-index:1000!important;box-shadow:4px 0 24px rgba(0,0,0,.025)}
         .ns-brand{display:flex;align-items:center;gap:11px;padding:0 8px;min-height:48px;cursor:pointer;font-size:1.12rem;font-weight:800;letter-spacing:-.04em;color:${theme.textMain}}
-        .ns-brand-mark{width:40px;height:40px;flex-shrink:0}.ns-admin-label{font-size:.58rem;padding:3px 6px;border-radius:5px;background:rgba(128,80,232,.12);color:#8050E8}
+        .ns-brand-mark{width:40px;height:40px;flex-shrink:0}.ns-admin-label{font-size:.58rem;padding:3px 6px;border-radius:5px;background:rgba(123,82,229,.14);color:#7B52E5}
         .ns-main-nav{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:5px!important;width:100%!important;overflow:visible!important}
         .ns-main-nav button{display:flex!important;align-items:center!important;gap:13px!important;min-height:45px!important;width:100%!important;padding:0 13px!important;border:0!important;border-radius:10px!important;background:transparent!important;color:${theme.textMuted}!important;font-size:.9rem!important;font-weight:550!important;text-align:left!important;cursor:pointer;pointer-events:auto!important;position:relative;z-index:2}
-        .ns-main-nav button svg{flex-shrink:0}.ns-main-nav button.ns-nav-active{background:rgba(128,80,232,.10)!important;color:#8050E8!important;font-weight:700!important}
+        .ns-main-nav button svg{flex-shrink:0}.ns-main-nav button.ns-nav-active{background:rgba(123,82,229,.12)!important;color:#7B52E5!important;font-weight:700!important}
         .ns-main-nav button:not(.ns-nav-active):hover{background:${isDarkMode ? '#262626' : '#F3F3F3'}!important;color:${theme.textMain}!important}
         .ns-sidebar-bottom{margin-top:auto;padding-top:15px;border-top:1px solid ${theme.border};display:flex;flex-direction:column;gap:13px}
         .ns-theme-toggle{display:flex!important;align-items:center;gap:11px;width:100%;padding:10px 12px!important;border:0!important;border-radius:9px!important;background:transparent!important;color:${theme.textMuted}!important;text-align:left;cursor:pointer;font-size:.86rem}
@@ -2104,14 +2869,14 @@ export default function Home() {
         .ns-user-profile{display:flex;align-items:center;gap:6px;padding:8px 5px 2px;border-top:1px solid ${theme.border}}
         .ns-user-profile-main{display:flex;align-items:center;gap:10px;min-width:0;flex:1;border:0;background:transparent;text-align:left;cursor:pointer;padding:5px;color:${theme.textMain}}
         .ns-user-profile-main img,.ns-avatar-fallback{width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0}
-        .ns-avatar-fallback{display:grid;place-items:center;background:rgba(128,80,232,.12);color:#8050E8;font-weight:750}
+        .ns-avatar-fallback{display:grid;place-items:center;background:rgba(123,82,229,.14);color:#7B52E5;font-weight:750}
         .ns-user-copy{display:flex;flex-direction:column;min-width:0;gap:3px}.ns-user-copy strong{font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .ns-user-copy small{color:${theme.textMuted};font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .ns-signout{border:0;background:transparent;color:${theme.textMuted};padding:8px;border-radius:8px;cursor:pointer}
-         .ns-signin{position:relative;z-index:3;pointer-events:auto;border:0;background:#8050E8;color:white;padding:11px;border-radius:9px;font-weight:700;cursor:pointer}
+         .ns-signin{position:relative;z-index:3;pointer-events:auto;border:0;background:#7B52E5;color:white;padding:11px;border-radius:9px;font-weight:700;cursor:pointer}
         .ns-main-content{position:relative!important;z-index:1!important;isolation:isolate;width:auto!important;max-width:none!important;min-width:0!important;margin:0 0 0 258px!important;padding:34px clamp(22px,3.5vw,58px) 56px!important;pointer-events:auto!important}
         .ns-app-shell button{transition:background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .16s ease}
-        .ns-app-shell button:focus-visible,.ns-app-shell input:focus-visible,.ns-app-shell textarea:focus-visible,.ns-app-shell select:focus-visible{outline:2px solid #8050E8!important;outline-offset:2px!important}
+        .ns-app-shell button:focus-visible,.ns-app-shell input:focus-visible,.ns-app-shell textarea:focus-visible,.ns-app-shell select:focus-visible{outline:2px solid #7B52E5!important;outline-offset:2px!important}
         @media(max-width:760px){
           .ns-site-header{position:relative!important;inset:auto!important;width:100%!important;height:auto!important;min-height:0!important;padding:12px 15px 10px!important;border-right:0!important;border-bottom:1px solid ${theme.border}!important;gap:10px!important;flex-direction:row!important;flex-wrap:wrap!important}
           .ns-brand{flex:1 1 180px;font-size:1rem}.ns-brand-mark{width:32px;height:32px}

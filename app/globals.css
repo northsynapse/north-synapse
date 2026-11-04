@@ -7,13 +7,13 @@ button { -webkit-tap-highlight-color: transparent; }
 img, svg { max-width: 100%; }
 
 /* 中文注释：统一基础控件质感，避免改变现有交互和组件结构。 */
-::selection { background: rgba(128, 80, 232, .2); color: inherit; }
+::selection { background: rgba(123, 82, 229, .2); color: inherit; }
 input, select, textarea {
   transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
 }
 input:focus, select:focus, textarea:focus {
   border-color: #A58AEF !important;
-  box-shadow: 0 0 0 3px rgba(128, 80, 232, .10);
+  box-shadow: 0 0 0 3px rgba(123, 82, 229, .12);
 }
 button:not(:disabled) { transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
 button:not(:disabled):active { transform: translateY(1px); }
@@ -25,13 +25,13 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
 .ns-main-content [style*="cursor: pointer"][style*="border-radius: 12px"]:hover {
-  border-color: rgba(128, 80, 232, .32) !important;
+  border-color: rgba(123, 82, 229, .32) !important;
   box-shadow: 0 12px 28px rgba(49, 35, 88, .085);
   transform: translateY(-2px);
 }
 .ns-notice-banner {
-  border-color: rgba(128, 80, 232, .28) !important;
-  background: rgba(128, 80, 232, .055) !important;
+  border-color: rgba(123, 82, 229, .28) !important;
+  background: rgba(154, 136, 200, .07) !important;
   box-shadow: 0 5px 18px rgba(49, 35, 88, .035);
 }
 
@@ -54,3 +54,33 @@ button:disabled { cursor: not-allowed; opacity: .62; }
     transform: none !important;
   }
 }
+
+
+/* 中文注释：多色标签与轻量强调线，保留清晰层次，不依赖渐变背景。 */
+.ns-notice-banner {
+  position: relative;
+  overflow: hidden;
+}
+.ns-notice-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: #7B52E5;
+}
+.ns-main-content button:focus-visible,
+.ns-site-header button:focus-visible,
+.ns-main-content a:focus-visible {
+  outline: 2px solid rgba(123, 82, 229, .82);
+  outline-offset: 3px;
+}
+.ns-main-content [role="dialog"],
+.ns-main-content [aria-modal="true"] {
+  pointer-events: auto;
+}
+
+
+/* 中文注释：移除标题和品牌文字旁的点线装饰，保持版面简洁。 */
+.ns-main-content h2::before,
+.ns-main-content h2::after { content: none !important; display: none !important; }
+.ns-brand-mark { display: none !important; }
