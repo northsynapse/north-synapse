@@ -9,6 +9,7 @@ import TeamChat from '@/components/team/TeamChat';
 import TeamManagement from '@/components/team/TeamManagement';
 import TeamDashboard from '@/components/team/TeamDashboard';
 import MySupportTickets from '@/components/team/MySupportTickets';
+import RichTextEditor, { AnnouncementRichContent } from '@/components/announcements/RichTextEditor';
 
 type NavTab = 'resources' | 'lounges' | 'announcements' | 'discussions' | 'feedback' | 'dashboard' | 'admin' | 'team-chat' | 'team-dashboard';
 
@@ -2257,7 +2258,7 @@ export default function Home() {
                   <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
                 </div>
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '0 0 0.5rem' }}>{item.title}</h3>
-                <p style={{ margin: 0, color: theme.textMain, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{item.content}</p>
+                <AnnouncementRichContent html={item.content} />
                 {!!item.attachments?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.8rem' }}>{item.attachments.map((file, index) => <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.7rem', borderRadius: '8px', border: `1px solid ${theme.border}`, color: theme.accent, textDecoration: 'none', fontSize: '0.85rem', overflowWrap: 'anywhere' }}>📎 {file.name}</a>)}</div>}
               </div>
             ))}
@@ -2279,7 +2280,15 @@ export default function Home() {
                   </div>
                   <form onSubmit={isAdmin ? handleAdminPublishAnnouncement : handleSubmitAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                     <input required maxLength={180} value={announcementDraftTitle} onChange={e => setAnnouncementDraftTitle(e.target.value)} placeholder="Announcement title" style={{ width: '100%', boxSizing: 'border-box', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} />
-                    <textarea required maxLength={10000} rows={7} value={announcementDraftContent} onChange={e => setAnnouncementDraftContent(e.target.value)} placeholder="Write your announcement..." style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit' }} />
+                    <RichTextEditor
+                      value={announcementDraftContent}
+                      onChange={setAnnouncementDraftContent}
+                      disabled={announcementSubmitting}
+                      placeholder="Write your announcement..."
+                      borderColor={theme.border}
+                      background={theme.bg}
+                      textColor={theme.textMain}
+                    />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                       <label style={{ color: theme.textMuted, fontSize: '0.85rem', fontWeight: 650 }}>Attachments (up to 5 files, 20 MB each)</label>
                       <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleAnnouncementFilesChange} aria-label="Choose announcement attachments" style={{ display: 'block', width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: '0.55rem', border: `1px solid ${theme.border}`, borderRadius: '8px', background: theme.bg, color: theme.textMain, fontSize: '0.85rem', cursor: 'pointer' }} />
