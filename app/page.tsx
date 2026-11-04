@@ -90,6 +90,7 @@ interface AnnouncementItem {
   content: string;
   date: string;
   authorName: string;
+  titleStyle?: { fontFamily?: string; fontSize?: string; color?: string };
   attachments?: ResourceAttachment[];
 }
 
@@ -207,6 +208,7 @@ export default function Home() {
   // 官方公告以 Supabase 数据库为唯一来源，避免公告只存在于前端代码。
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [announcementDraftTitle, setAnnouncementDraftTitle] = useState('');
+  const [announcementDraftTitleStyle, setAnnouncementDraftTitleStyle] = useState({ fontFamily: 'Arial', fontSize: '1.35rem', color: '#61259F' });
   const [announcementDraftContent, setAnnouncementDraftContent] = useState('');
   const [announcementDraftFiles, setAnnouncementDraftFiles] = useState<File[]>([]);
   const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
@@ -222,7 +224,7 @@ export default function Home() {
     const loadAnnouncements = async () => {
       const { data, error } = await supabase
         .from('announcements')
-        .select('id,title,body,content,author_name,created_at,attachments,is_published')
+        .select('id,title,body,content,author_name,created_at,attachments,is_published,title_style')
         .eq('is_published', true)
         .order('created_at', { ascending: false });
       if (!active) return;
@@ -235,6 +237,7 @@ export default function Home() {
         title: item.title,
         content: item.content || item.body || '',
         authorName: item.author_name || 'North Synapse',
+        titleStyle: item.title_style || undefined,
         attachments: Array.isArray(item.attachments) ? item.attachments : [],
         date: new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       })));
@@ -1654,15 +1657,17 @@ export default function Home() {
       const { data: publishedId, error } = await supabase.rpc('publish_announcement', {
         p_title: title,
         p_content: content,
-        p_attachments: files.uploaded
+        p_attachments: files.uploaded,
+        p_title_style: announcementDraftTitleStyle
       });
       if (error || !publishedId) throw new Error(error?.message || 'The database did not return an announcement ID.');
       setAnnouncements(prev => [{
-        id: publishedId, title, content, authorName: 'North Synapse',
+        id: publishedId, title, content, authorName: 'North Synapse', titleStyle: announcementDraftTitleStyle,
         attachments: files.uploaded,
         date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       }, ...prev]);
       setAnnouncementDraftTitle('');
+      setAnnouncementDraftTitleStyle({ fontFamily: 'Arial', fontSize: '1.35rem', color: '#61259F' });
       setAnnouncementDraftContent('');
       setAnnouncementDraftFiles([]);
       setShowAnnouncementComposer(false);
@@ -1698,6 +1703,7 @@ export default function Home() {
         author_name: nickname || username || user.email?.split('@')[0] || 'Student',
         title,
         content,
+        title_style: announcementDraftTitleStyle,
         attachments: files.uploaded
       }).select('id').single();
       if (error || !data) throw new Error(error?.message || 'Submission could not be saved.');
@@ -1710,6 +1716,7 @@ export default function Home() {
       return;
     }
     setAnnouncementDraftTitle('');
+    setAnnouncementDraftTitleStyle({ fontFamily: 'Arial', fontSize: '1.35rem', color: '#61259F' });
     setAnnouncementDraftContent('');
     setAnnouncementDraftFiles([]);
     setAnnouncementSubmitting(false);
@@ -1730,7 +1737,7 @@ export default function Home() {
       }
       const { data, error: loadError } = await supabase
         .from('announcements')
-        .select('id,title,content,author_name,created_at,attachments')
+        .select('id,title,content,author_name,created_at,attachments,title_style')
         .eq('is_published', true)
         .order('created_at', { ascending: false });
       if (loadError) {
@@ -1740,6 +1747,7 @@ export default function Home() {
         setAnnouncements((data || []).map((item: any) => ({
           id: item.id, title: item.title, content: item.content || item.body || '',
           authorName: item.author_name || 'North Synapse',
+          titleStyle: item.title_style || undefined,
           attachments: Array.isArray(item.attachments) ? item.attachments : [],
           date: new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         })));
@@ -2256,7 +2264,7 @@ export default function Home() {
                   <strong style={{ color: theme.accent }}>{item.authorName}</strong>
                   <span style={{ fontSize: '0.8rem', color: theme.textMuted }}>{item.date}</span>
                 </div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '0 0 0.5rem' }}>{item.title}</h3>
+                <h3 style={{ fontFamily: item.titleStyle?.fontFamily || 'Arial', fontSize: item.titleStyle?.fontSize || '1.2rem', color: item.titleStyle?.color || theme.textMain, fontWeight: 750, margin: '0 0 0.5rem', overflowWrap: 'anywhere' }}>{item.title}</h3>
                 <AnnouncementRichContent html={item.content} />
                 {!!item.attachments?.length && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', marginTop: '0.8rem' }}>{item.attachments.map((file, index) => file.type?.startsWith('image/') ? <img key={`${file.name}-${index}`} src={file.url} alt={file.name} style={{ display: 'block', maxWidth: '100%', maxHeight: 640, width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: 8 }} /> : <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.7rem', borderRadius: '8px', border: `1px solid ${theme.border}`, color: theme.accent, textDecoration: 'none', fontSize: '0.85rem', overflowWrap: 'anywhere', width: 'fit-content' }}>📎 {file.name}</a>)}</div>}
               </div>
@@ -2278,7 +2286,15 @@ export default function Home() {
                       : 'Add a clear title and the announcement details, attach up to 5 supporting files (20 MB each) if needed, then select “Submit for Review”. Your submission will appear in the Admin dashboard for review. It will only appear publicly after an administrator approves it.'}
                   </div>
                   <form onSubmit={isAdmin ? handleAdminPublishAnnouncement : handleSubmitAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    <input required maxLength={180} value={announcementDraftTitle} onChange={e => setAnnouncementDraftTitle(e.target.value)} placeholder="Announcement title" style={{ width: '100%', boxSizing: 'border-box', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                      <input required maxLength={180} value={announcementDraftTitle} onChange={e => setAnnouncementDraftTitle(e.target.value)} placeholder="Announcement title" style={{ width: '100%', boxSizing: 'border-box', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, fontFamily: announcementDraftTitleStyle.fontFamily, fontSize: announcementDraftTitleStyle.fontSize, fontWeight: 750 }} />
+                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', padding: '0.6rem', border: `1px solid ${theme.border}`, borderRadius: 8 }}>
+                        <span style={{ color: theme.textMuted, fontSize: '0.8rem', fontWeight: 650 }}>Title style</span>
+                        <select aria-label="Title font" value={announcementDraftTitleStyle.fontFamily} onChange={e => setAnnouncementDraftTitleStyle(v => ({ ...v, fontFamily: e.target.value }))} style={{ padding: '0.45rem', borderRadius: 6, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }}><option>Arial</option><option>Georgia</option><option>Times New Roman</option><option>Verdana</option><option>Trebuchet MS</option><option>Courier New</option></select>
+                        <select aria-label="Title size" value={announcementDraftTitleStyle.fontSize} onChange={e => setAnnouncementDraftTitleStyle(v => ({ ...v, fontSize: e.target.value }))} style={{ padding: '0.45rem', borderRadius: 6, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }}><option value="1rem">Small</option><option value="1.2rem">Normal</option><option value="1.35rem">Large</option><option value="1.6rem">X-Large</option><option value="1.9rem">XX-Large</option></select>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: theme.textMuted, fontSize: '0.8rem' }}>Color <input aria-label="Title color" type="color" value={announcementDraftTitleStyle.color} onChange={e => setAnnouncementDraftTitleStyle(v => ({ ...v, color: e.target.value }))} style={{ width: 32, height: 28, padding: 0, border: 0, background: 'transparent' }} /></label>
+                      </div>
+                    </div>
                     <RichTextEditor
                       value={announcementDraftContent}
                       onChange={setAnnouncementDraftContent}
