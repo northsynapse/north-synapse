@@ -271,7 +271,7 @@ export default function Home() {
     const loadSubmissions = async () => {
       const { data, error } = await supabase
         .from('announcement_submissions')
-        .select('id,title,content,author_name,author_email,created_at,attachments')
+        .select('id,title,content,author_name,author_email,created_at,attachments,title_style')
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
       if (!active) return;
@@ -2374,7 +2374,7 @@ export default function Home() {
                 </div>
                 {adminAnnouncementSubmissions.length === 0 ? <p style={{ color: theme.textMuted, margin: 0 }}>No announcement submissions waiting for review.</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                   {adminAnnouncementSubmissions.map(item => <article key={item.id} style={{ border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}><div><strong style={{ fontSize: '1.05rem' }}>{item.title}</strong><p style={{ color: theme.textMuted, fontSize: '0.78rem', margin: '0.25rem 0 0' }}>{item.author_name} · {item.author_email} · {new Date(item.created_at).toLocaleString()}</p></div><span style={{ color: '#D0AA70', fontSize: '0.75rem', fontWeight: 750 }}>PENDING</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}><div><strong style={{ fontSize: item.title_style?.fontSize || '1.05rem', fontFamily: item.title_style?.fontFamily || 'Arial', color: item.title_style?.color || theme.textMain }}>{item.title}</strong><p style={{ color: theme.textMuted, fontSize: '0.78rem', margin: '0.25rem 0 0' }}>{item.author_name} · {item.author_email} · {new Date(item.created_at).toLocaleString()}</p></div><span style={{ color: '#D0AA70', fontSize: '0.75rem', fontWeight: 750 }}>PENDING</span></div>
                     <div style={{ margin: '0.85rem 0', color: theme.textMain }}><AnnouncementRichContent html={item.content || item.body || ''} /></div>
                     {!!item.attachments?.length && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', margin: '0.5rem 0 0.85rem' }}>{item.attachments.map((file: ResourceAttachment, index: number) => file.type?.startsWith('image/') ? <img key={`${file.name}-${index}`} src={file.url} alt={file.name} style={{ display: 'block', maxWidth: '100%', maxHeight: 520, width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: 8 }} /> : <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ color: theme.accent, textDecoration: 'none', fontSize: '0.85rem' }}>📎 {file.name}</a>)}</div>}
                     <textarea value={announcementRejectionReasons[item.id] || ''} onChange={e => setAnnouncementRejectionReasons(prev => ({ ...prev, [item.id]: e.target.value }))} maxLength={1000} rows={2} placeholder="Optional rejection reason (shown to the submitter on their next login)" aria-label={`Rejection reason for ${item.title}`} style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.65rem 0.75rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit', fontSize: '0.85rem' }} />
