@@ -222,19 +222,18 @@ export default function Home() {
     const loadAnnouncements = async () => {
       const { data, error } = await supabase
         .from('announcements')
-        .select('id,title,content,author_name,created_at,attachments')
+        .select('id,title,body,content,author_name,created_at,attachments,is_published')
         .eq('is_published', true)
         .order('created_at', { ascending: false });
       if (!active) return;
       if (error) {
-        console.error('Unable to load announcements from database:', error.message);
-        setAnnouncements([]);
+        console.error('Unable to load published announcements:', error.message);
         return;
       }
       setAnnouncements((data || []).map((item: any) => ({
         id: item.id,
         title: item.title,
-        content: item.content,
+        content: item.content || item.body || '',
         authorName: item.author_name || 'North Synapse',
         attachments: Array.isArray(item.attachments) ? item.attachments : [],
         date: new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -2259,7 +2258,7 @@ export default function Home() {
                 </div>
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '0 0 0.5rem' }}>{item.title}</h3>
                 <AnnouncementRichContent html={item.content} />
-                {!!item.attachments?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.8rem' }}>{item.attachments.map((file, index) => <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.7rem', borderRadius: '8px', border: `1px solid ${theme.border}`, color: theme.accent, textDecoration: 'none', fontSize: '0.85rem', overflowWrap: 'anywhere' }}>📎 {file.name}</a>)}</div>}
+                {!!item.attachments?.length && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', marginTop: '0.8rem' }}>{item.attachments.map((file, index) => file.type?.startsWith('image/') ? <img key={`${file.name}-${index}`} src={file.url} alt={file.name} style={{ display: 'block', maxWidth: '100%', maxHeight: 640, width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: 8 }} /> : <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.7rem', borderRadius: '8px', border: `1px solid ${theme.border}`, color: theme.accent, textDecoration: 'none', fontSize: '0.85rem', overflowWrap: 'anywhere', width: 'fit-content' }}>📎 {file.name}</a>)}</div>}
               </div>
             ))}
             {showAnnouncementComposer && (
@@ -2290,7 +2289,7 @@ export default function Home() {
                       textColor={theme.textMain}
                     />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                      <label style={{ color: theme.textMuted, fontSize: '0.85rem', fontWeight: 650 }}>Attachments (up to 5 files, 20 MB each)</label>
+                      <label style={{ color: theme.textMuted, fontSize: '0.85rem', fontWeight: 650 }}>Images & attachments (up to 5 files, 20 MB each)</label>
                       <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx" onChange={handleAnnouncementFilesChange} aria-label="Choose announcement attachments" style={{ display: 'block', width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: '0.55rem', border: `1px solid ${theme.border}`, borderRadius: '8px', background: theme.bg, color: theme.textMain, fontSize: '0.85rem', cursor: 'pointer' }} />
                       {announcementDraftFiles.length === 0 && <span style={{ color: theme.textMuted, fontSize: '0.8rem' }}>No files selected</span>}
                       {announcementDraftFiles.map((file, index) => <div key={`${file.name}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', color: theme.textMuted, fontSize: '0.82rem' }}><span style={{ overflowWrap: 'anywhere' }}>📎 {file.name}</span><button type="button" onClick={() => setAnnouncementDraftFiles(prev => prev.filter((_, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#EF4444', cursor: 'pointer', flexShrink: 0 }}>Remove</button></div>)}
@@ -2360,8 +2359,8 @@ export default function Home() {
                 {adminAnnouncementSubmissions.length === 0 ? <p style={{ color: theme.textMuted, margin: 0 }}>No announcement submissions waiting for review.</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                   {adminAnnouncementSubmissions.map(item => <article key={item.id} style={{ border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '1rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}><div><strong style={{ fontSize: '1.05rem' }}>{item.title}</strong><p style={{ color: theme.textMuted, fontSize: '0.78rem', margin: '0.25rem 0 0' }}>{item.author_name} · {item.author_email} · {new Date(item.created_at).toLocaleString()}</p></div><span style={{ color: '#D0AA70', fontSize: '0.75rem', fontWeight: 750 }}>PENDING</span></div>
-                    <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.55, margin: '0.85rem 0' }}>{item.content}</p>
-                     {!!item.attachments?.length && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', margin: '0.5rem 0 0.85rem' }}>{item.attachments.map((file: ResourceAttachment, index: number) => <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ color: theme.accent, textDecoration: 'none', fontSize: '0.85rem' }}>📎 {file.name}</a>)}</div>}
+                    <div style={{ margin: '0.85rem 0', color: theme.textMain }}><AnnouncementRichContent html={item.content || item.body || ''} /></div>
+                    {!!item.attachments?.length && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', margin: '0.5rem 0 0.85rem' }}>{item.attachments.map((file: ResourceAttachment, index: number) => file.type?.startsWith('image/') ? <img key={`${file.name}-${index}`} src={file.url} alt={file.name} style={{ display: 'block', maxWidth: '100%', maxHeight: 520, width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: 8 }} /> : <a key={`${file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ color: theme.accent, textDecoration: 'none', fontSize: '0.85rem' }}>📎 {file.name}</a>)}</div>}
                     <textarea value={announcementRejectionReasons[item.id] || ''} onChange={e => setAnnouncementRejectionReasons(prev => ({ ...prev, [item.id]: e.target.value }))} maxLength={1000} rows={2} placeholder="Optional rejection reason (shown to the submitter on their next login)" aria-label={`Rejection reason for ${item.title}`} style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.65rem 0.75rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain, font: 'inherit', fontSize: '0.85rem' }} />
                     <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                       <button type="button" disabled={announcementReviewLoading} onClick={() => void handleReviewAnnouncementSubmission(item.id, true)} style={{ background: theme.accent, color: '#fff', border: 0, borderRadius: '7px', padding: '0.55rem 0.9rem', fontWeight: 700, cursor: 'pointer' }}>Approve &amp; Publish</button>
