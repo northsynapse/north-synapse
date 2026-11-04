@@ -1647,6 +1647,8 @@ export default function Home() {
       setAnnouncementDraftTitle('');
       setAnnouncementDraftContent('');
       setAnnouncementDraftFiles([]);
+      setShowAnnouncementComposer(false);
+      alert('Your announcement has been published successfully.');
     } catch (error: any) {
       if (uploadedPaths.length) await supabase.storage.from('resource-attachments').remove(uploadedPaths);
       console.error('Direct announcement publish failed:', error?.message);
@@ -1689,24 +1691,12 @@ export default function Home() {
       setAnnouncementSubmitting(false);
       return;
     }
-    const { data: sessionData } = await supabase.auth.getSession();
-    const emailResponse = await fetch('/api/announcement-submissions/notify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${sessionData.session?.access_token || ''}`
-      },
-      body: JSON.stringify({ submissionId: saved.id })
-    }).catch(() => null);
     setAnnouncementDraftTitle('');
     setAnnouncementDraftContent('');
     setAnnouncementDraftFiles([]);
     setAnnouncementSubmitting(false);
-    if (emailResponse?.ok) {
-      alert('Your announcement has been submitted for review. The administrator has been notified by email.');
-    } else {
-      alert('Your announcement has been saved for review, but the email notification is not configured or could not be sent. The administrator can still review it in the Admin dashboard.');
-    }
+    setShowAnnouncementComposer(false);
+    alert('Your announcement has been submitted successfully. You can check its review status in the Admin dashboard submission process.');
   }
 
   async function handleReviewAnnouncementSubmission(submissionId: string, approve: boolean) {
@@ -2253,9 +2243,15 @@ export default function Home() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1rem' }}>
                     <div>
                       <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>{isAdmin ? 'Publish an Announcement' : 'Submit an Announcement'}</h2>
-                      <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: '0.35rem 0 0' }}>{isAdmin ? 'Your announcement will be published immediately.' : 'Your announcement will be reviewed by an administrator before publication.'}</p>
+                      <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: '0.35rem 0 0' }}>{isAdmin ? 'Publish an update for everyone in the North Synapse community.' : 'Share a useful update or opportunity with the North Synapse community.'}</p>
                     </div>
                     <button type="button" aria-label="Close" onClick={() => setShowAnnouncementComposer(false)} disabled={announcementSubmitting} style={{ border: `1px solid ${theme.border}`, background: 'transparent', color: theme.textMain, borderRadius: '8px', width: '34px', height: '34px', cursor: announcementSubmitting ? 'not-allowed' : 'pointer', fontSize: '1.1rem', flexShrink: 0 }}>×</button>
+                  </div>
+                  <div style={{ padding: '0.8rem 0.9rem', borderRadius: '9px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMuted, fontSize: '0.82rem', lineHeight: 1.55 }}>
+                    <strong style={{ display: 'block', color: theme.textMain, marginBottom: '0.25rem' }}>How it works</strong>
+                    {isAdmin
+                      ? 'Add a clear title and the announcement details, attach supporting files if needed, then select “Publish Now” to make it visible to everyone.'
+                      : 'Add a clear title and the announcement details, attach up to 5 supporting files (20 MB each) if needed, then select “Submit for Review”. Your submission will appear in the Admin dashboard for review. It will only appear publicly after an administrator approves it.'}
                   </div>
                   <form onSubmit={isAdmin ? handleAdminPublishAnnouncement : handleSubmitAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                     <input required maxLength={180} value={announcementDraftTitle} onChange={e => setAnnouncementDraftTitle(e.target.value)} placeholder="Announcement title" style={{ width: '100%', boxSizing: 'border-box', padding: '0.75rem 0.85rem', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.bg, color: theme.textMain }} />
