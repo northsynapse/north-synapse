@@ -1706,7 +1706,7 @@ export default function Home() {
       const { error } = await supabase.rpc('approve_announcement_submission', { p_submission_id: submissionId });
       if (error) {
         console.error('Announcement approval failed:', error);
-        alert(`Could not approve this announcement: ${error.message || 'Unknown database error'}. Please check that migrations 003 and 005 have both been applied.`);
+        alert(`Could not approve this announcement: ${error.message || 'Unknown database error'}. Please make sure migrations 003, 005, and 006 have been applied in Supabase.`);
         setAnnouncementReviewLoading(false);
         return;
       }
