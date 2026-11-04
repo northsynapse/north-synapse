@@ -200,8 +200,8 @@ export function AnnouncementRichContent({ html }: { html: string }) {
         clean.setAttribute('rel', 'noopener noreferrer');
       }
       if (node.tagName === 'SPAN' || node.tagName === 'FONT') {
-        const color = node.style.color;
-        const fontFamily = node.style.fontFamily;
+        const color = node.style.color || node.getAttribute('color') || '';
+        const fontFamily = node.style.fontFamily || node.getAttribute('face') || '';
         const fontSize = node.style.fontSize;
         const styles: string[] = [];
         if (/^#[0-9a-f]{3,8}$/i.test(color) || /^rgb\(/i.test(color)) styles.push(`color:${color}`);
