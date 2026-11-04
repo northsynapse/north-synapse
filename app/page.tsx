@@ -1724,20 +1724,26 @@ export default function Home() {
       const { error } = await supabase.rpc('approve_announcement_submission', { p_submission_id: submissionId });
       if (error) {
         console.error('Announcement approval failed:', error);
-        alert(`Could not approve this announcement: ${error.message || 'Unknown database error'}. Please apply migration 008 in Supabase to add the missing is_published column. Earlier migrations 003, 005, and 007 are also required for the review workflow.`);
+        alert(`Could not approve this announcement: ${error.message || 'Unknown database error'}. Check that the latest announcement compatibility migration has been applied in Supabase.`);
         setAnnouncementReviewLoading(false);
         return;
       }
       const { data, error: loadError } = await supabase
         .from('announcements')
-        .select('id,title,content,author_name,created_at')
+        .select('id,title,content,author_name,created_at,attachments')
         .eq('is_published', true)
         .order('created_at', { ascending: false });
-      if (!loadError) setAnnouncements((data || []).map((item: any) => ({
-        id: item.id, title: item.title, content: item.content,
-        authorName: item.author_name || 'North Synapse',
-        date: new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      })));
+      if (loadError) {
+        console.error('Announcement was approved, but the announcement list could not be refreshed:', loadError.message);
+        alert('The submission was approved, but the announcement list could not refresh. Please reload the page.');
+      } else {
+        setAnnouncements((data || []).map((item: any) => ({
+          id: item.id, title: item.title, content: item.content || item.body || '',
+          authorName: item.author_name || 'North Synapse',
+          attachments: Array.isArray(item.attachments) ? item.attachments : [],
+          date: new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        })));
+      }
     } else {
       const { error } = await supabase.from('announcement_submissions')
         .update({ status: 'rejected', reviewer_id: user?.id, reviewed_at: new Date().toISOString(), decision_reason: rejectionReason.trim() || null })
