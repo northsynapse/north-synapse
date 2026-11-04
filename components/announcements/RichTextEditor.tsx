@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
+import React, { useEffect, useRef } from 'react';
 
 interface RichTextEditorProps {
   value: string;
@@ -30,8 +29,6 @@ export default function RichTextEditor({
   borderColor, background, textColor
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement | null>(null);
-  const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== value) {
@@ -50,63 +47,6 @@ export default function RichTextEditor({
     if (editorRef.current) onChange(editorRef.current.innerHTML);
   }
 
-  async function handleImageSelected(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || !editorRef.current) return;
-    if (!file.type.startsWith('image/')) {
-      alert('Please choose an image file.');
-      return;
-    }
-    if (file.size > 20 * 1024 * 1024) {
-      alert('Images must be 20 MB or smaller.');
-      return;
-    }
-
-    setUploadingImage(true);
-    try {
-      const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
-      const path = `announcements/inline/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
-      const { error } = await supabase.storage.from('resource-attachments').upload(path, file, {
-        contentType: file.type,
-        upsert: false
-      });
-      if (error) throw error;
-      const url = supabase.storage.from('resource-attachments').getPublicUrl(path).data.publicUrl;
-
-      editorRef.current.focus();
-      const image = document.createElement('img');
-      image.src = url;
-      image.alt = file.name;
-      image.style.display = 'block';
-      image.style.width = 'auto';
-      image.style.maxWidth = '100%';
-      image.style.maxHeight = '640px';
-      image.style.height = 'auto';
-      image.style.objectFit = 'contain';
-      image.style.margin = '12px 0';
-      image.style.borderRadius = '8px';
-
-      const selection = window.getSelection();
-      if (selection?.rangeCount) {
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        range.insertNode(image);
-        range.setStartAfter(image);
-        range.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      } else {
-        editorRef.current.appendChild(image);
-      }
-      onChange(editorRef.current.innerHTML);
-    } catch (error: any) {
-      console.error('Inline announcement image upload failed:', error?.message);
-      alert(`Could not insert image: ${error?.message || 'Please try again.'}`);
-    } finally {
-      setUploadingImage(false);
-    }
-  }
 
   return (
     <div style={{ border: `1px solid ${borderColor}`, borderRadius: 9, overflow: 'hidden', background }}>
@@ -132,10 +72,6 @@ export default function RichTextEditor({
         <label title="Text color" style={{ ...buttonStyle, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: disabled ? 'not-allowed' : 'pointer' }}>
           <span>A</span><input aria-label="Text color" type="color" disabled={disabled} defaultValue="#61259F" onChange={e => runCommand('foreColor', e.target.value)} style={{ width: 20, height: 20, padding: 0, border: 0, background: 'transparent' }} />
         </label>
-        <button type="button" title="Insert image" disabled={disabled || uploadingImage} onMouseDown={e => e.preventDefault()} onClick={() => imageInputRef.current?.click()} style={buttonStyle}>
-          {uploadingImage ? 'Uploading…' : '＋ Image'}
-        </button>
-        <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={handleImageSelected} />
       </div>
       <div
         ref={editorRef}
