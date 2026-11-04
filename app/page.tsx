@@ -213,6 +213,8 @@ export default function Home() {
   const announcementFileInputRef = useRef<HTMLInputElement | null>(null);
   const [adminAnnouncementSubmissions, setAdminAnnouncementSubmissions] = useState<any[]>([]);
   const [announcementReviewLoading, setAnnouncementReviewLoading] = useState(false);
+  const [announcementRejectionReasons, setAnnouncementRejectionReasons] = useState<Record<string, string>>({});
+  const [announcementDecisionNotifications, setAnnouncementDecisionNotifications] = useState<any[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -240,6 +242,22 @@ export default function Home() {
     void loadAnnouncements();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!user?.id || isAdmin) {
+      setAnnouncementDecisionNotifications([]);
+      return () => { active = false; };
+    }
+    const loadDecisionNotifications = async () => {
+      const { data, error } = await supabase.rpc('consume_announcement_decision_notifications');
+      if (!active) return;
+      if (error) { console.error('Unable to load announcement decision notifications:', error.message); return; }
+      if (Array.isArray(data) && data.length) setAnnouncementDecisionNotifications(data);
+    };
+    void loadDecisionNotifications();
+    return () => { active = false; };
+  }, [user?.id, isAdmin]);
 
   useEffect(() => {
     let active = true;
@@ -1699,7 +1717,7 @@ export default function Home() {
     alert('Your announcement has been sent to the administrators for review. It will be published after approval.');
   }
 
-  async function handleReviewAnnouncementSubmission(submissionId: string, approve: boolean) {
+  async function handleReviewAnnouncementSubmission(submissionId: string, approve: boolean, rejectionReason = '') {
     if (!isAdmin || announcementReviewLoading) return;
     setAnnouncementReviewLoading(true);
     if (approve) {
@@ -1722,7 +1740,7 @@ export default function Home() {
       })));
     } else {
       const { error } = await supabase.from('announcement_submissions')
-        .update({ status: 'rejected', reviewer_id: user?.id, reviewed_at: new Date().toISOString() })
+        .update({ status: 'rejected', reviewer_id: user?.id, reviewed_at: new Date().toISOString(), decision_reason: rejectionReason.trim() || null })
         .eq('id', submissionId).eq('status', 'pending');
       if (error) {
         console.error('Announcement rejection failed:', error.message);
@@ -2446,6 +2464,25 @@ export default function Home() {
       <div className="ns-terms-float" style={{ position: 'fixed', bottom: '1rem', right: '1rem', zIndex: 1000 }}>
         <button type="button" onClick={() => setShowTermsModal(true)} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.textMain, padding: '.45rem .7rem', borderRadius: '999px', cursor: 'pointer', minHeight: '36px', fontSize: '.8rem', fontWeight: 600, boxShadow: '0 3px 12px rgba(0,0,0,.1)' }}>User notice</button>
       </div>
+
+      {announcementDecisionNotifications.length > 0 && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000001, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="announcement-decision-title" style={{ width: '100%', maxWidth: '520px', maxHeight: '85dvh', overflowY: 'auto', background: theme.cardBg, color: theme.textMain, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '1.4rem', boxShadow: '0 20px 70px rgba(0,0,0,0.35)' }}>
+            <h2 id="announcement-decision-title" style={{ margin: '0 0 0.5rem', fontSize: '1.25rem' }}>Announcement submission update</h2>
+            <p style={{ margin: '0 0 1rem', color: theme.textMuted, fontSize: '0.88rem' }}>An administrator has reviewed your announcement submission.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {announcementDecisionNotifications.map((item: any) => (
+                <article key={item.submission_id} style={{ padding: '0.9rem', border: `1px solid ${theme.border}`, borderRadius: '9px', background: theme.bg }}>
+                  <strong style={{ display: 'block', marginBottom: '0.4rem' }}>{item.title}</strong>
+                  <span style={{ display: 'inline-block', marginBottom: '0.45rem', color: item.status === 'approved' ? '#22A06B' : '#D97757', fontSize: '0.8rem', fontWeight: 750 }}>{item.status === 'approved' ? 'APPROVED · PUBLISHED' : 'NOT APPROVED'}</span>
+                  {item.status === 'rejected' && <p style={{ margin: 0, color: theme.textMuted, whiteSpace: 'pre-wrap', lineHeight: 1.55, fontSize: '0.88rem' }}>{item.decision_reason || 'No additional reason was provided by the administrator.'}</p>}
+                </article>
+              ))}
+            </div>
+            <button type="button" onClick={() => setAnnouncementDecisionNotifications([])} style={{ width: '100%', marginTop: '1.1rem', padding: '0.75rem', border: 0, borderRadius: '8px', background: theme.accent, color: '#fff', fontWeight: 750, cursor: 'pointer' }}>Got it</button>
+          </div>
+        </div>
+      )}
 
       {/* 常驻的用户须知入口：登录前后都能打开 */}
       {showTermsModal && (
