@@ -1724,7 +1724,7 @@ export default function Home() {
       const { error } = await supabase.rpc('approve_announcement_submission', { p_submission_id: submissionId });
       if (error) {
         console.error('Announcement approval failed:', error);
-        alert(`Could not approve this announcement: ${error.message || 'Unknown database error'}. Please make sure migrations 003, 005, and 006 have been applied in Supabase.`);
+        alert(`Could not approve this announcement: ${error.message || 'Unknown database error'}. Please apply migration 007 in Supabase; it also adds the missing author_name column. Apply 006 as well if you need announcement attachments.`);
         setAnnouncementReviewLoading(false);
         return;
       }
